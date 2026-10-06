@@ -238,6 +238,7 @@ function test_blocks()
     end
 
     @testset "the step switches a vector, and its keywords promote (§13.7)" begin
+        @test y_types(Step(t_step = 1.0)) == (out = Pinned{Float64},)    # D-312
         source = Step(t_step = 0.25, before = SVector(0.0, 0.0), after = SVector(1.0, -1.0))
         sim = Simulation(single(source); h = 1//10)
         init!(sim, fragment())
@@ -307,6 +308,7 @@ function test_blocks()
     end
 
     @testset "the relay switches with hysteresis, from boundary zero on (§10.4, §10.6, D-313)" begin
+        @test y_types(Relay(lower = 0.0, upper = 1.0)) == (out = Pinned{Float64},)    # D-312
         sim = Simulation(relay_model(); h = 1//10)
         init!(sim, fragment())
         # At t = 0.5, 0.9, 1.5 (inside the band, still on) and 1.9.

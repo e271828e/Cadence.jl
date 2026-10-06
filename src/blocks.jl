@@ -168,7 +168,9 @@ The step source: `out` publishes `before` until `t_step` and `after` from then
 on. A mode-only leaf with no inputs: the mode `fired` picks the value, and one
 state event, `fire`, sets it once `t` reaches `t_step`. `before` and `after`
 are promoted to one `V`, `Float64` or a static array of `Float64`, and taken by
-`float`, so integer values qualify; `t_step` is any time.
+`float`, so integer values qualify; `t_step` is any time. `out` is pinned at
+`V` (D-312): the value depends on neither state nor a walking input, so it
+carries zero partials under every activation, as a `Constant`'s does.
 
 `localized` picks the detection policy (§2.1). Localized, the guard is the sign
 form `t - t_step`: the step ends at the crossing and the jump lands there.
@@ -192,7 +194,7 @@ function Step(; t_step, before = 0.0, after = 1.0, localized = true)
 end
 x_init(::Step) = (;)
 m_init(::Step) = (fired = false,)
-y_types(::Step{V}) where {V} = (out = V,)
+y_types(::Step{V}) where {V} = (out = Pinned{V},)
 y_state(c::Step, (; m)) = (out = m.fired ? c.after : c.before,)
 step_guard(c::Step{V, true}, (; t)) where {V} = t - c.t_step     # sign form: localized
 step_guard(c::Step{V, false}, (; t)) where {V} = t >= c.t_step   # Bool form: boundary-detected
@@ -268,7 +270,9 @@ localized.
 `out` reads no input, so the block has no feedthrough (§5.3), and a relay
 closing a feedback loop makes no algebraic loop. It is the library's reference
 mode-switching leaf. `lower < upper`. The four values are promoted to one `V`,
-which is `Float64`, and taken by `float`, so integer values qualify.
+which is `Float64`, and taken by `float`, so integer values qualify. `out` is
+pinned at `V` (D-312): it depends on the mode and the instance alone, so it
+carries zero partials under every activation.
 
 The relay starts off. Boundary zero sets every prior to not-holding (§10.6), so
 an input already at or above `upper` at `t₀` turns it on there, and an input
@@ -285,7 +289,7 @@ Relay(; lower, upper, off = zero(lower), on = one(lower)) =
 x_init(::Relay) = (;)
 m_init(::Relay) = (state = :off,)
 u_types(::Relay{V}) where {V} = (in = V,)
-y_types(::Relay{V}) where {V} = (out = V,)
+y_types(::Relay{V}) where {V} = (out = Pinned{V},)
 y_state(c::Relay, (; m)) = (out = m.state === :on ? c.on : c.off,)
 switch_on_guard(c::Relay, (; m, u)) = m.state === :off ? u.in - c.upper : -one(u.in)
 switch_off_guard(c::Relay, (; m, u)) = m.state === :on ? c.lower - u.in : -one(u.in)
