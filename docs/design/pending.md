@@ -17,22 +17,6 @@ both add names.
   `docs/design/companions/library_inventory.md` batched by the mechanism each
   exercises (§13.7, D-313), one brief, two stages and one review each, in
   this order:
-  - **Increment 63, the vector moded blocks**: `LimitedIntegrator` and
-    `Relay` over a `StaticArray`, with `4N` and `2N` per-component events
-    generated from `N`, so the scalar reasoning transfers verbatim, and
-    both departure policies for the integrator. The mode is an
-    `SVector{N, Int8}` of signed codes, `-1`, `0` and `+1` for lower, free
-    and upper, since the store refuses a container of `Symbol`s (D-231),
-    and the scalar `LimitedIntegrator` and `Relay` move to `Int8` codes for
-    consistency. `LimitedIntegrator` publishes its code as a second output,
-    `saturation`, read from the mode, for anti-windup consumers. The PID
-    joins the library as `PID{Hold, Track}`, one leaf with back-calculation
-    against its own limits, an optional saturation input that gates
-    the integrator, and an optional tracking input, `Ki` inside the
-    integral; `pid_anti_windup.md` records the reasoning. A simplified PID
-    assembly of library blocks stays a test model for the inspector. The
-    loops: a single loop on the own limits, a servo loop tracking a
-    stateful actuator, and a cascade reading the inner block's code.
   - **Increment 64, the discrete tier**: `DiscreteIntegrator{V}` and
     `RateLimiter{V}`, the latter moving `out` by at most `R Δt` per tick,
     both reading their period from the bundle's `Δt`; `DiscreteFilter` in

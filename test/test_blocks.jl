@@ -2,9 +2,9 @@
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
 # stop-gradient, the integrator, the lag, the step, the limited integrator, the
-# relay and the PID, and two loops built from them alone. The models are built
-# at top level, like the fixtures they reuse: `RealEntry` and `PinnedEntry` are
-# test_build.jl's.
+# relay and the PID, the PID assembled from blocks, and the loops built from
+# them alone. The models are built at top level, like the fixtures they reuse:
+# `RealEntry` and `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -136,6 +136,68 @@ pid_clamp_loop() =
           local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
                          "controller/u" => "sat/in1", "sat/out" => "controller/v",
                          "sat/out" => "plant/in"))
+
+# The PID's first variant as library blocks, the inspector's example beside
+# the block: the integrator is what splits the stages (§5.4).
+pid_assembly(; Kp, Ki, Kd, τd, Tt, u_min, u_max) = Group((
+        err = Junction{Float64, Float64, 2}((r, y) -> r - y),
+        lag = FirstOrderLag(; τ = τd),
+        der = Junction{Float64, Float64, 2}((y, yf) -> (y - yf) / τd),
+        int = Integrator(),
+        raw = Junction{Float64, Float64, 3}((e, q, d) -> Kp * e + q - Kd * d),
+        sat = Junction{Float64, Float64, 1}(v -> clamp(v, u_min, u_max)),
+        aw  = Junction{Float64, Float64, 3}((e, u, u_raw) -> Ki * e + (u - u_raw) / Tt));
+      input_wires  = ("r" => "err/in1", "y" => ("err/in2", "lag/in", "der/in1")),
+      local_wires  = ("lag/out" => "der/in2",
+                      "err/out" => "raw/in1", "int/out" => "raw/in2", "der/out" => "raw/in3",
+                      "raw/out" => "sat/in1",
+                      "err/out" => "aw/in1", "sat/out" => "aw/in2", "raw/out" => "aw/in3",
+                      "aw/out" => "int/in"),
+      output_wires = ("sat/out" => "u", "raw/out" => "u_raw"))
+
+# A single loop on the own limits: the controller drives an integrator plant.
+pid_single_loop(controller) = Group((
+        reference = Step(t_step = 0.5, after = 5.0), controller = controller, plant = Integrator());
+      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                     "controller/u" => "plant/in"),
+      output_wires = ("plant/out" => "y",))
+
+# A servo loop: a first-order position servo limited at ±1 between the
+# controller and the plant, whose position the controller tracks.
+pid_servo_loop(controller) = Group((
+        reference = Step(t_step = 0.5, after = 5.0), controller = controller,
+        servo_error = Junction{Float64, Float64, 2}(-),
+        servo = LimitedIntegrator(lower = -1.0, upper = 1.0), plant = Integrator());
+      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                     "controller/u" => "servo_error/in1", "servo/out" => "servo_error/in2",
+                     "servo_error/out" => "servo/in", "servo/out" => "controller/v",
+                     "servo/out" => "plant/in"),
+      output_wires = ("plant/out" => "y",))
+
+# A cascade: the controller sets a velocity servo's reference and reads the
+# position that integrates the velocity; `hold` wires the inner block's
+# saturation into the controller, `tracking` the velocity into `v`.
+function pid_cascade(controller; hold = false, tracking = false)
+    wires = Pair{String, String}[
+        "reference/out" => "controller/r", "position/out" => "controller/y",
+        "controller/u" => "error/in1", "velocity/out" => "error/in2",
+        "error/out" => "inner/in", "inner/out" => "actuator/in",
+        "actuator/out" => "velocity/in", "velocity/out" => "position/in"]
+    hold && push!(wires, "inner/saturation" => "controller/saturation")
+    tracking && push!(wires, "velocity/out" => "controller/v")
+    Group((reference = Step(t_step = 0.5, after = 5.0), controller = controller,
+           error = Junction{Float64, Float64, 2}(-), inner = LimitedIntegrator(lower = -1.2, upper = 1.2),
+           actuator = FirstOrderLag(τ = 0.1), velocity = FirstOrderLag(τ = 1.0), position = Integrator());
+          local_wires = Tuple(wires), output_wires = ("position/out" => "y",))
+end
+
+# A loop run at `h = 1//100` and sampled every 0.1 up to `t_end`: `read(sim)`
+# at each sample.
+function loop_samples(read, model, t_end)
+    sim = Simulation(model; h = 1//100)
+    init!(sim, fragment())
+    [(step!(sim; frames = 10); read(sim)) for _ in 1:round(Int, 10 * t_end)]
+end
 
 function test_blocks()
     @testset "the junction's arity and port types come from its type (§6.2, D-311)" begin
@@ -575,6 +637,86 @@ function test_blocks()
         @test port(boundary_sim, "plant", :out) ≈ 1.0 atol = 1e-3
     end
 
+    @testset "the PID's correction against its own limits stops a single loop's windup (§13.7, D-313)" begin
+        gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, u_min = -1.0, u_max = 1.0)
+        @test build(pid_single_loop(PID(; gains..., Tt = 1.0)); activations = (Float64, LinearizeDual)) isa Build
+        uncorrected, corrected =
+            (loop_samples(sim -> (y = port(sim, "", :y), q = state(sim, "controller").q),
+                          pid_single_loop(PID(; gains..., Tt = Tt)), 40) for Tt in (Inf, 1.0))
+        @test maximum(sample.y for sample in uncorrected) > 8.0    # 8.18
+        @test maximum(sample.y for sample in corrected) < 5.5      # 5.33
+        @test uncorrected[end].y ≈ 5.0 atol = 1e-4
+        @test corrected[end].y ≈ 5.0 atol = 1e-4
+        # The windup itself: the integral term peaks at 6.25 uncorrected, 0.67 corrected.
+        @test maximum(abs(sample.q) for sample in corrected) < maximum(abs(sample.q) for sample in uncorrected)
+    end
+
+    @testset "the PID assembled from library blocks runs and linearizes as the block (§13.7, §5.4, §8.5)" begin
+        gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0)
+        @test build(pid_single_loop(pid_assembly(; gains...)); activations = (Float64, LinearizeDual)) isa Build
+        # One law in another association order. The assembly's integral term is
+        # its child `int`, and its `u` a face.
+        block_samples = loop_samples(sim -> (y = port(sim, "", :y), u = port(sim, "controller", :u),
+                                             q = state(sim, "controller").q),
+                                     pid_single_loop(pid_controller(false, false)), 40)
+        assembly_samples = loop_samples(sim -> (y = port(sim, "", :y), u = port(sim, "controller", :u),
+                                                q = state(sim, "controller/int").q),
+                                        pid_single_loop(pid_assembly(; gains...)), 40)
+        for name in (:y, :u, :q)
+            @test maximum(abs(getfield(block_sample, name) - getfield(assembly_sample, name))
+                          for (block_sample, assembly_sample) in zip(block_samples, assembly_samples)) ≤ 1e-9
+        end
+        # Each as the root, its ports as root inputs, at a free operating point.
+        plain_matrices = (A = [0.0 0.0; 0.0 -10.0], B = [0.5 -0.5; 0.0 10.0], C = [1.0 2.0], D = [1.0 -3.0])
+        for (model, state_taps) in
+                ((pid_root_model(pid_controller(false, false)), (q = get_state("controller", :q), yf = get_state("controller", :yf))),
+                 (pid_assembly(; gains...), (q = get_state("int", :q), yf = get_state("lag", :q))))
+            @test build(model; activations = (Float64, LinearizeDual)) isa Build
+            sim = Simulation(model; h = 1//100)
+            init!(sim, fragment(u = (r = 0.0, y = 0.0)))
+            linearization = linearize(sim, taps(x = state_taps, u = (r = get_input(:r), y = get_input(:y)),
+                                                y = (u = get_face(:u),)))
+            @test isapprox(linearization.A, plain_matrices.A; atol = 1e-12)
+            @test isapprox(linearization.B, plain_matrices.B; atol = 1e-12)
+            @test isapprox(linearization.C, plain_matrices.C; atol = 1e-12)
+            @test isapprox(linearization.D, plain_matrices.D; atol = 1e-12)
+        end
+    end
+
+    @testset "the tracking PID follows a stateful servo, whose `v` from state closes no cycle (§13.7, §5.4, D-313)" begin
+        # The positive half of the artificial-cycle refusal above.
+        gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1)
+        @test build(pid_servo_loop(PID(; gains..., tracking = true, Tt = 1.0)); activations = (Float64, LinearizeDual)) isa Build
+        untracked, tracked = (loop_samples(sim -> port(sim, "", :y),
+                                           pid_servo_loop(PID(; gains..., tracking = true, Tt = Tt)), 40)
+                              for Tt in (Inf, 1.0))
+        @test maximum(untracked) > 8.5    # 8.71
+        @test maximum(tracked) < 6.5      # 5.96
+        @test untracked[end] ≈ 5.0 atol = 1e-2
+        @test tracked[end] ≈ 5.0 atol = 1e-2
+    end
+
+    @testset "in a cascade, ungated tracking couples the loops and the hold's gate removes the coupling (§13.7, D-313)" begin
+        # pid_anti_windup.md, section 3: a shorter `Tt` slaves an ungated
+        # integrator to the inner loop's transients, and costs a gated one nothing.
+        gains = (Kp = 0.5, Ki = 0.1)
+        @test build(pid_cascade(PID(; gains..., Tt = 2.0, hold = true, tracking = true); hold = true, tracking = true);
+                    activations = (Float64, LinearizeDual)) isa Build
+        plain, held, tracking_long, tracking_short, gated_long, gated_short =
+            (loop_samples(sim -> port(sim, "", :y),
+                          pid_cascade(PID(; gains..., Tt = Tt, hold = hold, tracking = tracking);
+                                      hold = hold, tracking = tracking), 60)
+             for (hold, tracking, Tt) in ((false, false, Inf), (true, false, Inf), (false, true, 2.0),
+                                          (false, true, 0.5), (true, true, 2.0), (true, true, 0.5)))
+        @test maximum(plain) - maximum(held) > 2.0                              # 8.33 against 6.10
+        @test maximum(gated_long) < maximum(held) && maximum(gated_short) < maximum(held)
+        @test maximum(tracking_short) - maximum(tracking_long) > 1.0            # 7.27 against 6.13
+        @test maximum(gated_short) < maximum(gated_long)                        # 5.09 against 5.20
+        for outputs in (plain, held, tracking_long, tracking_short, gated_long, gated_short)
+            @test outputs[end] ≈ 5.0 atol = 3e-2
+        end
+    end
+
     @testset "every keyword constructor builds a `Float64` block from integer keywords (§7.2)" begin
         @test Integrator(x0 = 1) isa Integrator{Float64}
         @test FirstOrderLag(τ = 1, x0 = 1) isa FirstOrderLag{Float64}
@@ -590,7 +732,13 @@ function test_blocks()
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
         for model in (servo_loop(true), servo_loop(false), bang_bang_loop(),
-                      vector_limited_model(true), vector_limited_model(false), vector_relay_model())
+                      vector_limited_model(true), vector_limited_model(false), vector_relay_model(),
+                      pid_single_loop(pid_controller(false, false)),
+                      pid_single_loop(pid_assembly(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0,
+                                                   u_min = -1.0, u_max = 1.0)),
+                      pid_servo_loop(PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, tracking = true)),
+                      pid_cascade(PID(Kp = 0.5, Ki = 0.1, Tt = 2.0, hold = true, tracking = true);
+                                  hold = true, tracking = true))
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
             for name in (:sweep_1, :sweep_2, :rhs, :ticks)
