@@ -1,11 +1,13 @@
-# Brief: increment 63, the vector moded blocks, the `Int8` codes and the PID example
+# Brief: increment 63, the vector moded blocks, the `Int8` codes and the PID block
 
-Two code stages, one cold review and a fixer if the review needs one. The
-docs arc is landed: `pending.md`'s increment 63 bullet (commits 2f06908,
-3b682e0 and 99438ec) and the junction's docstring on undeclared
-discontinuities (12eb8eb). The tip at launch is the commit adding this brief;
-line numbers below are 99438ec's. Find passages in
-`docs/design/implementation.md` by heading.
+Three code stages, one cold review and a fixer if the review needs one. The
+docs arc is landed: `pending.md`'s increment 63 bullet, the junction's
+docstring on undeclared discontinuities (12eb8eb), and the companion
+`docs/design/companions/pid_anti_windup.md` with the inventory's
+`Controllers` rows (the commit "Promote the PID to a library block…"). The
+tip at launch is the commit adding this brief; line numbers below are that
+promotion commit's. Find passages in `docs/design/implementation.md` by
+heading.
 
 Design and code are peers, neither subservient. If a shape below proves
 wrong at the keyboard, stop and report rather than deviate silently.
@@ -26,9 +28,8 @@ wrong at the keyboard, stop and report rather than deviate silently.
   alone, so it has no feedthrough. An integer leaf pins by itself (§7.2,
   D-079), so the type is declared plain, with no `Pinned` wrapper; a probe
   confirmed both spellings build under `(Float64, LinearizeDual)`, and the
-  plain one is the honest one. The port serves anti-windup consumers: a
-  controller integrates unless `code == sign(e)`, and several codes
-  consolidate through the `Bool` gates.
+  plain one is the honest one. The port is what the PID's `code` input
+  reads.
 - **The vector forms share the scalar struct.** The bound on `V` widens to
   `Union{Real, StaticArray{<:Tuple, <:Real}}` on both blocks, as `Integrator`
   spells it. The constructors are unchanged: `float.(promote(x0, lower,
@@ -52,43 +53,54 @@ wrong at the keyboard, stop and report rather than deviate silently.
 - **`localized = true` stays the default** on every block carrying `L`
   (user, 2026-10-07): the accurate form by default, the cheap form the
   opt-in a paced deployment makes beside its base step.
-- **The PID example ships in two forms with one controller law**:
-  back-calculation against a tracking input `v`, `q̇ = e + (v - u_raw) / Tt`,
-  derivative on the measurement through a lag, `d = (y - yf) / τd` with
-  `ẏf = (y - yf) / τd`, and `u_raw = Kp e + Ki q - Kd d`. The assembly
-  `pid_assembly` is library blocks in a `Group`; the leaf `PIDLeaf` is one
-  component with states `q` and `yf`. Both are test material, the
-  inventory's row stays *example first*, and the two are shown side by side.
-- **The leaf cannot close the single loop, and that is the lesson.** With
-  `v` wired from a clamp of the leaf's own `u`, the build refuses an
-  `AlgebraicCycle` classified `:artificial`, with the dead hop
-  `("controller", :v, :u)`: the leaf consumes `v` only in `x_deriv`, yet it
-  has a stage-2 output, which is the stage-2 conservatism §5.4's last
-  paragraph records. The assembly's integrator splits the stages by
-  construction, which is §5.4's second remedy taken for free. The cascade
-  feeds `v` from a lag's state, so both forms run there and agree to the
-  digit (probed). The single loop runs the assembly, and a test asserts the
-  leaf's refusal with its payload.
+- **The PID is a library block, `PID{Flag, Track}`**, promoted from the
+  inventory's example-first row. The companion `pid_anti_windup.md` is the
+  record and its section 7 the decision; this brief restates only what the
+  keyboard needs. One law, `q̇ = Ki · gate(e) + (ref - u_raw) / Tt`, two
+  independent `Bool` type parameters since each adds an input port: `Flag`
+  adds `code::Int8` and makes `gate(e) = code == sign(e) ? 0 : e`; `Track`
+  adds `v::Float64` as the correction's reference in place of the block's own
+  clamped `u`, consulted only while the code is nonzero when both exist.
+  `Ki` sits inside the integral, so `q` is the integral term in output units.
+  The derivative acts on the measurement through a lag. Outputs `u`, clamped
+  to the own limits, and `u_raw`. Defaults make the plain spelling a P
+  controller: `Ki = Kd = 0`, `τd = 0.1`, `Tt = Inf`, infinite limits.
+- **The tracking variant wired from a memoryless clamp of its own output is
+  refused**, `AlgebraicCycle` classified `:artificial` with the dead hop
+  `("controller", :v, :u)`: §5.4's stage-2 conservatism, and the reason the
+  limits live inside the block. A test asserts the refusal with its
+  payload, as the lesson it is. The cascade and the servo loop feed `v` from
+  a state-published port, so the variant runs there.
+- **The simplified assembly stays a test model**, the first variant as a
+  `Group` of library blocks, the inspector's example beside the block. Not a
+  library row.
 - **One root input fans out as `"y" => ("err/in2", "lag/in", "der/in1")`**
   (§8.6); a repeated key is a `FaceNameCollision`.
 - **Reads into a nested assembly.** `state(sim, "controller/int")` and
   `port(sim, "controller", :u)` read a nested `Group`'s children and faces;
   a `get_state("c/int", …)` tap inside `linearize` does not reach past a
   generically held child (§13.3). The controller is therefore linearized as
-  the root, with `r`, `y` and `v` as its root inputs.
+  the root, with its ports as root inputs.
+- **Every number in stages 2 and 3 was probed at 99438ec** against the
+  shapes below, at `h = 1//100`, sampling every `0.1` by `step!`. The
+  companion's section 7 tabulates them. Confirm each in a probe before
+  writing an assertion, and report the probe's numbers.
 
 ## Out of scope
 
 - A mode port on `Relay`. Nothing asks for it.
-- Promoting the PID to a block, or any block beyond the two vector forms.
+- The PID variants the companion's section 6 lists as not carried:
+  setpoint weighting, authority limits, a feedforward input, a general hold
+  port, gain scheduling, the velocity form, internal clamping.
 - Vector `Freeze`, and every other candidate row.
-- Any spec or log edit. The one companion edit is the note in the
-  bookkeeping below.
+- Any spec or log edit. The companion note on the recode is the one
+  companion edit beyond what the docs arc landed.
 
 ## Reading, in order
 
-- `docs/design/pending.md`, the increment 63 bullet, lines 16 to 34.
-- `docs/design/companions/limited_integrator_variants.md` whole, and
+- `docs/design/pending.md`, the increment 63 bullet, lines 16 to 35.
+- `docs/design/companions/pid_anti_windup.md` whole, then
+  `docs/design/companions/limited_integrator_variants.md` whole, and
   `docs/design/companions/library_inventory.md` sections 2 and 3.
 - `docs/design/spec.md` §2.1, lines 229 to 273; §5.3, lines 826 to 1037;
   §5.4, lines 1038 to 1107, above all its last paragraph; §7.2, lines 1625
@@ -97,10 +109,10 @@ wrong at the keyboard, stop and report rather than deviate silently.
   read the spec whole.
 - `docs/design/decisions.md` D-179, D-231, D-312 and D-313.
 - `docs/design/implementation.md`: the head of "What is real here" down to
-  its rule on deviations; the rows `### src/blocks.jl`,
-  `### test/fixtures.jl` and `### test/imports.jl`; "Authoring caveats",
-  its first three bullets; "Naming"; "Running the suite". Never restate
-  either in a commit or a comment.
+  its rule on deviations; the rows `### src/blocks.jl` and
+  `### test/imports.jl`; "Authoring caveats", its first three bullets;
+  "Naming"; "Running the suite". Never restate either in a commit or a
+  comment.
 - `src/blocks.jl` whole. `Step`, `LimitedIntegrator` and `Relay` are the
   blocks touched; `Junction`'s docstring now says where a fold stops being
   enough.
@@ -112,8 +124,8 @@ wrong at the keyboard, stop and report rather than deviate silently.
 - `test/test_blocks.jl` whole: the models at top level, the testsets you
   recode, the allocation idiom, the shadow-check testset and the policies
   read through `limited_events`.
-- `test/test_build.jl` lines 1750 to 1823: the `Dual` sweep and the pinned
-  count of argument-taking fixtures, which stage 2 raises.
+- `test/fixtures.jl` line 57, `Motor`'s derivative reading its own outputs
+  through `y`, which the PID's does.
 - `test/utils.jl` lines 1 to 30: `single` and `fed`.
 
 ## Stage 1: the codes, the port and the vector forms
@@ -281,183 +293,266 @@ invocation.
   to the signed `Int8` codes `-1`, `0`, `+1`, so the vector form could share
   them under D-231's rule, and the sketches above keep the labels.
 
-## Stage 2: the PID example
+## Stage 2: the PID block
 
 ### The shape
 
-The leaf, at top level in `test/fixtures.jl`, after grepping `PIDLeaf`
-across `test/` (no hit at launch):
+In `src/blocks.jl`, a new section `# --- the controller (§13.7, §5.4,
+D-313)` after the moded blocks:
 
 ```julia
-# The PID of §13.7's library example as one leaf, beside `pid_assembly` in
-# test_blocks.jl: back-calculation against the tracking input `v`, the
-# derivative on the measurement through a lag.
-struct PIDLeaf <: AbstractComponent
+struct PID{Flag, Track} <: AbstractComponent
     Kp::Float64
     Ki::Float64
     Kd::Float64
-    τd::Float64     # the derivative filter's time constant
-    Tt::Float64     # the tracking time; `Inf` switches the correction off
+    τd::Float64       # the derivative filter's time constant, positive
+    Tt::Float64       # the tracking time; `Inf` switches the correction off
+    u_min::Float64    # the own limits; infinite by default
+    u_max::Float64
 end
-PIDLeaf(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf) = PIDLeaf(Kp, Ki, Kd, τd, Tt)
-x_init(::PIDLeaf) = (q = 0.0, yf = 0.0)
-u_types(::PIDLeaf) = (r = Float64, y = Float64, v = Float64)
-y_types(::PIDLeaf) = (u = Float64,)
-y_direct(c::PIDLeaf, (; x, u)) =
-    (u = c.Kp * (u.r - u.y) + c.Ki * x.q - c.Kd * (u.y - x.yf) / c.τd,)
-x_deriv(c::PIDLeaf, (; x, u, y)) =
-    (q = (u.r - u.y) + (u.v - y.u) / c.Tt, yf = (u.y - x.yf) / c.τd)
+PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+      flag = false, tracking = false) =
+    PID{flag, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
+
+x_init(::PID) = (q = 0.0, yf = 0.0)
+u_types(::PID{false, false}) = (r = Float64, y = Float64)
+u_types(::PID{true, false})  = (r = Float64, y = Float64, code = Int8)
+u_types(::PID{false, true})  = (r = Float64, y = Float64, v = Float64)
+u_types(::PID{true, true})   = (r = Float64, y = Float64, code = Int8, v = Float64)
+y_types(::PID) = (u = Float64, u_raw = Float64)
+function y_direct(c::PID, (; x, u))
+    u_raw = c.Kp * (u.r - u.y) + x.q - c.Kd * (u.y - x.yf) / c.τd
+    (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
+end
+gated_error(::PID{false}, e, u) = e
+gated_error(::PID{true}, e, u) = u.code == sign(e) ? zero(e) : e
+correction_reference(::PID{Flag, false}, u, y) where {Flag} = y.u
+correction_reference(::PID{false, true}, u, y) = u.v
+correction_reference(::PID{true, true}, u, y) = u.code == 0 ? y.u : u.v
+x_deriv(c::PID, (; x, u, y)) =
+    (q  = c.Ki * gated_error(c, u.r - u.y, u) + (correction_reference(c, u, y) - y.u_raw) / c.Tt,
+     yf = (u.y - x.yf) / c.τd)
 ```
 
-The assembly and the two loops, top-level functions in
-`test/test_blocks.jl` beside the existing loops:
-
-```julia
-# The same PID as library blocks: the states are `int` and `lag`, and the
-# integrator is what splits the stages (§5.4).
-pid_assembly(; Kp, Ki, Kd, τd, Tt) = Group((
-        err = Junction{Float64, Float64, 2}((r, y) -> r - y),
-        lag = FirstOrderLag(; τ = τd),
-        der = Junction{Float64, Float64, 2}((y, yf) -> (y - yf) / τd),
-        int = Integrator(),
-        raw = Junction{Float64, Float64, 3}((e, i, d) -> Kp * e + Ki * i - Kd * d),
-        aw  = Junction{Float64, Float64, 3}((e, v, u_raw) -> e + (v - u_raw) / Tt));
-      input_wires  = ("r" => "err/in1", "y" => ("err/in2", "lag/in", "der/in1"), "v" => "aw/in2"),
-      local_wires  = ("lag/out" => "der/in2",
-                      "err/out" => "raw/in1", "int/out" => "raw/in2", "der/out" => "raw/in3",
-                      "err/out" => "aw/in1", "raw/out" => "aw/in3", "aw/out" => "int/in"),
-      output_wires = ("raw/out" => "u",))
-
-# A single loop: the controller drives an integrator plant through a clamp,
-# and tracks the clamp's output.
-pid_single_loop(controller) = Group((
-        reference = Step(t_step = 0.5, after = 5.0),
-        controller = controller,
-        sat = Junction{Float64, Float64, 1}(v -> clamp(v, -1.0, 1.0)),
-        plant = Integrator());
-      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
-                     "sat/out" => "controller/v", "controller/u" => "sat/in1",
-                     "sat/out" => "plant/in"),
-      output_wires = ("plant/out" => "y",))
-
-# A cascade: the controller sets the reference of a velocity servo, reads the
-# position that integrates its velocity, and tracks the velocity itself.
-pid_cascade(controller) = Group((
-        reference = Step(t_step = 0.5, after = 5.0),
-        controller = controller,
-        error = Junction{Float64, Float64, 2}(-),
-        inner = LimitedIntegrator(lower = -1.2, upper = 1.2),
-        actuator = FirstOrderLag(τ = 0.1), velocity = FirstOrderLag(τ = 1.0),
-        position = Integrator());
-      local_wires = ("reference/out" => "controller/r", "position/out" => "controller/y",
-                     "velocity/out" => "controller/v",
-                     "controller/u" => "error/in1", "velocity/out" => "error/in2",
-                     "error/out" => "inner/in", "inner/out" => "actuator/in",
-                     "actuator/out" => "velocity/in", "velocity/out" => "position/in"),
-      output_wires = ("position/out" => "y",))
-```
-
-Every number below was probed at 99438ec against this exact shape, at
-`h = 1//100`, sampling every `0.1` by `step!`. Confirm each in a probe
-before writing an assertion, and report the probe's numbers.
+`y_direct` joins the import list. The keyword spellings are `flag` and
+`tracking`; the type parameters `Flag` and `Track`. The docstring, in the
+register of the shipped blocks: the law in one line, the four-cell table of
+the companion's section 4, the ports each parameter adds, the fallback rule
+when both exist, the grouping (`q` is the integral term in output units,
+so a change in `Ki` alters only future accumulation), the derivative on the
+measurement, the defaults that make the plain spelling a P controller, the
+refusal a tracking input wired from a memoryless clamp of the own output
+meets and why (§5.4), and the pointer to `pid_anti_windup.md` by file name
+for the reasoning. Two site comments: on `gated_error`, why the gate tests
+the sign and not `code != 0` (integration resumes when the error reverses
+while the path still reports saturation); on `correction_reference`, why
+`v` is consulted only while the code is nonzero.
 
 ### Tests
 
-New testsets in `test/test_blocks.jl`, after the servo loop's.
+New testsets in `test/test_blocks.jl`, after the relay's and before the
+loops'.
 
-- **The two forms linearize alike.** With `Kp = 1.0, Ki = 0.5, Kd = 0.2,
-  τd = 0.1, Tt = 1.0`, the assembly as the root, and the leaf as
-  `Group((; c = leaf); input_wires = ("r" => "c/r", "y" => "c/y", "v" =>
-  "c/v"), output_wires = ("c/u" => "u",))`: both build under `(Float64,
-  LinearizeDual)`; after `init!` at `r = y = v = 0`, `linearize` with
-  `x = (q, yf)` (the assembly's `get_state("int", :q)` and
-  `get_state("lag", :q)`, the leaf's `get_state("c", :q)` and `:yf`),
-  `u = (r, y, v)` by `get_input` and `y = (u = get_face(:u),)` gives, for
-  both, within `1e-12`: `A = [-0.5 -2.0; 0.0 -10.0]`, `B = [0.0 2.0 1.0; 0.0
-  10.0 0.0]`, `C = [0.5 2.0]`, `D = [1.0 -3.0 0.0]`. Read them off the
-  equations in the comment: `∂q̇/∂q = -Ki/Tt`, `∂q̇/∂yf = Kd/(τd Tt)`,
-  `∂u/∂y = -Kp - Kd/τd`, `∂u/∂v = 0`.
-- **The single loop winds up without the correction and not with it.**
-  `pid_single_loop(pid_assembly(; Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1,
-  Tt))` to `t = 40`. The peak of `plant/out` over the samples is `8.184` at
-  `Tt = Inf` and `5.675` at `Tt = 1.0`: assert `> 8.0` and `< 6.0`. Both
-  settle: `plant/out ≈ 5.0` within `1e-4` at `t = 40`. The peak of
-  `state(sim, "controller/int").q` over the samples is larger at `Tt = Inf`
-  than at `Tt = 1.0`, the windup itself, read through the nested path.
-- **The leaf in the single loop is refused, and the assembly is not.**
-  `failure(() -> build(pid_single_loop(PIDLeaf(Kp = 1.0, Ki = 0.5, Kd = 0.2,
-  Tt = 1.0))))` is a `DiagnosticError` whose one diagnostic is an
+- **Ports and constructors.** `u_types` of the four spellings is the four
+  tuples above, and `y_types(PID(Kp = 1.0)) == (u = Float64, u_raw =
+  Float64)`. `PID(Kp = 1) isa PID{false, false}` with `Float64` fields, in
+  the integer-keyword testset; `PID(Kp = 1.0, flag = true, tracking = true)
+  isa PID{true, true}`.
+- **The law, by direct call.** With `c = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2,
+  τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0)` in each spelling,
+  `x = (q = 0.3, yf = 0.1)` and `r = 3.0`, `y = 0.5`: `y_direct` gives
+  `u_raw == 2.0` (`2.5 + 0.3 - 0.8`) and `u == 1.0`. Then `x_deriv` at that
+  `x`, `u` and `y = (u = 1.0, u_raw = 2.0)`, with `yf' == 4.0` throughout:
+  plain, `q̇ == 0.25` (`1.25 - 1`); flag, `q̇ == -1.0` at `code = 1`
+  (the gate holds), `0.25` at `code = -1` and at `code = 0`; tracking,
+  `q̇ == -0.05` at `v = 0.7` (`1.25 - 1.3`); both, `q̇ == -1.3` at `code = 1,
+  v = 0.7` and `0.25` at `code = 0, v = 0.7`, the fallback to `u`. These
+  equalities are exact in binary arithmetic; if one is not, assert within
+  `1e-12`.
+- **The four linearizations.** Each spelling as the root of a `Group` with
+  its ports as root inputs and `u`, `u_raw` as faces, at the gains above,
+  `init!` with every real input `0.0` and `code = Int8(0)`; `linearize` with
+  `x = (q, yf)`, the real inputs and `y = (u = get_face(:u),)`. Plain and
+  flag: `A = [0.0 0.0; 0.0 -10.0]`, `B = [0.5 -0.5; 0.0 10.0]`, `C = [1.0
+  2.0]`, `D = [1.0 -3.0]`. Tracking: `A = [-1.0 -2.0; 0.0 -10.0]`, `B = [-0.5
+  2.5 1.0; 0.0 10.0 0.0]`, `C = [1.0 2.0]`, `D = [1.0 -3.0 0.0]`. Both: the
+  plain matrices with a zero column for `v`. All within `1e-12`, and every
+  spelling builds under `(Float64, LinearizeDual)`.
+- **The refusal.** `failure(() -> build(model))` where `model` wires
+  `PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking = true)` as
+  `controller` with `controller/u` into a `Junction{Float64, Float64, 1}(v ->
+  clamp(v, -1.0, 1.0))` named `sat`, `sat/out` into `controller/v` and into
+  an `Integrator` plant, the plant into `controller/y`, a `Step` into
+  `controller/r`: a `DiagnosticError` whose one diagnostic is an
   `AlgebraicCycle` with `classification === :artificial`, `dead ==
   [("controller", :v, :u)]` and `wires == ["controller/u" => "sat/in1",
-  "sat/out" => "controller/v"]`; `build(pid_single_loop(pid_assembly(…)))
-  isa Build`. The testset's name cites §5.4 and says what the test shows:
-  the leaf consumes `v` in `x_deriv` alone and has a stage-2 output, so
-  the wire is a feedthrough edge; the assembly's integrator splits the
-  stages.
-- **The cascade runs both forms and they agree.** `pid_cascade(controller)`
-  with `Kp = 0.5, Ki = 0.1, Kd = 0.0, τd = 0.1` to `t = 60`. For the
-  assembly, the peak of `position/out` is `8.330` at `Tt = Inf` and `7.755`
-  at `Tt = 2.0`: assert the `Tt = 2.0` peak is below the `Tt = Inf` peak by
-  more than `0.5`; `position/out ≈ 5.0` within `5e-3` at `t = 60` for both.
-  The leaf at `Tt = 2.0` matches the assembly at `Tt = 2.0` sample by
-  sample within `1e-9`; the probe read identical digits.
-- **Allocation.** The single loop with the assembly at `Tt = 1.0` and the
-  cascade with each form at `Tt = 2.0` join the loops' allocation testset.
-  The folds capture `Float64` gains, so they are isbits; if a closure
-  allocates, report rather than hoist the gains into a struct.
-- **The `Dual` sweep.** `PIDLeaf` takes arguments, so `test/test_build.jl`
-  line 1822's pinned count of argument-taking fixtures rises from `61` to
-  `62`; update the number and the comment's date.
+  "sat/out" => "controller/v"]`. The testset's name cites §5.4.
+- **The shadow check** gains the four spellings.
 
 ### Routing
 
-`test/fixtures.jl` gains an `AbstractComponent` fixture and the test
-touches wiring, feedthrough tracing and linearization: run
 `blocks build events linearize` under the flags of "Running the suite", in
 the foreground.
 
 ### Bookkeeping, in the same commit
 
-- `docs/design/implementation.md` `### test/fixtures.jl`: a bullet naming
-  `PIDLeaf`, the leaf half of §13.7's PID example, whose assembly half is
-  `pid_assembly` in `test_blocks.jl`.
-- `docs/design/companions/library_inventory.md`: the PID row's mechanism
-  cell adds that both forms are built in the tests, and that the leaf's
-  tracking input closes an artificial cycle in a single loop (§5.4) where
-  the assembly's integrator splits the stages. Status stays *example
-  first*. Battery.
+- `test/imports.jl`: `PID` joins the `import Redstone.Blocks:` line.
+- `docs/design/implementation.md` `### src/blocks.jl`: a bullet naming
+  `PID{Flag, Track}` with `gated_error` and `correction_reference`, and §5.4
+  joins the Spec line. Battery.
+
+## Stage 3: the loops and the example assembly
+
+### The shape
+
+Top-level functions in `test/test_blocks.jl` beside the existing loops. The
+assembly is the first variant as a `Group`, the inspector's example:
+
+```julia
+# The PID's first variant as library blocks, the inspector's example beside
+# the block: the integrator is what splits the stages (§5.4).
+pid_assembly(; Kp, Ki, Kd, τd, Tt, u_min, u_max) = Group((
+        err = Junction{Float64, Float64, 2}((r, y) -> r - y),
+        lag = FirstOrderLag(; τ = τd),
+        der = Junction{Float64, Float64, 2}((y, yf) -> (y - yf) / τd),
+        int = Integrator(),
+        raw = Junction{Float64, Float64, 3}((e, q, d) -> Kp * e + q - Kd * d),
+        sat = Junction{Float64, Float64, 1}(v -> clamp(v, u_min, u_max)),
+        aw  = Junction{Float64, Float64, 3}((e, u, u_raw) -> Ki * e + (u - u_raw) / Tt));
+      input_wires  = ("r" => "err/in1", "y" => ("err/in2", "lag/in", "der/in1")),
+      local_wires  = ("lag/out" => "der/in2",
+                      "err/out" => "raw/in1", "int/out" => "raw/in2", "der/out" => "raw/in3",
+                      "raw/out" => "sat/in1",
+                      "err/out" => "aw/in1", "sat/out" => "aw/in2", "raw/out" => "aw/in3",
+                      "aw/out" => "int/in"),
+      output_wires = ("sat/out" => "u", "raw/out" => "u_raw"))
+
+# A single loop on the own limits: the controller drives an integrator plant.
+pid_single_loop(controller) = Group((
+        reference = Step(t_step = 0.5, after = 5.0), controller = controller, plant = Integrator());
+      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                     "controller/u" => "plant/in"),
+      output_wires = ("plant/out" => "y",))
+
+# A servo loop: a first-order position servo limited at ±1 between the
+# controller and the plant, whose position the controller tracks.
+pid_servo_loop(controller) = Group((
+        reference = Step(t_step = 0.5, after = 5.0), controller = controller,
+        servo_error = Junction{Float64, Float64, 2}(-),
+        servo = LimitedIntegrator(lower = -1.0, upper = 1.0), plant = Integrator());
+      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                     "controller/u" => "servo_error/in1", "servo/out" => "servo_error/in2",
+                     "servo_error/out" => "servo/in", "servo/out" => "controller/v",
+                     "servo/out" => "plant/in"),
+      output_wires = ("plant/out" => "y",))
+
+# A cascade: the controller sets a velocity servo's reference and reads the
+# position that integrates the velocity; `code` wires the inner block's
+# saturation into the controller, `tracking` the velocity into `v`.
+function pid_cascade(controller; code = false, tracking = false)
+    wires = Pair{String, String}[
+        "reference/out" => "controller/r", "position/out" => "controller/y",
+        "controller/u" => "error/in1", "velocity/out" => "error/in2",
+        "error/out" => "inner/in", "inner/out" => "actuator/in",
+        "actuator/out" => "velocity/in", "velocity/out" => "position/in"]
+    code && push!(wires, "inner/saturation" => "controller/code")
+    tracking && push!(wires, "velocity/out" => "controller/v")
+    Group((reference = Step(t_step = 0.5, after = 5.0), controller = controller,
+           error = Junction{Float64, Float64, 2}(-), inner = LimitedIntegrator(lower = -1.2, upper = 1.2),
+           actuator = FirstOrderLag(τ = 0.1), velocity = FirstOrderLag(τ = 1.0), position = Integrator());
+          local_wires = Tuple(wires), output_wires = ("position/out" => "y",))
+end
+```
+
+A sampling helper at top level, if the testsets want one, follows "Naming".
+
+### Tests
+
+The gains are `Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1` in the single and
+servo loops and `Kp = 0.5, Ki = 0.1` in the cascades; `h = 1//100`; the
+peak is of the loop's output over samples every `0.1`; "settles" means
+within the stated tolerance of `5.0` at the end.
+
+- **The single loop on the own limits.** `PID(…, u_min = -1.0, u_max =
+  1.0, Tt)` to `t = 40`: the peak is `8.184` at `Tt = Inf` and `5.327` at
+  `Tt = 1.0`, assert `> 8.0` and `< 5.5`; both settle within `1e-4`; the
+  peak of `abs(state(sim, "controller").q)` is `6.25` against `0.665`,
+  assert the ordering, the windup itself.
+- **The assembly is the block.** `pid_single_loop(pid_assembly(…))` at
+  `Tt = 1.0` and the same limits matches `pid_single_loop(PID(…))` sample
+  by sample within `1e-9` on `plant/out`, and the two linearize alike as
+  roots (the assembly's `x` taps are `get_state("int", :q)` and
+  `get_state("lag", :q)`), to the plain matrices of stage 2 within `1e-12`.
+  Confirm the `1e-9` in a probe; the two compute one law in a different
+  association order.
+- **The servo loop, tracking a stateful actuator.** `PID(…, tracking =
+  true, Tt)` to `t = 40`: the peak is `8.707` at `Tt = Inf` and `5.958` at
+  `Tt = 1.0`, assert `> 8.5` and `< 6.5`; both settle within `1e-2`. The
+  loop builds, which is the positive half of stage 2's refusal: `v` from the
+  servo's state closes no cycle.
+- **The cascade, six ways, to `t = 60`.** Plain `PID(…)`: peak `8.33`.
+  `flag = true` with `code = true`: `6.103`. `tracking = true` with
+  `tracking = true` in the loop: `6.135` at `Tt = 2.0`, `7.273` at `Tt =
+  0.5`. Both parameters with both wires: `5.202` at `Tt = 2.0`, `5.088` at
+  `Tt = 0.5`. Assert: the flag's peak is below the plain peak by more than
+  `2.0`; the gated-tracking peaks are below the flag's; shortening `Tt`
+  raises the ungated-tracking peak by more than `1.0` and lowers the
+  gated one; every run settles within `3e-2`. The testset's name says what
+  this measures, the companion's section 3: ungated tracking couples the
+  loops, and the gate removes the coupling.
+- **Allocation.** The single loop with the block and with the assembly, the
+  servo loop, and the cascade with both parameters join the loops'
+  allocation testset. The folds capture `Float64` gains, so they are
+  isbits; if a closure allocates, report rather than hoist the gains.
+
+### Routing
+
+`blocks build events linearize`, as stage 2. No new `AbstractComponent`
+type is declared: `pid_assembly` returns a `Group`.
+
+### Bookkeeping, in the same commit
+
+- `docs/design/companions/library_inventory.md`: the `PID{Flag, Track}` row
+  flips to *shipped*, its mechanism cell kept; the gain-scheduled row stays
+  a candidate; the paragraph under the table stands. Battery.
 - `docs/design/pending.md`: the increment 63 sub-bullet is deleted; the
   tranche bullet then opens with increment 64. Battery.
 
 ## The cold review
 
-One fresh Opus reviewer over the two code commits: open-mind stance, probe
-scripts under `/tmp`, "empty is acceptable". Dimensions:
+One fresh Opus reviewer over the three code commits: open-mind stance,
+probe scripts under `/tmp`, "empty is acceptable". Dimensions:
 
-- **Each block against its sketch here**, the event order and names, the
-  codes' sign convention, the `saturation` port's type and stage, and the
-  policies the events product reports for the vector form.
+- **Each block against its sketch here and the companions**, the event
+  order and names, the codes' sign convention, the `saturation` port's type
+  and stage, the policies the events product reports for the vector form,
+  and the PID's law against the companion's section 4 table, cell by cell.
 - **The submodule's imports.** `src/blocks.jl` reaches the parent through
   its import list alone; `similar_type` is the one StaticArrays name added.
 - **Mutants on a scratch copy**, each named test going red: the vector hit
   handler clamping every component (the `0.45` sample); a vector leave
   guard reading `u.in[1]` for every `i` (the exact-zero component); the
   `saturation` port published as a constant `0`; the vector relay's
-  `ifelse` arms swapped; the leaf's `x_deriv` dropping the `v` term (the
-  cascade agreement and the `A` matrix); the assembly's `aw` fold dropping
-  `Tt` (the single-loop peaks); `PIDLeaf`'s `v` moved into `y_direct` (the
-  refusal test's payload). A surviving mutant is a missing test.
+  `ifelse` arms swapped; the PID's gate written `code != 0` (the direct
+  call at `code = -1`); the fallback dropped so `v` is read at `code = 0`
+  (the direct call at `code = 0, v = 0.7`); `Ki` moved outside the
+  integral (the `B` matrix); the clamp dropped from `y_direct` (the direct
+  call's `u`); the assembly's `aw` fold dropping `Tt` (the single-loop
+  agreement). A surviving mutant is a missing test.
 - **The numbers.** Re-probe the vector trajectory, the four matrices, the
-  peaks and the settling values, and the companion's claims the recode
+  direct-call values, the peaks and the settling values against the
+  companion's section 7 table, and the companion's claims the recode
   touches.
 - **`Dual`.** Every new model builds under `(Float64, LinearizeDual)`, and
   the linearizations assert the matrices, so a `Float64` pin anywhere on
-  the continuous path is a red test.
-- **The example as an example.** Both forms read as a user would write
-  them; the refusal test reads as the lesson it is; the nested reads use
-  the spellings "What is settled" names.
-- **The register, the inventory and the companion note.**
-  `implementation.md`'s rows name constructs; behaviour is in docstrings.
+  the continuous path is a red test. The gate compares an `Int8` with
+  `sign` of a `Dual` under the activation; the build proves it compiles.
+- **The example as an example.** The assembly and the loops read as a user
+  would write them; the refusal test reads as the lesson it is; the nested
+  reads use the spellings "What is settled" names.
+- **The register, the inventory and the companions.**
+  `implementation.md`'s rows name constructs; behaviour is in docstrings;
+  the PID's docstring and `pid_anti_windup.md` agree.
 - "Naming" over every touched file, the docs battery, and the gate once on
   the real tree.
 
@@ -469,8 +564,8 @@ included; `/bin/ls` or `fd`, never a bare `ls`. Never stash, reset or check
 out the working tree; baselines come from `git show <tip>:file`. Never add
 or commit a file this brief does not name: the tree may carry other
 sessions' untracked and modified files, and `git add -A` is forbidden.
-Re-read a file before a scripted edit. Grep every new fixture name across
-`test/` before defining it. Fixtures live at top level. Report: the commit
-hash, the files touched, the routed subset's result with the assertion
-count, the probe's numbers for every asserted value, and every deviation
-from this brief with its reason.
+Re-read a file before a scripted edit. Grep every new name across `test/`
+before defining it. Models and helpers live at top level. Report: the
+commit hash, the files touched, the routed subset's result with the
+assertion count, the probe's numbers for every asserted value, and every
+deviation from this brief with its reason.
