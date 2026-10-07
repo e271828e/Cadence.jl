@@ -194,7 +194,7 @@ struct Step{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, L} <: AbstractCompon
     after::V
     t_step::Float64
 end
-function Step(; t_step, before = 0.0, after = 1.0, localized = true)
+function Step(; t_step, before = 0.0, after = 1.0, localized::Bool = true)
     before, after = float.(promote(before, after))
     Step{typeof(before), localized}(before, after, t_step)
 end
@@ -256,7 +256,7 @@ struct LimitedIntegrator{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, L} <: A
     lower::V
     upper::V
 end
-function LimitedIntegrator(; lower, upper, x0 = zero(lower), localized = true)
+function LimitedIntegrator(; lower, upper, x0 = zero(lower), localized::Bool = true)
     x0, lower, upper = float.(promote(x0, lower, upper))
     LimitedIntegrator{typeof(x0), localized}(x0, lower, upper)
 end
@@ -438,7 +438,7 @@ struct PID{Hold, Track} <: AbstractComponent
     u_max::Float64
 end
 PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
-      hold = false, tracking = false) =
+      hold::Bool = false, tracking::Bool = false) =
     PID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
 
 x_init(::PID) = (q = 0.0, yf = 0.0)
@@ -453,8 +453,10 @@ function y_direct(c::PID, (; x, u))
 end
 # The gate tests the sign, not `saturation != 0`: integration resumes once the
 # error points back into the range, while the path still reports saturation.
+# The `!= 0` in front leaves a free path's zero error ungated, so the derivative
+# at an equilibrium does not depend on how `sign` orders a zero-valued `Dual`.
 gated_error(::PID{false}, e, u) = e
-gated_error(::PID{true}, e, u) = u.saturation == sign(e) ? zero(e) : e
+gated_error(::PID{true}, e, u) = u.saturation != 0 && u.saturation == sign(e) ? zero(e) : e
 # With a hold, `v` is the reference only while the code is nonzero. Tracking is
 # what to converge to while the path cannot follow; on a free path it would only
 # couple the integrator to the transients downstream.

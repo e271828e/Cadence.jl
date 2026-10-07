@@ -731,7 +731,7 @@ function test_blocks()
         end
     end
 
-    @testset "every keyword constructor builds a `Float64` block from integer keywords (§7.2)" begin
+    @testset "every keyword constructor builds a `Float64` block from integer keywords, and a flag keyword refuses one (§7.2)" begin
         @test Integrator(x0 = 1) isa Integrator{Float64}
         @test FirstOrderLag(τ = 1, x0 = 1) isa FirstOrderLag{Float64}
         @test Step(t_step = 0.25, before = 0, after = 2) isa Step{Float64, true}
@@ -742,6 +742,10 @@ function test_blocks()
               LimitedIntegrator{SVector{2, Float64}, true}
         @test PID(Kp = 1) isa PID{false, false}
         @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
+        @test_throws TypeError Step(t_step = 0.25, localized = 1)
+        @test_throws TypeError LimitedIntegrator(lower = -1, upper = 1, localized = 1)
+        @test_throws TypeError PID(Kp = 1, hold = 1)
+        @test_throws TypeError PID(Kp = 1, tracking = 1)
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
