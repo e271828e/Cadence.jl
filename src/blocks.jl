@@ -180,7 +180,7 @@ abstract type LinearBlock{FT} <: AbstractComponent end
 
 # The port edges. A port one wide is a `Float64` and a wider one an `SVector`,
 # while the bodies always take matrix products over vectors.
-port_type(n) = n == 1 ? Float64 : SVector{n, Float64}
+port_type(width) = width == 1 ? Float64 : SVector{width, Float64}
 as_vector(v::Real) = SVector(v)
 as_vector(v::SVector) = v
 as_port(v::SVector{1}) = v[1]
@@ -210,7 +210,8 @@ The linear system in state-space form, one continuous state `q` from `x0`:
 `A` is `n_x × n_x`, `B` is `n_x × n_u`, `C` is `n_y × n_x` and `D` is
 `n_y × n_u`. Each is any `AbstractMatrix` of reals, stored at full shape as a
 static matrix of `Float64`, so integer entries qualify; a matrix that does not
-fit the others is refused. `x0` is in the coordinates of `A`, a vector of length
+fit the others is refused, and so is an `A` of size zero, since a block with no
+state is a gain. `x0` is in the coordinates of `A`, a vector of length
 `n_x`, or a real when `n_x` is one. The state is an `SVector` at every size. `in`
 is a `Float64` when `n_u` is one and an `SVector{n_u, Float64}` otherwise, and
 `out` likewise by `n_y`.
@@ -237,6 +238,8 @@ StateSpace(A::SMatrix{NX, NX, Float64}, B::SMatrix{NX, NU, Float64}, C::SMatrix{
     StateSpace{NX, NU, NY, !iszero(D), NX * NX, NX * NU, NY * NX, NY * NU}(A, B, C, D, x0)
 function StateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
                     D::AbstractMatrix = zeros(size(C, 1), size(B, 2)), x0 = zeros(size(A, 1)))
+    size(A, 1) == 0 && throw(ArgumentError(
+        "a state space with no state is a gain, which is written in a stage body, not a block"))
     n_x, n_u, n_y = size(A, 1), size(B, 2), size(C, 1)
     for (name, matrix, shape) in (("A", A, (n_x, n_x)), ("B", B, (n_x, n_u)),
                                   ("C", C, (n_y, n_x)), ("D", D, (n_y, n_u)))
@@ -259,15 +262,16 @@ matrices `(; A, B, C, D)` of `Float64`, the denominator made monic and the
 direct term split off. `linear_blocks.md`, section 2, derives it.
 """
 function realize(num, den)
-    n = length(den) - 1
-    padded = [zeros(n + 1 - length(num)); collect(num)] ./ den[1]
+    order = length(den) - 1
+    padded = [zeros(order + 1 - length(num)); collect(num)] ./ den[1]
     monic = collect(den) ./ den[1]
-    b = padded[2:end] .- padded[1] .* monic[2:end]    # b̃_{n-1} … b̃_0, the direct term subtracted
-    a = monic[2:end]                                   # a_{n-1} … a_0
-    A = SMatrix{n, n, Float64}([zeros(n - 1) I(n - 1); -reverse(a)'])
-    B = SMatrix{n, 1, Float64}([zeros(n - 1); 1])
-    C = SMatrix{1, n, Float64}(reverse(b)')
-    D = SMatrix{1, 1, Float64}(padded[1])
+    direct = padded[1]
+    num_tail = padded[2:end] .- direct .* monic[2:end]    # b̃_{n-1} … b̃_0, the direct term subtracted
+    den_tail = monic[2:end]                                # a_{n-1} … a_0
+    A = SMatrix{order, order, Float64}([zeros(order - 1) I(order - 1); -reverse(den_tail)'])
+    B = SMatrix{order, 1, Float64}([zeros(order - 1); 1])
+    C = SMatrix{1, order, Float64}(reverse(num_tail)')
+    D = SMatrix{1, 1, Float64}(direct)
     (; A, B, C, D)
 end
 
@@ -292,10 +296,11 @@ numerator of lower degree than the denominator publishes `out` from stage 1, so
 the block breaks an algebraic loop, and one of equal degree publishes it from
 stage 2 (§5.3).
 
-Three spellings are refused with an `ArgumentError`: a numerator longer than
-the denominator, which is improper; a leading denominator coefficient of zero;
-and a nonzero `u0` over a denominator whose constant coefficient is zero, a
-pole at the origin, which has no steady state.
+Four spellings are refused with an `ArgumentError`: a denominator of fewer
+than two coefficients, whose order of zero makes a gain; a numerator longer
+than the denominator, which is improper; a leading denominator coefficient of
+zero; and a nonzero `u0` over a denominator whose constant coefficient is zero,
+a pole at the origin, which has no steady state.
 
 `linear_blocks.md` gives the realization in section 2 and the initial condition
 in section 5.
@@ -309,6 +314,8 @@ TransferFunction(num::NTuple{M, Float64}, den::NTuple{K, Float64},
                  realization::StateSpace{N, 1, 1, FT, LA}) where {M, K, N, FT, LA} =
     TransferFunction{N, FT, M, K, LA}(num, den, realization)
 function TransferFunction(; num, den, u0 = 0.0)
+    length(den) < 2 && throw(ArgumentError(
+        "a transfer function of order zero is a gain, which is written in a stage body, not a block"))
     length(num) <= length(den) || throw(ArgumentError(
         "`num` has $(length(num)) coefficients where `den` has $(length(den)), an improper transfer function"))
     iszero(first(den)) && throw(ArgumentError("the leading coefficient of `den` is zero"))

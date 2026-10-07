@@ -416,6 +416,8 @@ function test_blocks()
             @test system.D == D
             @test typeof(block) === TransferFunction{parameters...}
         end
+        # The class follows the true degree, so a leading zero in `num` is strictly proper.
+        @test TransferFunction(num = (0, 1), den = (1, 5)) isa TransferFunction{1, false}
     end
 
     @testset "the transfer function of the lag matches the lag block (§13.7)" begin
@@ -465,6 +467,8 @@ function test_blocks()
         @test_throws ArgumentError TransferFunction(num = (1, 1, 1), den = (1, 1))
         @test_throws ArgumentError TransferFunction(num = (1,), den = (1, 0), u0 = 1.0)
         @test_throws ArgumentError TransferFunction(num = (1,), den = (0, 1))
+        @test_throws ArgumentError TransferFunction(num = (2,), den = (1,))
+        @test_throws ArgumentError TransferFunction(num = (), den = ())
     end
 
     @testset "the transfer function's stage follows its degree, and it declares no stage of its own (§5.3, D-313)" begin
@@ -927,6 +931,7 @@ function test_blocks()
         @test_throws TypeError PID(Kp = 1, tracking = 1)
         @test_throws ArgumentError StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5], C = [1 2; 0 1])
         @test_throws ArgumentError StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5; 0 1], C = [1 2; 0 1], x0 = [1, 2, 3])
+        @test_throws ArgumentError StateSpace(A = zeros(0, 0), B = zeros(0, 1), C = zeros(1, 0), D = [2.0;;])
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
