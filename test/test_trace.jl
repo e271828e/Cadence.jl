@@ -26,7 +26,7 @@ three_root_inputs() = Group((; s = Sum(sa = 1.0, sb = 1.0), g = Gain(2.0));
 # the trigger's guard holds in the authored state and fires at `t₀`, and the
 # integrator's due `s_update` runs there too. What the header must hold is what
 # both left behind (D-274).
-boundary_movers() = Group((; t = Trigger(0.5), d = DiscreteIntegrator(1.0));
+boundary_movers() = Group((; t = Trigger(0.5), d = DiscreteAccumulator(1.0));
                           input_wires = ("sig" => "t/sig", "e" => "d/e"))
 
 # One record's face, resolved the way a consumer resolves it: through the
@@ -427,7 +427,7 @@ end
 # `k` is the parameter the what-if replay moves.
 replay_model(k = 4.0) =
     Group((plant = Plant(; ω = 2.0, ζ = 0.1), ctl = Gain(k), sum = Sum(),
-           acc = DiscreteIntegrator(1.0), b = Bouncer(1.0, 0.32));
+           acc = DiscreteAccumulator(1.0), b = Bouncer(1.0, 0.32));
           local_wires = ("ctl/out" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b"),
           input_wires = ("ref" => "sum/a", "rate" => "acc/e"),
           output_wires = ("b/q" => "bq", "acc/u" => "u"))

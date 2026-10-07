@@ -254,7 +254,7 @@ knob_round(sim) = (pace!(sim, 2.0); margin!(sim, 0.01); (pace(sim), margin(sim))
 panel_model() = Group((; inner = Group((; c = Pendulum(), g = Gain(2.0));
                                        input_wires = ("u" => "c/u", "e" => "g/e"),
                                        output_wires = ("c/θ" => "θ",)),
-                         ctl = DiscreteIntegrator(1.0));
+                         ctl = DiscreteAccumulator(1.0));
                       local_wires = ("ctl/u" => "inner/u",),
                       input_wires = ("in" => "ctl/e", "gain_in" => "inner/e"))
 

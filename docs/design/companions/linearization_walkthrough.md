@@ -598,7 +598,7 @@ what the fixed width buys ([D-272][d-272]).
 
 ## 8. Three edge cases worth seeing
 
-**The frozen discrete tier, concretely.** Take a `DiscreteIntegrator` `ctl`
+**The frozen discrete tier, concretely.** Take a `DiscreteAccumulator` `ctl`
 driving the pendulum's torque. At the seeded activation `ctl` never runs; its
 output cell holds the `Float64` the nominal half carries, zero partials.
 Seeding $\theta$ and $\omega$ therefore gives the open-loop $A$ of the

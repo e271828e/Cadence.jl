@@ -8,7 +8,7 @@
 # (the plant's `q`) with its derivative, a discrete `s` (the integrator's
 # `acc`), a mode store no event transitions (`ModedSource`, §8.2), two root
 # inputs and one root-exported output face.
-readable() = Group((; plant = Plant(), ctl = DiscreteIntegrator(3.0), src = ModedSource());
+readable() = Group((; plant = Plant(), ctl = DiscreteAccumulator(3.0), src = ModedSource());
                    input_wires = ("u" => "plant/u", "e" => "ctl/e"),
                    output_wires = ("plant/y" => "y",))
 

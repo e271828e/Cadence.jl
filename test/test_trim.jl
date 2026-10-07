@@ -65,7 +65,7 @@ end
 # held output, and that producer's `s` is the baseline's. At the seeded
 # activation the discrete tier is frozen, so its output cell can only come from
 # the nominal half — which is exactly what the ruling is about.
-sampled_pend() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
+sampled_pend() = Group((; ctl = DiscreteAccumulator(1.0), c = Pendulum());
                        local_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
 sampled_base(acc = 4.0) = combine(at("ctl", fragment(s = (acc = acc,))),
                                   fragment(u = (in = 0.0,)))

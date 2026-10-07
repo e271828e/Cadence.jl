@@ -34,7 +34,7 @@ lin_pinned() = Group((; g = PinnedGain(), c = Pendulum());
                      local_wires = ("g/out" => "c/u",), input_wires = ("τ" => "g/e",))
 
 # The pendulum's torque held by a discrete producer: `sampled_pend` again.
-lin_sampled() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
+lin_sampled() = Group((; ctl = DiscreteAccumulator(1.0), c = Pendulum());
                       local_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
 lin_sampled_point() = combine(at("ctl", fragment(s = (acc = 4.0,))),
                               at("c", condition(Pendulum(); θ = asin(4.0 / PEND_G_L))),

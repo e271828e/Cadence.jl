@@ -7,7 +7,7 @@
 # a continuous `x` (the plant's `q`), a discrete `s` (the integrator's `acc`), a
 # mode set (the trigger's), and the `u`, `e` root inputs whose ordering is what
 # `UninitializedInputs` has to report.
-tri() = Group((; plant = Plant(), ctl = DiscreteIntegrator(3.0), trig = Trigger(0.5));
+tri() = Group((; plant = Plant(), ctl = DiscreteAccumulator(3.0), trig = Trigger(0.5));
               local_wires = ("plant/y" => "trig/sig",),
               input_wires = ("u" => "plant/u", "e" => "ctl/e"))
 
@@ -24,7 +24,7 @@ scratchy() = Group((; sm = Smoother(0.5));
 # due at boundary zero: `hold` samples the root input through `y_direct`,
 # `off` publishes its own `s` through `y_state` and accumulates in
 # `s_update`. What D-205 rules on is exactly what these two read at `t₀`.
-offset_pair() = Group((; hold = ZOH(), off = DiscreteIntegrator(1.0));
+offset_pair() = Group((; hold = ZOH(), off = DiscreteAccumulator(1.0));
                       local_wires = ("hold/out" => "off/e",),
                       input_wires = ("in" => "hold/in",),
                       output_wires = ("hold/out" => "held", "off/u" => "acc"),

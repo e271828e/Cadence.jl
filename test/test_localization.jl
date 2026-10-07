@@ -186,7 +186,7 @@ function test_localization()
         # A sampled consumer beside a localized event: the t* boundary runs the
         # full event phase but no g update — a spurious tick there would add the
         # mid-frame sample 0.1·q(t*) to the accumulator.
-        model = Group((; src = Sawtooth(1.0), s = Stamper(0.315), ctl = DiscreteIntegrator(1.0));
+        model = Group((; src = Sawtooth(1.0), s = Stamper(0.315), ctl = DiscreteAccumulator(1.0));
                       local_wires = ("src/q" => "s/sig",
                                "src/q" => "ctl/e"))
         sim = Simulation(model; h = 1//10)

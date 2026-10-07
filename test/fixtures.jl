@@ -176,20 +176,20 @@ y_direct(c::Sum, (; u)) = (e = c.sa * u.a + c.sb * u.b,)
 # and nothing about them walks with the activation (D-263).
 
 """
-Discrete integrator: publishes its state from **stage 1** — the loop-breaking
+Discrete accumulator: publishes its state from **stage 1** — the loop-breaking
 port, exactly as on the continuous tier — and accumulates in `s_update`, which is
 where `Δt` earns its place in the bundle.
 """
-struct DiscreteIntegrator <: AbstractComponent
+struct DiscreteAccumulator <: AbstractComponent
     k::Float64
 end
 
-s_init(::DiscreteIntegrator) = (acc = 0.0,)
-u_types(::DiscreteIntegrator) = (e = Float64,)
-y_types(::DiscreteIntegrator) = (u = Float64,)
+s_init(::DiscreteAccumulator) = (acc = 0.0,)
+u_types(::DiscreteAccumulator) = (e = Float64,)
+y_types(::DiscreteAccumulator) = (u = Float64,)
 
-y_state(::DiscreteIntegrator, (; s)) = (u = s.acc,)
-s_update(c::DiscreteIntegrator, (; s, u, Δt)) = (acc = s.acc + c.k * Δt * u.e,)
+y_state(::DiscreteAccumulator, (; s)) = (u = s.acc,)
+s_update(c::DiscreteAccumulator, (; s, u, Δt)) = (acc = s.acc + c.k * Δt * u.e,)
 
 """
 Tick counter: `Int` state, `Int` and `Bool` ports. The second and third store
@@ -974,7 +974,7 @@ The hold is not implemented anywhere: `ctl`'s entries are absent from the
 interior sweep, so its cell simply cannot change between boundaries (§10.5).
 """
 function sampled_loop(; kI = 3.0, ω = 2.0, ζ = 0.1)
-    Group((plant = Plant(; ω, ζ), ctl = DiscreteIntegrator(kI), sum = Sum());
+    Group((plant = Plant(; ω, ζ), ctl = DiscreteAccumulator(kI), sum = Sum());
           local_wires = ("ctl/u" => "plant/u",
                    "sum/e" => "ctl/e",
                    "plant/y" => "sum/b"),
@@ -999,13 +999,13 @@ period from its bundle's `Δt` and nowhere else.
 """
 struct SampledLoop <: AbstractComponent
     plant::Plant
-    ctl::DiscreteIntegrator
+    ctl::DiscreteAccumulator
     sum::Sum
     ctl_rate::Relative           # inert parameter data, read by `sample_times`
 end
 
 SampledLoop(; kI = 3.0, ω = 2.0, ζ = 0.1, ctl_rate = Relative(1)) =
-    SampledLoop(Plant(; ω, ζ), DiscreteIntegrator(kI), Sum(), ctl_rate)
+    SampledLoop(Plant(; ω, ζ), DiscreteAccumulator(kI), Sum(), ctl_rate)
 
 local_wires(::SampledLoop) =
     ("ctl/u" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b")
@@ -1131,7 +1131,7 @@ local_wires(::OpaqueHold) = ()
 condition(::Plant; y = 0.0, v = 0.0) = fragment(x = (q = SVector(y, v),))
 
 """The integrator's: the held command, which it accumulates in `acc`."""
-condition(::DiscreteIntegrator; cmd = 0.0) = fragment(s = (acc = cmd,))
+condition(::DiscreteAccumulator; cmd = 0.0) = fragment(s = (acc = cmd,))
 
 """
 Composition by pull (§14.2): the owner of the structure names its children and

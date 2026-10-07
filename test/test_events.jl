@@ -230,7 +230,7 @@ function test_events()
         # post-wrap value, and only then does the integrator's `s_update` read it: an
         # update-before-quiescence would accumulate 1.02 where the reference has
         # 0.02.
-        model = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));
+        model = Group((; saw = Sawtooth(0.3), ctl = DiscreteAccumulator(1.0));
                       local_wires = ("saw/q" => "ctl/e",))
         sim = Simulation(model; h = 1//10)
         init!(sim)

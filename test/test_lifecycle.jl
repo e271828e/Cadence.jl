@@ -16,7 +16,7 @@ armed() = Group((; c = Trigger(0.5)); input_wires = ("in" => "c/sig",),
 # The pendulum's torque held by a discrete integrator, and the condition D-273's
 # probe authored: a sampled model, where a resume from the stores alone ran one
 # tick ahead on the discrete tier.
-resume_pend() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
+resume_pend() = Group((; ctl = DiscreteAccumulator(1.0), c = Pendulum());
                       local_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
 resume_condition() = combine(at("ctl", fragment(s = (acc = 4.0,))),
                              at("c", condition(Pendulum(); θ = 0.2)),
