@@ -387,6 +387,84 @@ function state_events(::Relay{V}) where {V <: StaticArray}
     NamedTuple{names}((switch_on..., switch_off...))
 end
 
+# --- the controller (§13.7, §5.4, D-313) ----------------------------------------
+
+"""
+    PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+          hold = false, tracking = false)
+
+The PID controller with anti-windup. Inputs `r` and `y`, the error `e = r - y`,
+and two outputs from stage 2: `u_raw = Kp e + q - Kd (y - yf) / τd`, and `u`,
+its clamp to `[u_min, u_max]`. Two continuous states: `q`, the integral term,
+and `yf`, the measurement through a lag, `ẏf = (y - yf) / τd`. One law moves
+the integral term,
+
+    q̇ = Ki · gate(e) + (ref - u_raw) / Tt
+
+and two independent type parameters pick its parts, each adding an input port:
+
+|         | reference: own `u`              | reference: tracking `v`                                   |
+|:------- |:------------------------------- |:--------------------------------------------------------- |
+| no hold | `Ki e + (u - u_raw) / Tt`       | `Ki e + (v - u_raw) / Tt`                                 |
+| hold    | `Ki gate(e) + (u - u_raw) / Tt` | `Ki gate(e) + ((saturation == 0 ? u : v) - u_raw) / Tt` |
+
+`hold = true`, the parameter `Hold`, adds the input `saturation`, an `Int8`
+code such as a `LimitedIntegrator` publishes for the path downstream, and gates
+the error: `gate(e) = saturation == sign(e) ? 0 : e`. `tracking = true`, the
+parameter `Track`, adds the input `v`, the value the path delivered, as the
+correction's reference in place of the own `u`. When both exist, `v` is the
+reference only while the code is nonzero, and `u` while the path is free.
+
+`q` holds the integral term in output units, with `Ki` inside the integral, so
+a change in `Ki` alters only future accumulation. The derivative acts on the
+measurement, not the error, so a step in `r` makes no kick; `τd` is positive.
+The defaults make the plain spelling a P controller: `Ki = Kd = 0`, `Tt = Inf`,
+which switches the correction off, and infinite limits.
+
+A tracking input wired from a memoryless clamp of the block's own `u` is
+refused as an `AlgebraicCycle` classified artificial (§5.4): `u` is a stage-2
+output, so every input makes a feedthrough edge, whether `y_direct` reads it or
+not. That is why the limits live inside the block. `v` serves a value published
+from state, such as a stateful actuator's position. `pid_anti_windup.md` gives
+the reasoning.
+"""
+struct PID{Hold, Track} <: AbstractComponent
+    Kp::Float64
+    Ki::Float64
+    Kd::Float64
+    τd::Float64       # the derivative filter's time constant, positive
+    Tt::Float64       # the tracking time; `Inf` switches the correction off
+    u_min::Float64    # the own limits; infinite by default
+    u_max::Float64
+end
+PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+      hold = false, tracking = false) =
+    PID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
+
+x_init(::PID) = (q = 0.0, yf = 0.0)
+u_types(::PID{false, false}) = (r = Float64, y = Float64)
+u_types(::PID{true, false})  = (r = Float64, y = Float64, saturation = Int8)
+u_types(::PID{false, true})  = (r = Float64, y = Float64, v = Float64)
+u_types(::PID{true, true})   = (r = Float64, y = Float64, saturation = Int8, v = Float64)
+y_types(::PID) = (u = Float64, u_raw = Float64)
+function y_direct(c::PID, (; x, u))
+    u_raw = c.Kp * (u.r - u.y) + x.q - c.Kd * (u.y - x.yf) / c.τd
+    (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
+end
+# The gate tests the sign, not `saturation != 0`: integration resumes once the
+# error points back into the range, while the path still reports saturation.
+gated_error(::PID{false}, e, u) = e
+gated_error(::PID{true}, e, u) = u.saturation == sign(e) ? zero(e) : e
+# With a hold, `v` is the reference only while the code is nonzero. Tracking is
+# what to converge to while the path cannot follow; on a free path it would only
+# couple the integrator to the transients downstream.
+correction_reference(::PID{Hold, false}, u, y) where {Hold} = y.u
+correction_reference(::PID{false, true}, u, y) = u.v
+correction_reference(::PID{true, true}, u, y) = u.saturation == 0 ? y.u : u.v
+x_deriv(c::PID, (; x, u, y)) =
+    (q  = c.Ki * gated_error(c, u.r - u.y, u) + (correction_reference(c, u, y) - y.u_raw) / c.Tt,
+     yf = (u.y - x.yf) / c.τd)
+
 # --- the anonymous assembly (§8.5, D-211) -------------------------------------
 
 """

@@ -1,9 +1,9 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
-# stop-gradient, the integrator, the lag, the step, the limited integrator and
-# the relay, and two loops built from them alone. The models are built at top
-# level, like the fixtures they reuse: `RealEntry` and `PinnedEntry` are
+# stop-gradient, the integrator, the lag, the step, the limited integrator, the
+# relay and the PID, and two loops built from them alone. The models are built
+# at top level, like the fixtures they reuse: `RealEntry` and `PinnedEntry` are
 # test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
@@ -111,6 +111,31 @@ servo_loop(localized) =
 bang_bang_loop() =
     Group((; integrator = Integrator(), relay = Relay(lower = 0.2, upper = 0.8, off = 1.0, on = -1.0));
           local_wires = ("relay/out" => "integrator/in", "integrator/out" => "relay/in"))
+
+# The PID at the gains its direct calls and linearizations use, in one spelling.
+pid_controller(hold, tracking) =
+    PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0,
+        hold = hold, tracking = tracking)
+
+# A PID as the root's one child: its ports are root inputs, and `u` and `u_raw`
+# leave the root.
+function pid_root_model(controller::PID{Hold, Track}) where {Hold, Track}
+    inputs = ["r" => "controller/r", "y" => "controller/y"]
+    Hold && push!(inputs, "saturation" => "controller/saturation")
+    Track && push!(inputs, "v" => "controller/v")
+    Group((; controller = controller); input_wires = Tuple(inputs),
+          output_wires = ("controller/u" => "u", "controller/u_raw" => "u_raw"))
+end
+
+# A tracking PID whose `v` is a memoryless clamp of its own `u`, the clamp also
+# driving an integrator plant.
+pid_clamp_loop() =
+    Group((; reference = Step(t_step = 0.5, after = 5.0),
+             controller = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking = true),
+             sat = Junction{Float64, Float64, 1}(v -> clamp(v, -1.0, 1.0)), plant = Integrator());
+          local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                         "controller/u" => "sat/in1", "sat/out" => "controller/v",
+                         "sat/out" => "plant/in"))
 
 function test_blocks()
     @testset "the junction's arity and port types come from its type (§6.2, D-311)" begin
@@ -448,6 +473,78 @@ function test_blocks()
         @test modes(constant_sim, "r").state == SVector{2, Int8}(1, 0)
     end
 
+    @testset "the PID's ports follow its two parameters (§13.7, D-313)" begin
+        @test u_types(PID(Kp = 1.0)) == (r = Float64, y = Float64)
+        @test u_types(PID(Kp = 1.0, hold = true)) == (r = Float64, y = Float64, saturation = Int8)
+        @test u_types(PID(Kp = 1.0, tracking = true)) == (r = Float64, y = Float64, v = Float64)
+        @test u_types(PID(Kp = 1.0, hold = true, tracking = true)) ==
+              (r = Float64, y = Float64, saturation = Int8, v = Float64)
+        @test y_types(PID(Kp = 1.0)) == (u = Float64, u_raw = Float64)
+        @test PID(Kp = 1.0, hold = true, tracking = true) isa PID{true, true}
+    end
+
+    @testset "the PID's law gates the error on the code's sign and falls back to `u` on a free path (§13.7, D-313)" begin
+        # `u_raw = 2.5 + 0.3 - 0.8`, clamped to `u = 1`; `Ki e = 1.25`, and the
+        # correction reads `1 - 2` against `u` or `0.7 - 2` against `v`.
+        x = (q = 0.3, yf = 0.1)
+        y = (u = 1.0, u_raw = 2.0)
+        for (hold, tracking, u, q_deriv) in
+                ((false, false, (r = 3.0, y = 0.5), 0.25),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(1)), -1.0),    # the gate holds
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(-1)), 0.25),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(0)), 0.25),
+                 (false, true, (r = 3.0, y = 0.5, v = 0.7), -0.05),
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(1), v = 0.7), -1.3),
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7), 0.25))    # the fallback
+            controller = pid_controller(hold, tracking)
+            outputs = y_direct(controller, (; x, u))
+            @test outputs.u_raw ≈ 2.0 atol = 1e-12
+            @test outputs.u == 1.0
+            deriv = x_deriv(controller, (; x, u, y))
+            @test deriv.q ≈ q_deriv atol = 1e-12
+            @test deriv.yf == 4.0
+        end
+    end
+
+    @testset "the PID's four spellings linearize by the law and walk under `Dual` (§13.7, §7.2, D-313)" begin
+        # Inside the limits the own correction is zero and the gate passes the
+        # error, so only the ungated tracking variant adds the pole `-1/Tt`.
+        plain_matrices = (A = [0.0 0.0; 0.0 -10.0], B = [0.5 -0.5; 0.0 10.0], C = [1.0 2.0], D = [1.0 -3.0])
+        tracking_matrices = (A = [-1.0 -2.0; 0.0 -10.0], B = [-0.5 2.5 1.0; 0.0 10.0 0.0],
+                             C = [1.0 2.0], D = [1.0 -3.0 0.0])
+        both_matrices = (A = plain_matrices.A, B = [0.5 -0.5 0.0; 0.0 10.0 0.0],
+                         C = plain_matrices.C, D = [1.0 -3.0 0.0])
+        for (hold, tracking, inputs, expected) in
+                ((false, false, (r = 0.0, y = 0.0), plain_matrices),
+                 (true, false, (r = 0.0, y = 0.0, saturation = Int8(0)), plain_matrices),
+                 (false, true, (r = 0.0, y = 0.0, v = 0.0), tracking_matrices),
+                 (true, true, (r = 0.0, y = 0.0, saturation = Int8(0), v = 0.0), both_matrices))
+            model = pid_root_model(pid_controller(hold, tracking))
+            @test build(model; activations = (Float64, LinearizeDual)) isa Build
+            sim = Simulation(model; h = 1//100)
+            init!(sim, fragment(u = inputs))
+            real_inputs = tracking ? (r = get_input(:r), y = get_input(:y), v = get_input(:v)) :
+                                     (r = get_input(:r), y = get_input(:y))
+            linearization = linearize(sim, taps(x = (q = get_state("controller", :q), yf = get_state("controller", :yf)),
+                                                u = real_inputs, y = (u = get_face(:u),)))
+            @test isapprox(linearization.A, expected.A; atol = 1e-12)
+            @test isapprox(linearization.B, expected.B; atol = 1e-12)
+            @test isapprox(linearization.C, expected.C; atol = 1e-12)
+            @test isapprox(linearization.D, expected.D; atol = 1e-12)
+        end
+    end
+
+    @testset "a tracking input wired from a clamp of the PID's own output closes an artificial cycle (§5.4)" begin
+        # `u` is a stage-2 output, so `v` makes a feedthrough edge though only the
+        # derivative reads it. The limits live inside the block for this reason.
+        err = failure(() -> build(pid_clamp_loop()))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :artificial
+        @test d.dead == [("controller", :v, :u)]
+        @test d.wires == ["controller/u" => "sat/in1", "sat/out" => "controller/v"]
+    end
+
     @testset "the bang-bang loop builds with no algebraic loop and cycles between the thresholds (§5.3, §13.7)" begin
         @test build(bang_bang_loop()) isa Build
         @test build(bang_bang_loop(); activations = (Float64, LinearizeDual)) isa Build
@@ -487,6 +584,8 @@ function test_blocks()
         @test Relay(lower = 0, upper = 1) isa Relay{Float64}
         @test LimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
               LimitedIntegrator{SVector{2, Float64}, true}
+        @test PID(Kp = 1) isa PID{false, false}
+        @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
@@ -519,7 +618,9 @@ function test_blocks()
                      Relay(lower = 0.2, upper = 0.8),
                      LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
                      LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0), localized = false),
-                     Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8)), Group((; k = Constant(1.0))))
+                     Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8)),
+                     PID(Kp = 1.0), PID(Kp = 1.0, hold = true), PID(Kp = 1.0, tracking = true),
+                     PID(Kp = 1.0, hold = true, tracking = true), Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))
             @test build(comp) isa Build

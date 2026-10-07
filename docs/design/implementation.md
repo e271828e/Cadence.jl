@@ -127,13 +127,15 @@ The standard component library, the submodule `Redstone.Blocks`:
   `LimitedIntegrator` and `Relay` are over `Real` and static vectors, with
   `Int8` modes and, over a vector, events generated per component.
   `LimitedIntegrator` publishes its mode as the output `saturation`.
+- `PID{Hold, Track}`, with the helpers `gated_error` and
+  `correction_reference` (D-313).
 - The anonymous assembly `Group`, with `_entries` (D-184).
 
 It reaches the parent through its import list alone, as a user's component
 file does (D-313). Nothing in the package depends on it, so `src/Redstone.jl`
 includes it last.
 
-Spec: §2.1, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-211, D-311, D-312, D-313.
+Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-211, D-311, D-312, D-313.
 
 ### `src/build.jl`
 
