@@ -1,10 +1,10 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
-# stop-gradient, the integrator, the lag, the state space, the step, the limited
-# integrator, the relay and the PID, the PID assembled from blocks, and the loops built from
-# them alone. The models are built at top level, like the fixtures they reuse:
-# `RealEntry` and `PinnedEntry` are test_build.jl's.
+# stop-gradient, the integrator, the lag, the state space, the transfer function,
+# the step, the limited integrator, the relay and the PID, the PID assembled from
+# blocks, and the loops built from them alone. The models are built at top level,
+# like the fixtures they reuse: `RealEntry` and `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -44,12 +44,31 @@ linear_model(block, value) = Group((; k = Constant(value), c = block); local_wir
 linear_root_model(block) =
     Group((; c = block); input_wires = ("in" => "c/in",), output_wires = ("c/out" => "out",))
 
-# A unit-feedback loop through a difference junction around a scalar state
-# space whose direct term is `D`.
-feedback_loop(D) =
-    Group((; r = Constant(1.0), e = Junction{Float64, Float64, 2}(-),
-             p = StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [D;;]));
+# A unit-feedback loop through a difference junction around a scalar linear
+# block, or around a scalar state space whose direct term is `D`.
+feedback_loop(plant) =
+    Group((; r = Constant(1.0), e = Junction{Float64, Float64, 2}(-), p = plant);
           local_wires = ("r/out" => "e/in1", "p/out" => "e/in2", "e/out" => "p/in"))
+feedback_loop(D::Real) = feedback_loop(StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [D;;]))
+
+# The transfer functions: the lag `1/(0.5s + 1)`, the lead-lag `(s + 2)/(s + 5)`
+# and the second-order `4/(s² + 1.2s + 4)`.
+lag_form() = TransferFunction(num = (1,), den = (0.5, 1))
+lead_lag() = TransferFunction(num = (1, 2), den = (1, 5))
+second_order() = TransferFunction(num = (4,), den = (1, 1.2, 4))
+
+# The lag form beside the lag block at the same time constant, both fed by one
+# constant.
+lag_pair_model() =
+    Group((; k = Constant(1.0), tf = lag_form(), l = FirstOrderLag(τ = 0.5));
+          local_wires = ("k/out" => "tf/in", "k/out" => "l/in"))
+
+# The lead-lag driving a lag plant in a unit-feedback loop.
+lead_lag_loop() =
+    Group((; r = Constant(1.0), e = Junction{Float64, Float64, 2}(-), controller = lead_lag(),
+             plant = FirstOrderLag(τ = 1.0));
+          local_wires = ("r/out" => "e/in1", "plant/out" => "e/in2", "e/out" => "controller/in",
+                         "controller/out" => "plant/in"))
 
 # A step into an integrator, which ramps from the instant the jump lands.
 step_model(source) = Group((; s = source, i = Integrator()); local_wires = ("s/out" => "i/in",))
@@ -385,8 +404,84 @@ function test_blocks()
         @test build(linear_root_model(two_state_block()); activations = (Float64, LinearizeDual)) isa Build
     end
 
+    @testset "the transfer function realizes in controllable canonical form, the direct term split off (§13.7, D-313)" begin
+        for (block, A, B, C, D, parameters) in
+                ((lag_form(), [-2.0;;], [1.0;;], [2.0;;], [0.0;;], (1, false, 1, 2, 1)),
+                 (lead_lag(), [-5.0;;], [1.0;;], [-3.0;;], [1.0;;], (1, true, 2, 2, 1)),
+                 (second_order(), [0.0 1.0; -4.0 -1.2], [0.0; 1.0;;], [4.0 0.0], [0.0;;], (2, false, 1, 3, 4)))
+            system = Redstone.Blocks.realization(block)
+            @test system.A == A
+            @test system.B == B
+            @test system.C == C
+            @test system.D == D
+            @test typeof(block) === TransferFunction{parameters...}
+        end
+    end
+
+    @testset "the transfer function of the lag matches the lag block (§13.7)" begin
+        sim = Simulation(lag_pair_model(); h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 0.3)
+        @test port(sim, "tf", :out) ≈ port(sim, "l", :out) rtol = 1e-12
+        step!(sim; t_plus = 0.7)
+        @test port(sim, "tf", :out) ≈ port(sim, "l", :out) rtol = 1e-12
+        # The realized state is the lag's scaled by `τ`.
+        @test state(sim, "tf").q[1] ≈ 0.5 * state(sim, "l").q rtol = 1e-12
+        @test build(lag_pair_model(); activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the lead-lag and the second-order system linearize to their transfer functions (§14.10, D-313)" begin
+        sim = Simulation(linear_root_model(lead_lag()); h = 1//100)
+        init!(sim, fragment(u = (in = 0.0,)))
+        linearization = linearize(sim, taps(x = (q = get_state("c", "q[1]"),), u = (in = get_input(:in),),
+                                            y = (out = get_face(:out),)))
+        @test isapprox(linearization.A, [-5.0;;]; atol = 1e-12)
+        @test isapprox(linearization.B, [1.0;;]; atol = 1e-12)
+        @test isapprox(linearization.C, [-3.0;;]; atol = 1e-12)
+        @test isapprox(linearization.D, [1.0;;]; atol = 1e-12)
+        second_sim = Simulation(linear_root_model(second_order()); h = 1//100)
+        init!(second_sim, fragment(u = (in = 0.0,)))
+        (; A, B, C, D) = linearize(second_sim, taps(x = (q1 = get_state("c", "q[1]"), q2 = get_state("c", "q[2]")),
+                                                    u = (in = get_input(:in),), y = (out = get_face(:out),)))
+        for s in (0, im, 2im, 1 + 3im)
+            H = (C * ((s * I - A) \ B) + D)[1]
+            @test abs(H - 4 / (s^2 + 1.2s + 4)) < 1e-12
+        end
+    end
+
+    @testset "the transfer function starts at rest or at the steady state for `u0`, and refuses an improper function or an origin pole with `u0` (§13.7)" begin
+        sim = Simulation(linear_root_model(TransferFunction(num = (1,), den = (0.5, 1), u0 = 3.0)); h = 1//100)
+        init!(sim, fragment(u = (in = 3.0,)))
+        @test port(sim, "c", :out) == 3.0
+        step!(sim; t_plus = 1.0)
+        @test port(sim, "c", :out) ≈ 3.0 rtol = 1e-12
+        # A pole at the origin starts at rest.
+        origin_pole = TransferFunction(num = (1,), den = (1, 0))
+        @test origin_pole isa TransferFunction{1, false}
+        origin_sim = Simulation(linear_model(origin_pole, 1.0); h = 1//100)
+        init!(origin_sim, fragment())
+        step!(origin_sim; t_plus = 1.0)
+        @test port(origin_sim, "c", :out) ≈ 1.0 rtol = 1e-12
+        @test_throws ArgumentError TransferFunction(num = (1, 1, 1), den = (1, 1))
+        @test_throws ArgumentError TransferFunction(num = (1,), den = (1, 0), u0 = 1.0)
+        @test_throws ArgumentError TransferFunction(num = (1,), den = (0, 1))
+    end
+
+    @testset "the transfer function's stage follows its degree, and it declares no stage of its own (§5.3, D-313)" begin
+        @test build(feedback_loop(lag_form())) isa Build
+        err = failure(() -> build(feedback_loop(lead_lag())))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        # The arms on `LinearBlock` are the only stages, picked by `FT`.
+        @test !Redstone.has_stage(y_direct, lag_form())
+        @test !Redstone.has_stage(y_state, lead_lag())
+    end
+
     @testset "the linear blocks' phase bodies allocate nothing (§7.5)" begin
-        for model in (linear_model(two_state_block(), SVector(1.0, -1.0)), feedback_loop(0.0))
+        for model in (linear_model(two_state_block(), SVector(1.0, -1.0)), feedback_loop(0.0),
+                      linear_model(lag_form(), 1.0), lead_lag_loop())
+            @test build(model; activations = (Float64, LinearizeDual)) isa Build
             sim = Simulation(model; h = 1//100)
             bodies = phase_bodies(sim)
             for name in (:sweep_1, :sweep_2, :rhs, :ticks)
@@ -823,6 +918,8 @@ function test_blocks()
         @test PID(Kp = 1) isa PID{false, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa StateSpace{1, 1, 1, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
+        @test TransferFunction(num = (1,), den = (1, 2)) isa TransferFunction{1, false}
+        @test TransferFunction(num = [1], den = [1, 2]) isa TransferFunction{1, false}
         @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
         @test_throws TypeError Step(t_step = 0.25, localized = 1)
         @test_throws TypeError LimitedIntegrator(lower = -1, upper = 1, localized = 1)
@@ -873,6 +970,7 @@ function test_blocks()
                      PID(Kp = 1.0, hold = true, tracking = true),
                      StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [0.0;;]),
                      StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]), two_state_block(),
+                     lag_form(), lead_lag(), second_order(),
                      Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))

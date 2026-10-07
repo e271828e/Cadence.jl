@@ -13,24 +13,10 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The library's three remaining tranches**, the candidate rows of
+- **The library's two remaining tranches**, the candidate rows of
   `docs/design/companions/library_inventory.md` batched by the mechanism each
   exercises (§13.7, D-313), one brief, two stages and one review each, in
   this order:
-  - **Increment 64, the linear blocks**: `StateSpace` and `TransferFunction`,
-    with `docs/design/companions/linear_blocks.md` the record. `StateSpace`
-    holds the four matrices at full shape, with a static-array length
-    parameter per field, scalar ports when `NU` and `NY` are one and
-    `SVector` ports otherwise, and `x0` in the user's coordinates. Its
-    feedthrough is structural (§5.3), so the strictly proper and the proper
-    forms are two dispatch arms, `D` zero publishing from `y_state` and `D`
-    nonzero from `y_direct`, the class a type parameter the constructor
-    sets and the arms defined once on the abstract `LinearBlock{FT}` both
-    blocks subtype. `TransferFunction` has one input and one output, is
-    realized in controllable canonical form to a held `StateSpace`, takes
-    its class from the numerator's degree, and starts at rest or
-    at the steady state for `u0`, never from an `x0`, since a realization's
-    coordinates are not the user's.
   - **Increment 65, the discrete tier**: `DiscreteIntegrator{V}` and
     `RateLimiter{V}`, the latter moving `out` by at most `R Δt` per tick,
     both reading their period from the bundle's `Δt`;

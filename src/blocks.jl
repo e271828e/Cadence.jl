@@ -4,6 +4,7 @@ import ..Redstone: AbstractComponent, Pinned, StateEvent,
     x_init, s_init, m_init, u_types, y_types, y_direct, y_state, x_deriv, s_update,
     state_events, local_wires, input_wires, output_wires, sample_times, transparent_container
 using StaticArrays: StaticArray, SMatrix, SVector, similar_type
+using LinearAlgebra: I
 import ForwardDiff
 
 # The standard component library (§13.7, D-313). Written as a user's component
@@ -248,6 +249,77 @@ function StateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
                SMatrix{n_y, n_u, Float64}(D), SVector{n_x, Float64}(x0...))
 end
 realization(c::StateSpace) = c
+
+"""
+    realize(num, den)
+
+The controllable canonical form of the transfer function `num / den`, its
+coefficients highest power first and `num` no longer than `den`: the static
+matrices `(; A, B, C, D)` of `Float64`, the denominator made monic and the
+direct term split off. `linear_blocks.md`, section 2, derives it.
+"""
+function realize(num, den)
+    n = length(den) - 1
+    padded = [zeros(n + 1 - length(num)); collect(num)] ./ den[1]
+    monic = collect(den) ./ den[1]
+    b = padded[2:end] .- padded[1] .* monic[2:end]    # b̃_{n-1} … b̃_0, the direct term subtracted
+    a = monic[2:end]                                   # a_{n-1} … a_0
+    A = SMatrix{n, n, Float64}([zeros(n - 1) I(n - 1); -reverse(a)'])
+    B = SMatrix{n, 1, Float64}([zeros(n - 1); 1])
+    C = SMatrix{1, n, Float64}(reverse(b)')
+    D = SMatrix{1, 1, Float64}(padded[1])
+    (; A, B, C, D)
+end
+
+"""
+    TransferFunction(; num, den, u0 = 0.0)
+
+The linear system of one input and one output given by its transfer function,
+
+    G(s) = (num[1] sᵐ + … + num[end]) / (den[1] sⁿ + … + den[end])
+
+the coefficients highest power first, as tuples or vectors of reals. `in` and
+`out` are `Float64`. The block keeps the coefficients and holds their
+realization in controllable canonical form, a `StateSpace` whose stages it
+shares.
+
+There is no `x0`, because a realization's state means nothing to a user who
+knows only `G(s)`. The block starts at rest, or, with `u0` given, at the steady
+state for the constant input `u0`, where `out` is `G(0) u0`.
+
+The type parameter `FT` is the feedthrough class, and the degrees pick it. A
+numerator of lower degree than the denominator publishes `out` from stage 1, so
+the block breaks an algebraic loop, and one of equal degree publishes it from
+stage 2 (§5.3).
+
+Three spellings are refused with an `ArgumentError`: a numerator longer than
+the denominator, which is improper; a leading denominator coefficient of zero;
+and a nonzero `u0` over a denominator whose constant coefficient is zero, a
+pole at the origin, which has no steady state.
+
+`linear_blocks.md` gives the realization in section 2 and the initial condition
+in section 5.
+"""
+struct TransferFunction{N, FT, M, K, LA} <: LinearBlock{FT}
+    num::NTuple{M, Float64}
+    den::NTuple{K, Float64}
+    realization::StateSpace{N, 1, 1, FT, LA, N, N, 1}
+end
+TransferFunction(num::NTuple{M, Float64}, den::NTuple{K, Float64},
+                 realization::StateSpace{N, 1, 1, FT, LA}) where {M, K, N, FT, LA} =
+    TransferFunction{N, FT, M, K, LA}(num, den, realization)
+function TransferFunction(; num, den, u0 = 0.0)
+    length(num) <= length(den) || throw(ArgumentError(
+        "`num` has $(length(num)) coefficients where `den` has $(length(den)), an improper transfer function"))
+    iszero(first(den)) && throw(ArgumentError("the leading coefficient of `den` is zero"))
+    iszero(u0) || !iszero(last(den)) ||
+        throw(ArgumentError("`u0` is $u0 where `den` has a pole at the origin, which has no steady state"))
+    (; A, B, C, D) = realize(num, den)
+    forced = B * SVector(float(u0))
+    x0 = iszero(u0) ? zero(forced) : -(A \ forced)
+    TransferFunction(Float64.(Tuple(num)), Float64.(Tuple(den)), StateSpace(A, B, C, D, x0))
+end
+realization(c::TransferFunction) = c.realization
 
 # --- the step (§2.1, §10.4, D-313) ----------------------------------------------
 
