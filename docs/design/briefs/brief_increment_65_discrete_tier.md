@@ -68,13 +68,8 @@ wrong at the keyboard, stop and report rather than deviate silently.
   `DiscretizedTransferFunction`, `PIDBlock`, `DiscretePID`,
   `GaussianWhiteNoise`, `held`, `saturation_code`, `splitmix` and `gaussian`
   are free (`held` is a local variable in three source files, never a
-  function). **`DiscreteIntegrator` is a test fixture**, `test/fixtures.jl`
-  line 183, used in nine test files with ports `e` and `u` and a gain. The
-  block keeps the name, the fixture keeps its, the name does not join
-  `test/imports.jl`'s `import Redstone.Blocks:` line, and `test_blocks.jl`
-  spells the block `Redstone.Blocks.DiscreteIntegrator`, with a one-line
-  comment at its first use naming the clash. This is the inventory's own
-  rule for a shared name, applied to the suite.
+  function). `DiscreteIntegrator` was a test fixture; its rename to
+  `DiscreteAccumulator` landed beside this brief, so the name is free too.
 - **Every number below was probed at 5784f1a's tree** with the shapes
   above, sampling by `step!` at `h = 1//100` unless said. Confirm each in a
   probe before writing an assertion, and report the probe's numbers.
@@ -123,7 +118,7 @@ wrong at the keyboard, stop and report rather than deviate silently.
   mirrors, the PID testsets (lines 730 to 913) stage 3 mirrors, the keyword
   testset (line 915), the loops' allocation testset (line 939), the
   shadowing testset (line 963). `test/fixtures.jl` lines 178 to 204, the
-  fixture `DiscreteIntegrator` and `TickCounter`. `test/utils.jl` lines 1
+  fixtures `DiscreteAccumulator` and `TickCounter`. `test/utils.jl` lines 1
   to 30, `single` and `fed`.
 
 ## Stage 1: `DiscreteIntegrator`, `DiscreteLimitedIntegrator`, `RateLimiter`
@@ -239,7 +234,7 @@ level:
   `phase_bodies` with `boundary!` and `offtick_boundary!`, the idiom of
   line 939; stages 2 and 3 extend it.
 - The keyword testset gains the four spellings above; the shadowing tuple
-  gains `Redstone.Blocks.DiscreteIntegrator()`,
+  gains `DiscreteIntegrator()`,
   `DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0)`, its vector form
   and `RateLimiter(rising = 1.0)`.
 
@@ -250,14 +245,13 @@ level:
 
 ### Bookkeeping, in the same commit
 
-- `test/imports.jl` line 77: `DiscreteLimitedIntegrator` and `RateLimiter`
-  join the `import Redstone.Blocks:` line; `DiscreteIntegrator` does not.
+- `test/imports.jl` line 77: `DiscreteIntegrator`,
+  `DiscreteLimitedIntegrator` and `RateLimiter` join the `import
+  Redstone.Blocks:` line.
 - `docs/design/implementation.md` `### src/blocks.jl`: a new bullet after
   the leaf blocks', "`DiscreteIntegrator`, `DiscreteLimitedIntegrator` with
-  the helper `saturation_code`, and `RateLimiter` (D-313)", and a sentence
-  after the paragraph on imports: "`DiscreteIntegrator` shares its name
-  with a test fixture, so the suite reaches the block qualified."
-  Constructs, not behaviour.
+  the helper `saturation_code`, and `RateLimiter` (D-313)". Constructs, not
+  behaviour.
 - `docs/design/companions/library_inventory.md`: the three rows' status
   becomes *shipped*. Linkified spelling; run the battery, `linkify` a
   no-op on rerun.
@@ -481,7 +475,7 @@ Probed values:
   peaks at `atol = 0.005` and settling times exactly, as the continuous
   testsets do.
 - The all-discrete loop, `pid_single_loop`'s shape with
-  `Redstone.Blocks.DiscreteIntegrator()` as the plant, builds and reads
+  `DiscreteIntegrator()` as the plant, builds and reads
   `5.329`, `11.3 s`. The hold from a `DiscreteLimitedIntegrator(lower =
   -1.0, upper = 1.0)` between the controller and a discrete integrator
   plant, its `saturation` wired to the controller, builds.
@@ -588,9 +582,6 @@ probe scripts under `/tmp`, "empty is acceptable". Dimensions:
 - **`Dual`.** Every new model builds under `(Float64, LinearizeDual)`; the
   tier pins, so the check is that nothing on this tier is marked `Pinned`
   (`DeclarationOnWrongTier` would say so at build).
-- **The fixture clash.** `DiscreteIntegrator` is absent from
-  `test/imports.jl`'s `Blocks` line, the fixture's nine users are
-  untouched, and `test_blocks.jl` reaches the block qualified.
 - **The register, the inventory and the companions.** `implementation.md`'s
   rows name constructs; behaviour is in docstrings; the docstrings and the
   two section 9s agree, the period caveat, the Tustin caveat, the `Tt = 0`
