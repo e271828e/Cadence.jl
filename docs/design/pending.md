@@ -13,27 +13,37 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The library's two remaining tranches**, the candidate rows of
+- **The library's three remaining tranches**, the candidate rows of
   `docs/design/companions/library_inventory.md` batched by the mechanism each
   exercises (§13.7, D-313), one brief, two stages and one review each, in
   this order:
-  - **Increment 64, the discrete tier**: `DiscreteIntegrator{V}` and
+  - **Increment 64, the linear blocks**: `StateSpace` and `TransferFunction`,
+    with `docs/design/companions/linear_blocks.md` the record. `StateSpace`
+    holds the four matrices at full shape, with a static-array length
+    parameter per field, scalar ports when `NU` and `NY` are one and
+    `SVector` ports otherwise, and `x0` in the user's coordinates. Its
+    feedthrough is structural (§5.3), so the strictly proper and the proper
+    forms are two dispatch arms, `D` zero publishing from `y_state` and `D`
+    nonzero from `y_direct`, the class a type parameter the constructor
+    sets. `TransferFunction` has one input and one output, is realized in
+    controllable canonical form to a `StateSpace` it forwards its stages
+    to, takes its class from the numerator's degree, and starts at rest or
+    at the steady state for `u0`, never from an `x0`, since a realization's
+    coordinates are not the user's.
+  - **Increment 65, the discrete tier**: `DiscreteIntegrator{V}` and
     `RateLimiter{V}`, the latter moving `out` by at most `R Δt` per tick,
-    both reading their period from the bundle's `Δt`; `DiscreteFilter` in
-    direct form II transposed, an `SVector` state and coefficient tuples as
-    instance data; and the noise source in §7.3's blessed idiom, the
-    generator in the workspace and its four words in `s` (D-231).
+    both reading their period from the bundle's `Δt`;
+    `DiscreteTransferFunction`, increment 64's realization over `s_update`
+    with `z` in place of `s`; and the noise source in §7.3's blessed idiom,
+    the generator in the workspace and its four words in `s` (D-231).
     `Delay{V, K}` waits for a model that asks.
-  - **Increment 65, structure, sources and the linear system**: `Pack{N}`,
-    `Unpack{N}`, `Switch{V}`, `Source(f)`, `LinearSystem` and `Freeze` over
-    a struct `V`. Measured against the junction's shape, `Pack{N}` is an
-    alias, `Junction{V, SVector{N, V}, N}(SVector)`, as `SumJunction` is;
+  - **Increment 66, structure and sources**: `Pack{N}`, `Unpack{N}`,
+    `Switch{V}`, `Source(f)` and `Freeze` over a struct `V`. Measured
+    against the junction's shape, `Pack{N}` is an alias,
+    `Junction{V, SVector{N, V}, N}(SVector)`, as `SumJunction` is;
     `Unpack{N}` has `N` outputs, `Switch{V}` mixes two `V` inputs with a
     `Bool` the junction's one `In` cannot type, and `Source(f)` has no
     inputs and reads the bundle's `t`, so those three stay blocks. The
-    linear system's feedthrough is structural (§5.3), so
-    the strictly proper and the proper forms are two dispatch arms, `D`
-    absent publishing from `y_state` and `D` present from `y_direct`. The
     struct `Freeze` needs the allocation-free leafwise map D-312 asks for,
     and becomes a loose fix of its own if the tranche is kept pure.
 - **The inspector**, one browser client in four stages, in working order:
