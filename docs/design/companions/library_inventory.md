@@ -98,7 +98,7 @@ proves standard). Every block is generic over its port type `V`, in the
 | Block | Status | Mechanism |
 |---|---|---|
 | `Integrator{V}` | shipped | walks under `Dual` |
-| `LimitedIntegrator{V <: Real, L}` | shipped | a mode the derivative reads, and four events, the leave pair gated by the mode; departures localized or boundary-detected, by `L` ([D-179][d-179]) |
+| `LimitedIntegrator{V <: Real, L}` | shipped | a mode the derivative reads, and four events, the leave pair gated by the mode and strictly inward input; departures localized or boundary-detected, by `L` ([D-179][d-179]) |
 | `LimitedIntegrator` over a `StaticArray` | candidate | componentwise modes, four events over reductions masked by the mode |
 | `FirstOrderLag{V}`, time constant as instance data | shipped | the actuator model and [§5.5][s5-5]'s α-filter idiom |
 | `RateLimiter{V}` | candidate | a mode-switching dynamic in continuous time |

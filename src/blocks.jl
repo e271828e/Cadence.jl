@@ -221,7 +221,9 @@ the input's zero crossing. Boundary-detected, the guards are the `Bool`
 predicates, and the departure fires at the end of the step in which `in` first
 pointed back into the range, so `q` is held on the limit for the rest of that
 step and carries an offset of at most `a h² / 2` from then on, `a` the input's
-slope at its zero crossing. The policy is the type parameter `L` rather than a
+slope at its zero crossing. What the cheap form buys is that a departure costs
+no root-finding and splits no step, where a localized one pays about 22 trial
+sweeps and a boundary. The policy is the type parameter `L` rather than a
 field because the build reads it off the guard's return type (D-179).
 `limited_integrator_variants.md` gives the reasoning.
 
@@ -257,15 +259,15 @@ hit_lower_guard(c::LimitedIntegrator, (; x)) = c.lower - x.q
 # `-1` to a small positive value at the input's zero crossing. The bracket still
 # converges on that crossing, since only the sign drives it, but ITP falls back
 # to bisection's count, about 15 extra interior sweeps per leave.
-leave_upper_guard(c::LimitedIntegrator{V, true}, (; m, u)) where {V} =
+leave_upper_guard(::LimitedIntegrator{V, true}, (; m, u)) where {V} =
     m.saturation === :upper && u.in < 0 ? -u.in : -one(u.in)
-leave_lower_guard(c::LimitedIntegrator{V, true}, (; m, u)) where {V} =
+leave_lower_guard(::LimitedIntegrator{V, true}, (; m, u)) where {V} =
     m.saturation === :lower && u.in > 0 ? u.in : -one(u.in)
 # The `Bool` forms are the same predicates, boundary-detected and strict by
 # construction.
-leave_upper_guard(c::LimitedIntegrator{V, false}, (; m, u)) where {V} =
+leave_upper_guard(::LimitedIntegrator{V, false}, (; m, u)) where {V} =
     m.saturation === :upper && u.in < 0
-leave_lower_guard(c::LimitedIntegrator{V, false}, (; m, u)) where {V} =
+leave_lower_guard(::LimitedIntegrator{V, false}, (; m, u)) where {V} =
     m.saturation === :lower && u.in > 0
 hit_upper_handler(c::LimitedIntegrator, _) = (x = (q = c.upper,), m = (saturation = :upper,))
 hit_lower_handler(c::LimitedIntegrator, _) = (x = (q = c.lower,), m = (saturation = :lower,))
