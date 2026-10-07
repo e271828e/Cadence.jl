@@ -28,7 +28,7 @@ wrong at the keyboard, stop and report rather than deviate silently.
   alone, so it has no feedthrough. An integer leaf pins by itself (§7.2,
   D-079), so the type is declared plain, with no `Pinned` wrapper; a probe
   confirmed both spellings build under `(Float64, LinearizeDual)`, and the
-  plain one is the honest one. The port is what the PID's `code` input
+  plain one is the honest one. The port is what the PID's `saturation` input
   reads.
 - **The vector forms share the scalar struct.** The bound on `V` widens to
   `Union{Real, StaticArray{<:Tuple, <:Real}}` on both blocks, as `Integrator`
@@ -53,12 +53,12 @@ wrong at the keyboard, stop and report rather than deviate silently.
 - **`localized = true` stays the default** on every block carrying `L`
   (user, 2026-10-07): the accurate form by default, the cheap form the
   opt-in a paced deployment makes beside its base step.
-- **The PID is a library block, `PID{Flag, Track}`**, promoted from the
+- **The PID is a library block, `PID{Hold, Track}`**, promoted from the
   inventory's example-first row. The companion `pid_anti_windup.md` is the
   record and its section 7 the decision; this brief restates only what the
   keyboard needs. One law, `q̇ = Ki · gate(e) + (ref - u_raw) / Tt`, two
-  independent `Bool` type parameters since each adds an input port: `Flag`
-  adds `code::Int8` and makes `gate(e) = code == sign(e) ? 0 : e`; `Track`
+  independent `Bool` type parameters since each adds an input port: `Hold`
+  adds `saturation::Int8` and makes `gate(e) = saturation == sign(e) ? 0 : e`; `Track`
   adds `v::Float64` as the correction's reference in place of the block's own
   clamped `u`, consulted only while the code is nonzero when both exist.
   `Ki` sits inside the integral, so `q` is the integral term in output units.
@@ -301,7 +301,7 @@ In `src/blocks.jl`, a new section `# --- the controller (§13.7, §5.4,
 D-313)` after the moded blocks:
 
 ```julia
-struct PID{Flag, Track} <: AbstractComponent
+struct PID{Hold, Track} <: AbstractComponent
     Kp::Float64
     Ki::Float64
     Kd::Float64
@@ -311,31 +311,31 @@ struct PID{Flag, Track} <: AbstractComponent
     u_max::Float64
 end
 PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
-      flag = false, tracking = false) =
-    PID{flag, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
+      hold = false, tracking = false) =
+    PID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
 
 x_init(::PID) = (q = 0.0, yf = 0.0)
 u_types(::PID{false, false}) = (r = Float64, y = Float64)
-u_types(::PID{true, false})  = (r = Float64, y = Float64, code = Int8)
+u_types(::PID{true, false})  = (r = Float64, y = Float64, saturation = Int8)
 u_types(::PID{false, true})  = (r = Float64, y = Float64, v = Float64)
-u_types(::PID{true, true})   = (r = Float64, y = Float64, code = Int8, v = Float64)
+u_types(::PID{true, true})   = (r = Float64, y = Float64, saturation = Int8, v = Float64)
 y_types(::PID) = (u = Float64, u_raw = Float64)
 function y_direct(c::PID, (; x, u))
     u_raw = c.Kp * (u.r - u.y) + x.q - c.Kd * (u.y - x.yf) / c.τd
     (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
 end
 gated_error(::PID{false}, e, u) = e
-gated_error(::PID{true}, e, u) = u.code == sign(e) ? zero(e) : e
-correction_reference(::PID{Flag, false}, u, y) where {Flag} = y.u
+gated_error(::PID{true}, e, u) = u.saturation == sign(e) ? zero(e) : e
+correction_reference(::PID{Hold, false}, u, y) where {Hold} = y.u
 correction_reference(::PID{false, true}, u, y) = u.v
-correction_reference(::PID{true, true}, u, y) = u.code == 0 ? y.u : u.v
+correction_reference(::PID{true, true}, u, y) = u.saturation == 0 ? y.u : u.v
 x_deriv(c::PID, (; x, u, y)) =
     (q  = c.Ki * gated_error(c, u.r - u.y, u) + (correction_reference(c, u, y) - y.u_raw) / c.Tt,
      yf = (u.y - x.yf) / c.τd)
 ```
 
-`y_direct` joins the import list. The keyword spellings are `flag` and
-`tracking`; the type parameters `Flag` and `Track`. The docstring, in the
+`y_direct` joins the import list. The keyword spellings are `hold` and
+`tracking`; the type parameters `Hold` and `Track`. The docstring, in the
 register of the shipped blocks: the law in one line, the four-cell table of
 the companion's section 4, the ports each parameter adds, the fallback rule
 when both exist, the grouping (`q` is the integral term in output units,
@@ -344,7 +344,7 @@ measurement, the defaults that make the plain spelling a P controller, the
 refusal a tracking input wired from a memoryless clamp of the own output
 meets and why (§5.4), and the pointer to `pid_anti_windup.md` by file name
 for the reasoning. Two site comments: on `gated_error`, why the gate tests
-the sign and not `code != 0` (integration resumes when the error reverses
+the sign and not `saturation != 0` (integration resumes when the error reverses
 while the path still reports saturation); on `correction_reference`, why
 `v` is consulted only while the code is nonzero.
 
@@ -356,24 +356,24 @@ loops'.
 - **Ports and constructors.** `u_types` of the four spellings is the four
   tuples above, and `y_types(PID(Kp = 1.0)) == (u = Float64, u_raw =
   Float64)`. `PID(Kp = 1) isa PID{false, false}` with `Float64` fields, in
-  the integer-keyword testset; `PID(Kp = 1.0, flag = true, tracking = true)
+  the integer-keyword testset; `PID(Kp = 1.0, hold = true, tracking = true)
   isa PID{true, true}`.
 - **The law, by direct call.** With `c = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2,
   τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0)` in each spelling,
   `x = (q = 0.3, yf = 0.1)` and `r = 3.0`, `y = 0.5`: `y_direct` gives
   `u_raw == 2.0` (`2.5 + 0.3 - 0.8`) and `u == 1.0`. Then `x_deriv` at that
   `x`, `u` and `y = (u = 1.0, u_raw = 2.0)`, with `yf' == 4.0` throughout:
-  plain, `q̇ == 0.25` (`1.25 - 1`); flag, `q̇ == -1.0` at `code = 1`
-  (the gate holds), `0.25` at `code = -1` and at `code = 0`; tracking,
-  `q̇ == -0.05` at `v = 0.7` (`1.25 - 1.3`); both, `q̇ == -1.3` at `code = 1,
-  v = 0.7` and `0.25` at `code = 0, v = 0.7`, the fallback to `u`. These
+  plain, `q̇ == 0.25` (`1.25 - 1`); hold, `q̇ == -1.0` at `saturation = 1`
+  (the gate holds), `0.25` at `saturation = -1` and at `saturation = 0`; tracking,
+  `q̇ == -0.05` at `v = 0.7` (`1.25 - 1.3`); both, `q̇ == -1.3` at `saturation = 1,
+  v = 0.7` and `0.25` at `saturation = 0, v = 0.7`, the fallback to `u`. These
   equalities are exact in binary arithmetic; if one is not, assert within
   `1e-12`.
 - **The four linearizations.** Each spelling as the root of a `Group` with
   its ports as root inputs and `u`, `u_raw` as faces, at the gains above,
-  `init!` with every real input `0.0` and `code = Int8(0)`; `linearize` with
+  `init!` with every real input `0.0` and `saturation = Int8(0)`; `linearize` with
   `x = (q, yf)`, the real inputs and `y = (u = get_face(:u),)`. Plain and
-  flag: `A = [0.0 0.0; 0.0 -10.0]`, `B = [0.5 -0.5; 0.0 10.0]`, `C = [1.0
+  hold: `A = [0.0 0.0; 0.0 -10.0]`, `B = [0.5 -0.5; 0.0 10.0]`, `C = [1.0
   2.0]`, `D = [1.0 -3.0]`. Tracking: `A = [-1.0 -2.0; 0.0 -10.0]`, `B = [-0.5
   2.5 1.0; 0.0 10.0 0.0]`, `C = [1.0 2.0]`, `D = [1.0 -3.0 0.0]`. Both: the
   plain matrices with a zero column for `v`. All within `1e-12`, and every
@@ -398,7 +398,7 @@ the foreground.
 
 - `test/imports.jl`: `PID` joins the `import Redstone.Blocks:` line.
 - `docs/design/implementation.md` `### src/blocks.jl`: a bullet naming
-  `PID{Flag, Track}` with `gated_error` and `correction_reference`, and §5.4
+  `PID{Hold, Track}` with `gated_error` and `correction_reference`, and §5.4
   joins the Spec line. Battery.
 
 ## Stage 3: the loops and the example assembly
@@ -447,15 +447,15 @@ pid_servo_loop(controller) = Group((
       output_wires = ("plant/out" => "y",))
 
 # A cascade: the controller sets a velocity servo's reference and reads the
-# position that integrates the velocity; `code` wires the inner block's
+# position that integrates the velocity; `hold` wires the inner block's
 # saturation into the controller, `tracking` the velocity into `v`.
-function pid_cascade(controller; code = false, tracking = false)
+function pid_cascade(controller; hold = false, tracking = false)
     wires = Pair{String, String}[
         "reference/out" => "controller/r", "position/out" => "controller/y",
         "controller/u" => "error/in1", "velocity/out" => "error/in2",
         "error/out" => "inner/in", "inner/out" => "actuator/in",
         "actuator/out" => "velocity/in", "velocity/out" => "position/in"]
-    code && push!(wires, "inner/saturation" => "controller/code")
+    hold && push!(wires, "inner/saturation" => "controller/saturation")
     tracking && push!(wires, "velocity/out" => "controller/v")
     Group((reference = Step(t_step = 0.5, after = 5.0), controller = controller,
            error = Junction{Float64, Float64, 2}(-), inner = LimitedIntegrator(lower = -1.2, upper = 1.2),
@@ -491,11 +491,11 @@ within the stated tolerance of `5.0` at the end.
   loop builds, which is the positive half of stage 2's refusal: `v` from the
   servo's state closes no cycle.
 - **The cascade, six ways, to `t = 60`.** Plain `PID(…)`: peak `8.33`.
-  `flag = true` with `code = true`: `6.103`. `tracking = true` with
+  `hold = true` with the loop's `hold = true`: `6.103`. `tracking = true` with
   `tracking = true` in the loop: `6.135` at `Tt = 2.0`, `7.273` at `Tt =
   0.5`. Both parameters with both wires: `5.202` at `Tt = 2.0`, `5.088` at
-  `Tt = 0.5`. Assert: the flag's peak is below the plain peak by more than
-  `2.0`; the gated-tracking peaks are below the flag's; shortening `Tt`
+  `Tt = 0.5`. Assert: the hold's peak is below the plain peak by more than
+  `2.0`; the gated-tracking peaks are below the hold's; shortening `Tt`
   raises the ungated-tracking peak by more than `1.0` and lowers the
   gated one; every run settles within `3e-2`. The testset's name says what
   this measures, the companion's section 3: ungated tracking couples the
@@ -512,7 +512,7 @@ type is declared: `pid_assembly` returns a `Group`.
 
 ### Bookkeeping, in the same commit
 
-- `docs/design/companions/library_inventory.md`: the `PID{Flag, Track}` row
+- `docs/design/companions/library_inventory.md`: the `PID{Hold, Track}` row
   flips to *shipped*, its mechanism cell kept; the gain-scheduled row stays
   a candidate; the paragraph under the table stands. Battery.
 - `docs/design/pending.md`: the increment 63 sub-bullet is deleted; the
@@ -533,9 +533,9 @@ probe scripts under `/tmp`, "empty is acceptable". Dimensions:
   handler clamping every component (the `0.45` sample); a vector leave
   guard reading `u.in[1]` for every `i` (the exact-zero component); the
   `saturation` port published as a constant `0`; the vector relay's
-  `ifelse` arms swapped; the PID's gate written `code != 0` (the direct
-  call at `code = -1`); the fallback dropped so `v` is read at `code = 0`
-  (the direct call at `code = 0, v = 0.7`); `Ki` moved outside the
+  `ifelse` arms swapped; the PID's gate written `saturation != 0` (the direct
+  call at `saturation = -1`); the fallback dropped so `v` is read at
+  `saturation = 0` (the direct call at `saturation = 0, v = 0.7`); `Ki` moved outside the
   integral (the `B` matrix); the clamp dropped from `y_direct` (the direct
   call's `u`); the assembly's `aw` fold dropping `Tt` (the single-loop
   agreement). A surviving mutant is a missing test.

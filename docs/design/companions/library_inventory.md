@@ -136,7 +136,7 @@ proves standard). Every block is generic over its port type `V`, in the
 
 | Block | Status | Mechanism |
 |---|---|---|
-| `PID{Flag, Track}` | candidate | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; `pid_anti_windup.md` |
+| `PID{Hold, Track}` | candidate | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; `pid_anti_windup.md` |
 | a gain-scheduled `PID`, gains as ports | candidate | the grouping admits a gain change bumplessly; built when a model asks |
 
 The PID assembly of library blocks, the first variant as a `Group`, is an

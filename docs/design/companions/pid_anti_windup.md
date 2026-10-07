@@ -103,7 +103,7 @@ is a mode made silently when its switch reads a continuous quantity. But
 when the saturating element is a moded block, its mode changes only when
 its events fire, localized or at a step boundary. The code `LimitedIntegrator`
 publishes, `-1`, `0` or `+1` for the limit in force, is such a signal: a
-gate `code == sign(e) ? 0 : e` in front of the integrator switches on a
+gate `saturation == sign(e) ? 0 : e` in front of the integrator switches on a
 boundary and needs no events of its own. The signed code also carries which
 limit, which the gate needs, and several codes consolidate through a small
 fold or, reduced to `Bool`s, through the `Or` and `And` gates. Simulink has
@@ -124,8 +124,9 @@ to be short.
 
 Two independent choices remain, each adding one input port when taken.
 
-- **An external saturation flag**, the port `code::Int8`, which gates the
-  error: `gate(e) = code == sign(e) ? 0 : e`. Absent, `gate(e) = e`.
+- **An external saturation input**, the port `saturation::Int8`, the hold,
+  which gates the error: `gate(e) = saturation == sign(e) ? 0 : e`. Absent,
+  `gate(e) = e`.
 - **The correction's reference**, the block's own clamped output `u` or
   the tracking port `v::Float64`.
 
@@ -134,31 +135,31 @@ the four variants are its table:
 
 | | reference: own `u` | reference: tracking `v` |
 |---|---|---|
-| no flag | `Ki e + (u - u_raw) / Tt` | `Ki e + (v - u_raw) / Tt` |
-| flag | `Ki gate(e) + (u - u_raw) / Tt` | `Ki gate(e) + ((code == 0 ? u : v) - u_raw) / Tt` |
+| no hold | `Ki e + (u - u_raw) / Tt` | `Ki e + (v - u_raw) / Tt` |
+| hold | `Ki gate(e) + (u - u_raw) / Tt` | `Ki gate(e) + ((saturation == 0 ? u : v) - u_raw) / Tt` |
 
 One rule joins the axes. When both ports exist, `v` is the reference only
 while the code is nonzero, and the reference falls back to `u` while the
 path is free. This is not a special case but what a tracking reference
 means: a value to converge to while the path cannot follow, meaningless
-while it can. Without a flag there is no way to know, so that variant
+while it can. Without the hold there is no way to know, so that variant
 tracks always and carries section 3's coupling; with one, the coupling goes.
 The naive composition, the gate on `e` plus ungated tracking, would keep
-the coupling the flag was meant to remove, and an earlier form that stopped
+the coupling the hold was meant to remove, and an earlier form that stopped
 integrating whenever the code was nonzero failed to resume when the error
 reversed while the path still reported saturation, which the gate's sign
 test handles.
 
-**Why the flag does not win over everything.** It is tempting to conclude
-that with the flag in hand no correction is needed at all. That holds for a
+**Why the hold does not win over everything.** It is tempting to conclude
+that with the saturation input in hand no correction is needed at all. That holds for a
 controller without own limits, where the correction is identically zero,
 and fails at two edges. The code reports the path downstream of `u`, so it
 cannot see the controller's own clamp: with limits tighter than the path's,
 `u_raw` runs past them while the code stays at zero, and only the internal
-term catches it. And a flag can stop the integrator but cannot move it,
+term catches it. And a hold can stop the integrator but cannot move it,
 which is the same thing only when the integrator held the right value when
 the hold began. A controller not in command, a limit that moves while the
-hold is on, or a flag that rises late through actuator dynamics all leave an
+hold is on, or a saturation input that rises late through actuator dynamics all leave an
 excess that history set and the gate cannot undo; a tracking term undoes
 it at rate `1/Tt`.
 
@@ -172,31 +173,31 @@ no kick.
 
 ## 5. A scenario per variant
 
-- **Own limits, no flag.** A single loop commanding a black box: a PI on a
+- **Own limits, no hold.** A single loop commanding a black box: a PI on a
   valve, a throttle into an engine model that reports nothing back. The
   controller's limits are the actuator's travel and nothing downstream
   reports or has dynamics worth modelling.
-- **Own limits with a flag.** A limit the path cannot see beside one it
+- **Own limits with a hold.** A limit the path cannot see beside one it
   reports. An altitude hold commands vertical speed with a comfort limit
   while the pitch and elevator loops below report whether the servo is on
   its stops. The path follows the limited command without saturating, so
-  only the internal term catches the comfort limit; only the flag catches
+  only the internal term catches the comfort limit; only the hold catches
   the servo's.
-- **Tracking, no flag.** A controller not in command. An engine control's
+- **Tracking, no hold.** A controller not in command. An engine control's
   speed loop and its temperature and pressure limiters each compute a fuel
   flow and a minimum selector picks one; the deselected integrators must
   follow the selected command so the switchover is bumpless. An autopilot
   in standby tracking the pilot's command is the same shape.
-- **Tracking with a flag.** A cascade whose achievable value moves while
+- **Tracking with a hold.** A cascade whose achievable value moves while
   the hold is on. The outer flight-path loop commands normal acceleration
   and the inner loop's limit varies with airspeed; holding freezes the
-  outer integrator at the value it had when the flag rose, while tracking
+  outer integrator at the value it had when the hold began, while tracking
   the achieved acceleration keeps it on the moving limit, and the gate
   keeps that tracking from coupling to the inner loop's ordinary
   transients.
 
 In one sentence: own limits are for the limit the path cannot see, the
-flag for the limit the path reports, tracking for a value the integrator
+the hold for the limit the path reports, tracking for a value the integrator
 must follow rather than a limit it must respect, and the gate is what lets
 a tracking value be used without paying for it during free transients.
 
@@ -212,10 +213,10 @@ a tracking value be used without paying for it during free transients.
   the `LimitedIntegrator`'s four events applied to `q`, the one addition
   that would give the block a mode.
 - **Feedforward accounted in the saturation.** A feedforward command added
-  after the block is invisible to the own clamp; the flag variants see it
+  after the block is invisible to the own clamp; the hold variants see it
   through the path. A `uff` input inside the block, so the clamp sees the
   total, is the alternative wiring.
-- **A general hold rule.** The code port is one hold rule with the sign
+- **A general hold rule.** The `saturation` port is one hold rule with the sign
   built in. A `hold::Bool` port with the rule computed outside covers
   integral separation and mode logic.
 - **Gain scheduling**, the gains as ports rather than instance data. The
@@ -226,17 +227,17 @@ a tracking value be used without paying for it during free transients.
 - **Internal clamping**, Simulink's conditional integration against the
   block's own limits. A third moded block with the limited integrator's
   events applied to `u_raw`, including the strict gate against the
-  exact-zero corner `limited_integrator_variants.md` records. The code port
+  exact-zero corner `limited_integrator_variants.md` records. The `saturation` port
   gives the external form of the same thing on a declared boundary.
 
 ## 7. The decision, and the numbers
 
-The block is `PID{Flag, Track}` in `Redstone.Blocks`: two `Bool` type
+The block is `PID{Hold, Track}` in `Redstone.Blocks`: two `Bool` type
 parameters, one per axis, since whether a port exists is a declaration;
 instance data `Kp`, `Ki`, `Kd`, `τd`, `Tt`, `u_min`, `u_max`, with `Ki = Kd
 = 0`, `τd = 0.1`, `Tt = Inf` and infinite limits as defaults, so the plain
 spelling is a P controller and every mechanism is opted into; inputs `r` and
-`y`, plus `code` and `v` as the parameters add them; outputs `u`, clamped,
+`y`, plus `saturation` and `v` as the parameters add them; outputs `u`, clamped,
 and `u_raw`; states `q` and `yf`; one `x_deriv` with two one-line helpers
 for the gate and the reference. A simplified assembly of library blocks,
 the first cell as a `Group`, stays in the tests as the inspector's example
@@ -259,22 +260,22 @@ the first instant after which the output stays within `0.05` of `5`.
 | tracking the servo | servo | `Inf` | 8.71 | 29.4 s |
 | tracking the servo | servo | 1 | 5.96 | 22.7 s |
 | none | cascade | | 8.33 | 38.5 s |
-| flag | cascade | | 6.10 | 32.5 s |
+| hold | cascade | | 6.10 | 32.5 s |
 | tracking the velocity | cascade | 2 | 6.14 | 25.8 s |
 | tracking the velocity | cascade | 0.5 | 7.27 | 55.2 s |
-| flag and tracking | cascade | 2 | 5.20 | 26.9 s |
-| flag and tracking | cascade | 0.5 | 5.09 | 22.0 s |
+| hold and tracking | cascade | 2 | 5.20 | 26.9 s |
+| hold and tracking | cascade | 0.5 | 5.09 | 22.0 s |
 
 The last four rows are section 3's coupling argument measured. Shortening
 `Tt` degrades ungated tracking, whose correction then slaves the outer
 integrator to every inner transient, and improves gated tracking, which
-pays nothing while the path is free. The flag alone beats ungated tracking
+pays nothing while the path is free. The hold alone beats ungated tracking
 at its better `Tt`, and the two together beat both.
 
 The tracking variant wired from a memoryless clamp of its own output is
 refused at build, `AlgebraicCycle` with `classification === :artificial`
 and the dead hop `("controller", :v, :u)`. All four variants build under
-`(Float64, LinearizeDual)`. At a free operating point the two flag variants
+`(Float64, LinearizeDual)`. At a free operating point the two hold variants
 linearize as the plain PID, `A = [0 0; 0 -1/τd]`, `B = [Ki -Ki; 0 1/τd]`,
 `C = [1 Kd/τd]`, `D = [Kp (-Kp - Kd/τd)]`, since the correction is
 identically zero inside the limits and the gate passes the error; the
@@ -297,8 +298,8 @@ A gate on a continuous quantity is the silent mode the junction's docstring
 warns against; a gate on a moded block's code switches where the framework
 already stopped. The signed `Int8` code was chosen for the mode store's
 isbits rule ([D-231][d-231]) so that a static vector of modes could exist; that it
-reads as arithmetic in a consumer, `code == sign(e)`, is what made the
-flag variant a one-liner.
+reads as arithmetic in a consumer, `saturation == sign(e)`, is what made the
+hold variant a one-liner.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-179]: ../decisions.md#d-179--derive-detection-policy-from-the-guards-return-type

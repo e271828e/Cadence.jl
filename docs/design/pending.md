@@ -26,8 +26,8 @@ both add names.
     and the scalar `LimitedIntegrator` and `Relay` move to `Int8` codes for
     consistency. `LimitedIntegrator` publishes its code as a second output,
     `saturation`, read from the mode, for anti-windup consumers. The PID
-    joins the library as `PID{Flag, Track}`, one leaf with back-calculation
-    against its own limits, an optional saturation-code input that gates
+    joins the library as `PID{Hold, Track}`, one leaf with back-calculation
+    against its own limits, an optional saturation input that gates
     the integrator, and an optional tracking input, `Ki` inside the
     integral; `pid_anti_windup.md` records the reasoning. A simplified PID
     assembly of library blocks stays a test model for the inspector. The
