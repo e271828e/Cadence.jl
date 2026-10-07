@@ -35,13 +35,15 @@ both add names.
     and becomes a loose fix of its own if the tranche is kept pure.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
-  descriptor's schema and `describe` together; the bridge, an ordinary
+  descriptor's schema and `descriptor` together, at the tip of increment
+  67's `Structure` refactor (the record's "Working order"); the bridge, an
+  ordinary
   device serving the handle over a socket; the live inspector, values on
   the diagram; and the cockpit, panels over the bridge. The built-in Julia
   GUI is parked (D-310). The record is
   `docs/design/inspector/initial_design.md` (not normative), which carries
   each stage's answered questions and open list. What the spec owes, each
-  ruled when its stage reaches it: `describe` and the carrier change (stage
+  ruled when its stage reaches it: `descriptor` and the carrier change (stage
   1); the handle's control verbs and the log-tail view (stage 2); and
   §11.7's panel convention amended from a drawing method to a panel
   description, with the GUI package's half of D-270's convention assigned

@@ -11,7 +11,10 @@ It is not normative. Rulings that touch the framework land in `spec.md` and
 
 Two sessions on 2026-09-28 fed it: one on the inspector alone, whose
 answers stage 1 keeps whole, and one on the whole graphical layer, whose
-bridge and panel material stages 2 to 4 keep. An earlier inspector
+bridge and panel material stages 2 to 4 keep. A third, on 2026-10-07, read
+the artifacts against the diagram's needs: it amended answer 16, added
+answers 17 and 18, renamed `describe` to `descriptor`, and gave stage 1's
+working order its step zero, the `Structure` refactor of increment 67. An earlier inspector
 proposal, deleted in commit 084d6f0, was left out of both. The built-in
 Julia GUI the second session designed was parked on 2026-10-05 (D-310).
 Its reasons are in that entry, and its record last stands at commit
@@ -31,7 +34,7 @@ b6f08b1.
   source stays the only model, as §8.1 requires. A model editor is out for
   good: it would be a second source of truth for structure.
 - **Independence.** The core never depends on the client. What the core
-  gains is `describe`, the carrier change and, with stage 2, the handle's
+  gains is `descriptor`, the carrier change and, with stage 2, the handle's
   control verbs.
 - **The handle-only rule.** The bridge reaches the framework through
   the device handle and nothing else, so what it needs is what every client
@@ -197,10 +200,10 @@ b6f08b1.
     truth that answer 2 removed. Computed layout works the same in the live
     session and in the hosted copy.
 13. **Framework hooks: the core renders descriptors.** The core gains
-    `describe(x)` for a `Build`, a `Deployment` and a failed build. It
+    `descriptor(x)` for a `Build`, a `Deployment` and a failed build. It
     returns plain Julia data in the descriptor's shape: dictionaries,
     vectors, strings and numbers. `format_version` and the JSON Schema live
-    in the core repo, and the core's suite checks `describe`'s output against
+    in the core repo, and the core's suite checks `descriptor`'s output against
     the schema. The core takes no JSON dependency. Encoding to text is the
     inspector package's job. The build's carrier exception holds the last
     clean artifact, as answer 6 requires.
@@ -208,7 +211,9 @@ b6f08b1.
     reshapes them freely. Keeping the writer beside them lets the core's own
     suite catch a refactor that would break descriptors. It extends D-257's
     idea that an artifact renders itself: `show` renders to text and
-    `describe` to data. The bridge later calls the same function.
+    `descriptor` to data. The bridge later calls the same function. The
+    name was `describe` until 2026-10-07; DataFrames exports `describe`,
+    and a simulation user is likely to have it loaded.
     *Cost:* the descriptor format becomes core API. It needs its own spec
     section, an explicit ruling that a rendering to data is not an accessor
     in D-257's sense, and the carrier change.
@@ -218,7 +223,7 @@ b6f08b1.
     always match. The core repo stays Julia-only. The schema keeps one home,
     the core repo, and the inspector reads it from the installed Redstone.
     The inspector's CI pins a Redstone version, builds fixture models, runs
-    `describe` on them, validates the output against the schema, and runs
+    `descriptor` on them, validates the output against the schema, and runs
     the front-end tests on those descriptors.
     *Why:* the core keeps its strict review, apart from code reviewed under
     answer 11's lighter model. The version match holds by construction. A
@@ -245,12 +250,55 @@ b6f08b1.
     carries. Redstone's terms stay because diagnostics, the spec and
     descriptors all use them. Stating the refusals spares a Simulink user from
     hunting for a Run button.
-16. **The kind marker is a requirement, not a question.** Every face
+16. **The kind marker is a requirement, not a question.** Every leaf face
     carries a small tag beside its printed Julia type: number, Boolean,
-    enum, struct with named fields, opaque; function-valued signals of §4.4
-    are opaque. Answer 15's wire styles need it, and stage 4's generic
-    panels need it to choose a widget with no Julia at hand. The value type
-    schema for struct faces stays with stage 2.
+    enum, vector, struct with named fields, opaque; function-valued signals
+    of §4.4 are opaque. Answer 15's wire styles need it, and stage 4's
+    generic panels need it to choose a widget with no Julia at hand. The
+    value type schema for struct faces stays with stage 2.
+    *Amended 2026-10-07.* The marker is an object, not a word, so that
+    stage 2 extends it additively. The vector kind carries its length and
+    its element's marker; without it a static vector reads as a struct with
+    one field named `data`, which is what `fieldnames` returns for it, and
+    answer 15's thicker line has nothing to key on. A struct marker carries
+    its field names now and its per-field markers in stage 2. A `Pinned`
+    entry unwraps to its leaf for the marker and sets a separate `pinned`
+    flag, since pinning is a contract fact and not a value kind. The marker
+    is computed in the core, inside `descriptor`, beside the contract
+    readers that already walk these types.
+17. **Nodes are components, in walk order; containers are attributes.** A
+    descriptor's node list is the tree's pre-order walk with assemblies
+    included, one entry per component keyed by its path, the parent implied
+    by the path. Each node carries its class, assembly or leaf, its tier
+    when a leaf, the field that contributed it and, for a container
+    element, its key. A container is not a node: it has no faces, no
+    instance and no docstring of its own, and a name-transparent one has no
+    path to key it by. The vocabulary is the spec's: *class* for assembly
+    against leaf, *tier* for continuous against discrete, and *kind* stays
+    reserved for the value marker.
+    *Why:* this is a rendering of what the `Structure` holds after
+    increment 67, a level table in walk order with each child's segment
+    and field, so `descriptor` projects it with no reconstruction. The
+    walk order is what answer 12 wants ELK's tie-breaks to follow. How the
+    siblings of one container field are drawn, as a labelled group or not,
+    stays with axis 3.
+18. **Wires verbatim; the client resolves.** A descriptor carries the
+    one-level wires as the author declared them, per level and in
+    declaration order, and nothing resolved: no terminal producers, no face
+    tables, no routes. A leaf's faces carry type, kind marker and pinned
+    flag; an assembly's faces appear by name only, as the wire endpoints at
+    that level. The client resolves every face to its terminal once on
+    load, a walk of a few hundred lookups, and that one resolution serves
+    the type and marker of an assembly face, the face-route tier of
+    answer 9 and, from stage 2, the bridge's subscriptions.
+    *Why:* the artifact's resolved tables were derived from the declared
+    wires by the structure step, and increment 67 makes that derivation a
+    function. Carrying both forms in the descriptor would be the format's
+    own redundancy, with a consistency obligation on every validator, and
+    carrying only the resolved form loses the sibling-to-sibling wire into
+    a nested assembly under aliasing, which no reconstruction recovers.
+    The hosted copy and the bridge then compute the same thing from the
+    same source.
 
 ### Design axes
 
@@ -263,15 +311,18 @@ cited by number. Couplings are named where they exist.
    encoded. It also covers the JSON Schema, the minor and major bump rules,
    and a set of fixture descriptors. Three details to absorb: the two-sided
    face table, the anchor and component tables in rational form, and state
-   events among the derived facts. *Builds on* answers 4 to 7, 13 and 16.
-   *Coupled to* axis 3, which says what the drawing needs, and to stage 2,
-   which extends the schema.
+   events among the derived facts. *Builds on* answers 4 to 7, 13, 16, 17
+   and 18. *Coupled to* axis 3, which says what the drawing needs, and to
+   stage 2, which extends the schema.
 2. **Core integration.** The spec work answer 13 calls for: a section for
-   `describe`, the D-257 ruling that a rendering to data is not an accessor,
+   `descriptor`, the D-257 ruling that a rendering to data is not an accessor,
    and the carrier exception holding the last clean artifact (§13.1, §13.2).
    It also covers collecting instance context: docstrings, source locations,
-   and the truncation rule for parameter summaries. *Builds on* answers 5,
-   6 and 13. *Coupled to* axis 1.
+   and the truncation rule for parameter summaries. One fact to carry in:
+   the `Structure` holds no face types except the root inputs'; a leaf's
+   declared types live in the nominal activation's declaration tables,
+   `build.activations[Float64].decls`, and `descriptor` reads them there.
+   *Builds on* answers 5, 6 and 13. *Coupled to* axis 1.
 3. **Visual grammar.** How each model concept is drawn. This covers blocks;
    faces as ports; an opened assembly's boundary faces inside the subsystem;
    fan-out; container children and name-transparent containers; root inputs;
@@ -301,7 +352,12 @@ cited by number. Couplings are named where they exist.
    a pinned Redstone, front-end tests, the no-CDN rule and the privacy
    statement. *Builds on* answers 10, 11 and 14.
 
-**Working order.** Axes 1 and 2 first, in one session, scoped to a first
+**Working order.** Step zero is the `Structure` refactor, increment 67:
+the artifact keeps the declared wiring per level and a level table in walk
+order, every resolved table becomes a function over them, and the layout
+stays the one home for addresses. After it `descriptor` is a projection of
+the artifact, section by section, and the schema's sections map onto its
+fields. Then axes 1 and 2, in one session, scoped to a first
 `format_version` that carries what the core tier draws: the component tree
 with class and path, faces with type, tier and kind marker, wires, root
 inputs, the execution order with port classes, and the three pieces of
@@ -487,12 +543,13 @@ author-supplied icons; the standalone HTML export; the analysis view.
   the bridge.
 - **Deployment descriptor.** The descriptor of a `Deployment`. It embeds the
   build descriptor it deploys and adds the schedule and grid facts.
-- **`describe`.** The core's rendering of an artifact to descriptor data,
-  beside `show`'s rendering to text. The name is a placeholder.
 - **Descriptor.** A serialized, language-neutral projection of a `Build`, a
   `Deployment` or a failed build. The artifact stays the truth, and a
   descriptor is one consumer's reading of it. The bridge's connect
   payload.
+- **`descriptor`.** The core's rendering of an artifact to descriptor data,
+  beside `show`'s rendering to text. Chosen over `describe`, which
+  DataFrames exports.
 - **Failure descriptor.** The descriptor of a failed build: its diagnostics,
   plus the `Structure` projection when the structure step passed.
 - **Format version.** The descriptor format's own `major.minor` version,
@@ -507,9 +564,10 @@ author-supplied icons; the standalone HTML export; the analysis view.
 - **Inspector.** The browser client, at whichever stage. Static, it
   explains a model's structure from descriptors; live, it shows a run on
   the diagram; as the cockpit, it commands the run.
-- **Kind marker.** A small tag per face beside its printed Julia type
-  (number, Boolean, enum, struct with named fields, opaque) so a client with
-  no Julia can choose a widget or a wire style.
+- **Kind marker.** A small object per leaf face beside its printed Julia
+  type (number, Boolean, enum, vector with its length, struct with its field
+  names, opaque) so a client with no Julia can choose a widget or a wire
+  style.
 - **Live inspector.** Stage 3: the page connected to the bridge,
   showing runtime data on the diagram.
 - **Live session.** The inspector package's local web server and the tab it
