@@ -41,7 +41,12 @@ both add names.
     `Delay{V, K}` waits for a model that asks.
   - **Increment 65, structure, sources and the linear system**: `Pack{N}`,
     `Unpack{N}`, `Switch{V}`, `Source(f)`, `LinearSystem` and `Freeze` over
-    a struct `V`. The linear system's feedthrough is structural (§5.3), so
+    a struct `V`. Measured against the junction's shape, `Pack{N}` is an
+    alias, `Junction{V, SVector{N, V}, N}(SVector)`, as `SumJunction` is;
+    `Unpack{N}` has `N` outputs, `Switch{V}` mixes two `V` inputs with a
+    `Bool` the junction's one `In` cannot type, and `Source(f)` has no
+    inputs and reads the bundle's `t`, so those three stay blocks. The
+    linear system's feedthrough is structural (§5.3), so
     the strictly proper and the proper forms are two dispatch arms, `D`
     absent publishing from `y_state` and `D` present from `y_direct`. The
     struct `Freeze` needs the allocation-free leafwise map D-312 asks for,
