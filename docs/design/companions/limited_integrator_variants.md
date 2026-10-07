@@ -239,7 +239,8 @@ a constant factor by the boundary-detected policy.
 
 On 2026-10-07 the modes were recoded from `Symbol` labels to the signed `Int8`
 codes `-1`, `0` and `+1`, so that the vector form could share them under
-[D-231][d-231]'s rule, and the sketches above keep the labels.
+[D-231][d-231]'s rule, and the sketches and the prose above keep the
+labels.
 
 ## 7. What the episode says about the framework
 

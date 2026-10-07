@@ -144,7 +144,7 @@ pid_assembly(; Kp, Ki, Kd, τd, Tt, u_min, u_max) = Group((
         lag = FirstOrderLag(; τ = τd),
         der = Junction{Float64, Float64, 2}((y, yf) -> (y - yf) / τd),
         int = Integrator(),
-        raw = Junction{Float64, Float64, 3}((e, q, d) -> Kp * e + q - Kd * d),
+        raw = Junction{Float64, Float64, 3}((e, q, rate) -> Kp * e + q - Kd * rate),
         sat = Junction{Float64, Float64, 1}(v -> clamp(v, u_min, u_max)),
         aw  = Junction{Float64, Float64, 3}((e, u, u_raw) -> Ki * e + (u - u_raw) / Tt));
       input_wires  = ("r" => "err/in1", "y" => ("err/in2", "lag/in", "der/in1")),
@@ -464,6 +464,17 @@ function test_blocks()
         @test build(vector_limited_model(true); activations = (Float64, LinearizeDual)) isa Build
     end
 
+    @testset "the vector limited integrator linearizes each component by its own mode (§7.2, §14.10, D-276, D-313)" begin
+        # At 0.7 component 1 is clamped at its upper limit and component 2 is free.
+        rig = Simulation(fed(LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(0.5, 0.8)), "in"); h = 1//10)
+        init!(rig, fragment(u = (in = SVector(1.0, 0.0),)))
+        step!(rig; t_plus = 0.7)
+        linearization = linearize(rig, taps(x = (q1 = get_state("c", "q[1]"), q2 = get_state("c", "q[2]")),
+                                            u = (in1 = get_input("in[1]"), in2 = get_input("in[2]"))))
+        @test isapprox(linearization.A, zeros(2, 2); atol = 1e-12)
+        @test isapprox(linearization.B, diagm([0.0, 1.0]); atol = 1e-12)
+    end
+
     @testset "the limited integrator's departures follow `localized`, and its arrivals are localized (§2.1, §10.4, D-179)" begin
         @test limited_events(limited_model(true)).policies ===
               (hit_upper = :localized, hit_lower = :localized, leave_upper = :localized, leave_lower = :localized)
@@ -655,16 +666,19 @@ function test_blocks()
         gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0)
         @test build(pid_single_loop(pid_assembly(; gains...)); activations = (Float64, LinearizeDual)) isa Build
         # One law in another association order. The assembly's integral term is
-        # its child `int`, and its `u` a face.
-        block_samples = loop_samples(sim -> (y = port(sim, "", :y), u = port(sim, "controller", :u),
-                                             q = state(sim, "controller").q),
-                                     pid_single_loop(pid_controller(false, false)), 40)
-        assembly_samples = loop_samples(sim -> (y = port(sim, "", :y), u = port(sim, "controller", :u),
-                                                q = state(sim, "controller/int").q),
-                                        pid_single_loop(pid_assembly(; gains...)), 40)
-        for name in (:y, :u, :q)
-            @test maximum(abs(getfield(block_sample, name) - getfield(assembly_sample, name))
-                          for (block_sample, assembly_sample) in zip(block_samples, assembly_samples)) ≤ 1e-9
+        # its child `int`, and its `u` a face. At `Tt = 2.0` the division by `Tt`
+        # changes the correction.
+        for Tt in (1.0, 2.0)
+            block_samples = loop_samples(sim -> (y = port(sim, "", :y), u = port(sim, "controller", :u),
+                                                 q = state(sim, "controller").q),
+                                         pid_single_loop(PID(; gains..., Tt = Tt)), 40)
+            assembly_samples = loop_samples(sim -> (y = port(sim, "", :y), u = port(sim, "controller", :u),
+                                                    q = state(sim, "controller/int").q),
+                                            pid_single_loop(pid_assembly(; gains..., Tt = Tt)), 40)
+            for name in (:y, :u, :q)
+                @test maximum(abs(getfield(block_sample, name) - getfield(assembly_sample, name))
+                              for (block_sample, assembly_sample) in zip(block_samples, assembly_samples)) ≤ 1e-9
+            end
         end
         # Each as the root, its ports as root inputs, at a free operating point.
         plain_matrices = (A = [0.0 0.0; 0.0 -10.0], B = [0.5 -0.5; 0.0 10.0], C = [1.0 2.0], D = [1.0 -3.0])

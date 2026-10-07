@@ -74,8 +74,9 @@ two independent ports and what it does not carry is `pid_anti_windup.md`.
 
 Status is one of *shipped*, *candidate* (listed, built when wanted), or
 *example first* (built as an example model, promoted only if one form
-proves standard). Every block is generic over its port type `V`, in the
-[D-263][d-263] spelling, with `in`, `in1…inN` and `out` as port names.
+proves standard). Every block but the PID is generic over its port type
+`V`, in the [D-263][d-263] spelling, with `in`, `in1…inN` and `out` as port
+names.
 
 ### Structure
 

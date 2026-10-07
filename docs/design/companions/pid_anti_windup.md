@@ -196,7 +196,7 @@ no kick.
   keeps that tracking from coupling to the inner loop's ordinary
   transients.
 
-In one sentence: own limits are for the limit the path cannot see, the
+In one sentence: own limits are for the limit the path cannot see,
 the hold for the limit the path reports, tracking for a value the integrator
 must follow rather than a limit it must respect, and the gate is what lets
 a tracking value be used without paying for it during free transients.
