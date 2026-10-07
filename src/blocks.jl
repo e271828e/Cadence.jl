@@ -214,6 +214,66 @@ y_types(::RateLimiter{V}) where {V} = (out = V,)
 y_direct(c::RateLimiter, (; s, u, Δt)) = (out = s.v + clamp.(u.in - s.v, -c.falling * Δt, c.rising * Δt),)
 s_update(::RateLimiter, (; y)) = (v = y.out,)
 
+# --- the noise source (§7.3, §2.2, D-231, D-313) --------------------------------
+
+"""
+    GaussianWhiteNoise(; seed, μ = 0.0, σ = nothing, psd = nothing)
+
+A discrete Gaussian white noise process: at each tick `out` publishes an
+independent sample of mean `μ` and standard deviation `σ`, from stage 1. The
+sample is a pure function of `seed` and the tick count `k`, the one store field
+(D-231), so the stage draws, no generator or workspace is needed, and replay
+reproduces the stream (§2.2). Two blocks with one seed publish one stream, so
+independent sources take distinct seeds.
+
+Exactly one of `σ` and `psd` is given. `σ` is the standard deviation per
+sample, at any period. `psd` is the two-sided intensity `Q` of the white noise
+the samples stand for, with `σ² = Q/Δt` at the component's own period `Δt`
+(§10.5), and a one-sided density is halved before being passed. `μ` and the
+scale are promoted to one `V`, `Float64` or an `SVector` of `Float64`, and over
+a vector the components are independent.
+"""
+struct GaussianWhiteNoise{V <: Union{Float64, SVector{<:Any, Float64}}} <: AbstractComponent
+    seed::UInt64
+    μ::V
+    σ::V              # per sample, or `sqrt(psd)` with `density` set
+    density::Bool     # whether `σ` scales by `1/sqrt(Δt)`
+end
+function GaussianWhiteNoise(; seed, μ = 0.0, σ = nothing, psd = nothing)
+    (σ === nothing) == (psd === nothing) &&
+        throw(ArgumentError("GaussianWhiteNoise takes exactly one of `σ` and `psd`."))
+    μ, scale = float.(promote(μ, psd === nothing ? σ : sqrt.(psd)))
+    GaussianWhiteNoise(UInt64(seed), μ, scale, psd !== nothing)
+end
+
+# SplitMix64's output on the state after `k + 1` advances from `seed`: the
+# stream's `k`-th word, reached without the `k` words before it.
+function splitmix(seed, k)
+    z = UInt64(seed) + (UInt64(k) + 1) * 0x9e3779b97f4a7c15
+    z = (z ⊻ (z >> 30)) * 0xbf58476d1ce4e5b9
+    z = (z ⊻ (z >> 27)) * 0x94d049bb133111eb
+    z ⊻ (z >> 31)
+end
+# The `k`-th standard normal sample, by Box–Muller over the words `2k` and
+# `2k + 1`. `u1` lies in `(0, 1]`, so the logarithm never sees zero.
+function gaussian(seed, k)
+    u1 = 1 - (splitmix(seed, 2k) >> 11) * 0x1p-53
+    u2 = (splitmix(seed, 2k + 1) >> 11) * 0x1p-53
+    sqrt(-2 * log(u1)) * cospi(2 * u2)
+end
+gaussian(seed, k, ::Type{Float64}) = gaussian(seed, k)
+# Over a vector, component `i` reads the sub-counter `k N + i - 1`.
+gaussian(seed, k, ::Type{SVector{N, Float64}}) where {N} =
+    SVector(ntuple(i -> gaussian(seed, k * N + i - 1), Val(N)))
+
+s_init(::GaussianWhiteNoise) = (k = UInt64(0),)
+y_types(::GaussianWhiteNoise{V}) where {V} = (out = V,)
+function y_state(c::GaussianWhiteNoise{V}, (; s, Δt)) where {V}
+    scale = c.density ? c.σ ./ sqrt(Δt) : c.σ
+    (out = c.μ .+ scale .* gaussian(c.seed, s.k, V),)
+end
+s_update(::GaussianWhiteNoise, (; s)) = (k = s.k + 1,)
+
 # --- the continuous dynamics (§13.7, D-313) -------------------------------------
 
 """
@@ -822,6 +882,36 @@ end
 # --- the controller (§13.7, §5.4, D-313) ----------------------------------------
 
 """
+    PIDBlock{Hold, Track}
+
+The supertype of the two PID blocks, `PID` on the continuous tier and
+`DiscretePID` on the discrete one. It carries what their law shares, the ports
+picked by `Hold` and `Track`, the error's gate and the correction's reference,
+while each block carries its fields, its store and its stages.
+"""
+abstract type PIDBlock{Hold, Track} <: AbstractComponent end
+
+# The methods both blocks share live here: the four `u_types` arms, `y_types`,
+# the gate and the reference rule.
+u_types(::PIDBlock{false, false}) = (r = Float64, y = Float64)
+u_types(::PIDBlock{true, false})  = (r = Float64, y = Float64, saturation = Int8)
+u_types(::PIDBlock{false, true})  = (r = Float64, y = Float64, v = Float64)
+u_types(::PIDBlock{true, true})   = (r = Float64, y = Float64, saturation = Int8, v = Float64)
+y_types(::PIDBlock) = (u = Float64, u_raw = Float64)
+# The gate tests the sign, not `saturation != 0`: integration resumes once the
+# error points back into the range, while the path still reports saturation.
+# The `!= 0` in front leaves a free path's zero error ungated, so the derivative
+# at an equilibrium does not depend on how `sign` orders a zero-valued `Dual`.
+gated_error(::PIDBlock{false}, e, u) = e
+gated_error(::PIDBlock{true}, e, u) = u.saturation != 0 && u.saturation == sign(e) ? zero(e) : e
+# With a hold, `v` is the reference only while the code is nonzero. Tracking is
+# what to converge to while the path cannot follow; on a free path it would only
+# couple the integrator to the transients downstream.
+correction_reference(::PIDBlock{Hold, false}, u, y) where {Hold} = y.u
+correction_reference(::PIDBlock{false, true}, u, y) = u.v
+correction_reference(::PIDBlock{true, true}, u, y) = u.saturation == 0 ? y.u : u.v
+
+"""
     PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
           hold = false, tracking = false)
 
@@ -860,7 +950,7 @@ not. That is why the limits live inside the block. `v` serves a value published
 from state, such as a stateful actuator's position. `pid_anti_windup.md` gives
 the reasoning.
 """
-struct PID{Hold, Track} <: AbstractComponent
+struct PID{Hold, Track} <: PIDBlock{Hold, Track}
     Kp::Float64
     Ki::Float64
     Kd::Float64
@@ -874,30 +964,75 @@ PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
     PID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
 
 x_init(::PID) = (q = 0.0, yf = 0.0)
-u_types(::PID{false, false}) = (r = Float64, y = Float64)
-u_types(::PID{true, false})  = (r = Float64, y = Float64, saturation = Int8)
-u_types(::PID{false, true})  = (r = Float64, y = Float64, v = Float64)
-u_types(::PID{true, true})   = (r = Float64, y = Float64, saturation = Int8, v = Float64)
-y_types(::PID) = (u = Float64, u_raw = Float64)
 function y_direct(c::PID, (; x, u))
     u_raw = c.Kp * (u.r - u.y) + x.q - c.Kd * (u.y - x.yf) / c.τd
     (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
 end
-# The gate tests the sign, not `saturation != 0`: integration resumes once the
-# error points back into the range, while the path still reports saturation.
-# The `!= 0` in front leaves a free path's zero error ungated, so the derivative
-# at an equilibrium does not depend on how `sign` orders a zero-valued `Dual`.
-gated_error(::PID{false}, e, u) = e
-gated_error(::PID{true}, e, u) = u.saturation != 0 && u.saturation == sign(e) ? zero(e) : e
-# With a hold, `v` is the reference only while the code is nonzero. Tracking is
-# what to converge to while the path cannot follow; on a free path it would only
-# couple the integrator to the transients downstream.
-correction_reference(::PID{Hold, false}, u, y) where {Hold} = y.u
-correction_reference(::PID{false, true}, u, y) = u.v
-correction_reference(::PID{true, true}, u, y) = u.saturation == 0 ? y.u : u.v
 x_deriv(c::PID, (; x, u, y)) =
     (q  = c.Ki * gated_error(c, u.r - u.y, u) + (correction_reference(c, u, y) - y.u_raw) / c.Tt,
      yf = (u.y - x.yf) / c.τd)
+
+"""
+    DiscretePID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+                  hold = false, tracking = false)
+
+The PID controller with anti-windup on the discrete tier: `PID`'s fields,
+defaults, ports and law, with two store fields in place of its continuous
+states, `q`, the integral term, and `yf`, the measurement through a lag. `Δt` is
+the component's own period (§10.5). Inputs `r` and `y`, the error `e = r - y`,
+and two outputs from stage 2: `u_raw = Kp e + q - Kd (y - yf) / (τd + Δt)`, and
+`u`, its clamp to `[u_min, u_max]`. Each tick moves the lag by backward Euler,
+`yf⁺ = yf + Δt (y - yf) / (τd + Δt)`, and the integral term by forward Euler
+and the correction's exact step,
+
+    q⁺ = q + Δt Ki · gate(e) + β (ref - u_raw),    β = 1 - exp(-Δt / Tt)
+
+which reads, over `PID`'s two type parameters:
+
+|         | reference: own `u`              | reference: tracking `v`                                   |
+|:------- |:------------------------------- |:--------------------------------------------------------- |
+| no hold | `Δt Ki e + β (u - u_raw)`       | `Δt Ki e + β (v - u_raw)`                                 |
+| hold    | `Δt Ki gate(e) + β (u - u_raw)` | `Δt Ki gate(e) + β ((saturation == 0 ? u : v) - u_raw)` |
+
+`hold` adds the input `saturation` and the gate, `tracking` the input `v`, and
+with both the reference falls back to `u` while the code is zero, as in `PID`.
+
+The backward Euler lag is stable at every period, and `τd = 0` is legal: `yf`
+is then the previous measurement, and the D term the backward difference
+`(y - yf) / Δt`. `β` is the exact step of the correction's relaxation over one
+period, so every `Tt` is stable: `Tt = Inf` switches the correction off, and
+`Tt = 0` is legal and brings `u_raw` to the reference by the next tick, the
+clamping scheme as the limit of tracking.
+
+A tracking input wired from a memoryless clamp of the block's own `u` is
+refused as an `AlgebraicCycle`, as for `PID`, but classified real: a discrete
+member traces structurally (§5.6), so no hop is named dead. `pid_anti_windup.md`,
+section 9, gives the reasoning.
+"""
+struct DiscretePID{Hold, Track} <: PIDBlock{Hold, Track}
+    Kp::Float64
+    Ki::Float64
+    Kd::Float64
+    τd::Float64       # the derivative filter's time constant, nonnegative
+    Tt::Float64       # the tracking time; `Inf` switches the correction off
+    u_min::Float64    # the own limits; infinite by default
+    u_max::Float64
+end
+DiscretePID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+              hold::Bool = false, tracking::Bool = false) =
+    DiscretePID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
+
+s_init(::DiscretePID) = (q = 0.0, yf = 0.0)
+function y_direct(c::DiscretePID, (; s, u, Δt))
+    d = (u.y - s.yf) / (c.τd + Δt)
+    u_raw = c.Kp * (u.r - u.y) + s.q - c.Kd * d
+    (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
+end
+function s_update(c::DiscretePID, (; s, u, y, Δt))
+    β = -expm1(-Δt / c.Tt)
+    (q  = s.q + Δt * c.Ki * gated_error(c, u.r - u.y, u) + β * (correction_reference(c, u, y) - y.u_raw),
+     yf = s.yf + Δt * (u.y - s.yf) / (c.τd + Δt))
+end
 
 # --- the anonymous assembly (§8.5, D-211) -------------------------------------
 

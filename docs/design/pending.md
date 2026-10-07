@@ -13,25 +13,9 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The library's two remaining tranches**, the candidate rows of
-  `docs/design/companions/library_inventory.md` batched by the mechanism each
-  exercises (§13.7, D-313), one brief, two stages and one review each, in
-  this order:
-  - **Increment 65, the discrete tier**: `DiscreteIntegrator{V}`, forward
-    Euler with `out` the state from `s0`, `DiscreteLimitedIntegrator{V}`,
-    the same with one `clamp` and the `Int8` `saturation` code off the
-    state, and `RateLimiter{V}`, feedthrough with `rising` and `falling`
-    rates, all reading their period from the bundle's `Δt`; the discrete
-    linear blocks over one `DiscreteLinearBlock{FT}`, `DiscreteStateSpace`
-    and `DiscreteTransferFunction` in `z` beside `DiscretizedStateSpace`
-    and `DiscretizedTransferFunction`, the zero-order hold of a continuous
-    system taken per tick (`linear_blocks.md`, section 9);
-    `DiscretePID{Hold, Track}`, the law shared with `PID` through
-    `PIDBlock{Hold, Track}`, backward Euler on the filter and the exact
-    step on the correction (`pid_anti_windup.md`, section 9); and
-    `GaussianWhiteNoise{V}`, a counter-based draw with the tick count as
-    its one store field (D-231), `σ` per sample or the two-sided density.
-    `Delay{V, K}` waits for a model that asks.
+- **The library's one remaining tranche**, the candidate rows of
+  `docs/design/companions/library_inventory.md` batched by the mechanism they
+  exercise (§13.7, D-313), one brief, two stages and one review:
   - **Increment 66, structure and sources**: `Pack{N}`, `Unpack{N}`,
     `Switch{V}`, `Source(f)` and `Freeze` over a struct `V`. Measured
     against the junction's shape, `Pack{N}` is an alias,

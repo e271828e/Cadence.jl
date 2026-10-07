@@ -1,11 +1,12 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
-# discrete integrators and the rate limiter, the stop-gradient, the integrator,
-# the lag, the state space, the transfer function, their discrete twins, the
-# step, the limited integrator, the relay and the PID, the PID assembled from
-# blocks, and the loops built from them alone. The models are built at top level,
-# like the fixtures they reuse: `RealEntry` and `PinnedEntry` are test_build.jl's.
+# discrete integrators and the rate limiter, the noise, the stop-gradient, the
+# integrator, the lag, the state space, the transfer function, their discrete
+# twins, the step, the limited integrator, the relay, the PID and its discrete
+# twin, the PID assembled from blocks, and the loops built from them alone. The
+# models are built at top level, like the fixtures they reuse: `RealEntry` and
+# `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -34,6 +35,28 @@ discrete_limited_model() =
 limiter_model(before, after) =
     fed_by(Step(t_step = 0.1, before = before, after = after),
            RateLimiter(rising = 2.0, falling = 5.0, s0 = before))
+
+# A noise source as the root's one child `c`, under the given rates.
+noise_model(noise; sample_times = (;)) = Group((; c = noise); sample_times = sample_times)
+
+# A noise model run at `h = 1//100`: `out` read after each of `n` steps.
+function noise_samples(model, n)
+    sim = Simulation(model; h = 1//100)
+    init!(sim, fragment())
+    [(step!(sim; t_plus = 1//100); port(sim, "c", :out)) for _ in 1:n]
+end
+
+# The mean of a sample, and its variance and kurtosis over its length.
+function moments(samples)
+    center = sum(samples) / length(samples)
+    second = sum(sample -> (sample - center)^2, samples) / length(samples)
+    fourth = sum(sample -> (sample - center)^4, samples) / length(samples)
+    (mean = center, variance = second, kurtosis = fourth / second^2)
+end
+
+# A noise source driving an integrator.
+noise_integrator_model() =
+    Group((; n = GaussianWhiteNoise(seed = 1, σ = 1.0), i = Integrator()); local_wires = ("n/out" => "i/in",))
 
 # The pendulum's angle leaving the root twice, once through a freeze.
 freeze_model() = Group((; p = Pendulum(), f = Freeze{Float64}());
@@ -188,10 +211,9 @@ function pid_root_model(controller::PID{Hold, Track}) where {Hold, Track}
 end
 
 # A tracking PID whose `v` is a memoryless clamp of its own `u`, the clamp also
-# driving an integrator plant.
-pid_clamp_loop() =
-    Group((; reference = Step(t_step = 0.5, after = 5.0),
-             controller = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking = true),
+# driving an integrator plant; the continuous block unless given.
+pid_clamp_loop(controller = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking = true)) =
+    Group((; reference = Step(t_step = 0.5, after = 5.0), controller = controller,
              sat = Junction{Float64, Float64, 1}(v -> clamp(v, -1.0, 1.0)), plant = Integrator());
           local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
                          "controller/u" => "sat/in1", "sat/out" => "controller/v",
@@ -215,9 +237,10 @@ pid_assembly(; Kp, Ki, Kd, τd, Tt, u_min, u_max) = Group((
                       "aw/out" => "int/in"),
       output_wires = ("sat/out" => "u", "raw/out" => "u_raw"))
 
-# A single loop on the own limits: the controller drives an integrator plant.
-pid_single_loop(controller) = Group((
-        reference = Step(t_step = 0.5, after = 5.0), controller = controller, plant = Integrator());
+# A single loop on the own limits: the controller drives an integrator plant,
+# continuous unless given.
+pid_single_loop(controller; plant = Integrator()) = Group((
+        reference = Step(t_step = 0.5, after = 5.0), controller = controller, plant = plant);
       local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
                      "controller/u" => "plant/in"),
       output_wires = ("plant/out" => "y",))
@@ -251,6 +274,15 @@ function pid_cascade(controller; hold = false, tracking = false)
           local_wires = Tuple(wires), output_wires = ("position/out" => "y",))
 end
 
+# A holding discrete PID driving a discrete integrator plant through a discrete
+# limited integrator, whose code it reads.
+discrete_hold_loop(controller) = Group((
+        reference = Step(t_step = 0.5, after = 5.0), controller = controller,
+        actuator = DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0), plant = DiscreteIntegrator());
+      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                     "controller/u" => "actuator/in", "actuator/out" => "plant/in",
+                     "actuator/saturation" => "controller/saturation"))
+
 # A loop run at `h = 1//100` and sampled every 0.1 up to `t_end`: `read(sim)`
 # at each sample.
 function loop_samples(read, model, t_end)
@@ -258,6 +290,10 @@ function loop_samples(read, model, t_end)
     init!(sim, fragment())
     [(step!(sim; frames = 10); read(sim)) for _ in 1:round(Int, 10 * t_end)]
 end
+
+# The time of the first sample from which a loop's samples, taken every 0.1
+# from 0.1, stay within 0.05 of the reference 5.
+settling_time(samples) = (findlast(sample -> abs(sample - 5.0) > 0.05, samples) + 1) / 10
 
 function test_blocks()
     @testset "the junction's arity and port types come from its type (§6.2, D-311)" begin
@@ -403,13 +439,61 @@ function test_blocks()
         @test build(vector_model; activations = (Float64, LinearizeDual)) isa Build
     end
 
+    @testset "the Gaussian white noise is a pure function of its seed and tick, with the moments it claims (§7.3, §2.2, D-231, D-313)" begin
+        sim = Simulation(noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)); h = 1//100)
+        init!(sim, fragment())
+        @test port(sim, "c", :out) == Redstone.Blocks.gaussian(42, 0)
+        @test Redstone.Blocks.gaussian(42, 0) ≈ 0.882248906222269 atol = 1e-12
+        samples = [(step!(sim; t_plus = 1//100); port(sim, "c", :out)) for _ in 1:1000]
+        @test samples == [Redstone.Blocks.gaussian(42, k) for k in 1:1000]
+        # The store counts the ticks run, `t₀`'s included: the next sample's index.
+        @test state(sim, "c").k === UInt64(1001)
+        thousand = moments(samples)
+        @test abs(thousand.mean) < 0.1
+        @test 0.9 < sqrt(thousand.variance) < 1.1
+        # Replay reproduces the stream, and another seed is another stream.
+        @test noise_samples(noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)), 10)[end] ===
+              noise_samples(noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)), 10)[end]
+        @test noise_samples(noise_model(GaussianWhiteNoise(seed = 43, σ = 1.0)), 10)[end] !=
+              noise_samples(noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)), 10)[end]
+        vector_noise = GaussianWhiteNoise(seed = 7, μ = SVector(1.0, -1.0), σ = SVector(1.0, 2.0))
+        @test y_types(vector_noise) == (out = SVector{2, Float64},)
+        vector_sim = Simulation(noise_model(vector_noise); h = 1//100)
+        init!(vector_sim, fragment())
+        @test isapprox(port(vector_sim, "c", :out), SVector(1.9884743323187353, -4.728511613462453); atol = 1e-12)
+        # The first output of a SplitMix64 seeded with zero.
+        @test Redstone.Blocks.splitmix(0, 0) == 0xe220a8397b1dcdaf
+        million = moments([Redstone.Blocks.gaussian(42, k) for k in 0:999_999])
+        @test abs(million.mean) < 0.005
+        @test abs(million.variance - 1) < 0.01
+        @test abs(million.kurtosis - 3) < 0.05
+        @test Redstone.has_stage(y_state, vector_noise)
+        @test !Redstone.has_stage(y_direct, vector_noise)
+        @test build(noise_integrator_model(); activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the noise's density form scales by the period (§7.3, §10.5)" begin
+        # `psd = 4` reads `σ = 2 / sqrt(Δt)`: 20 at the base period and `sqrt(200)`
+        # at twice it, where each sample is read at two base steps.
+        for (rates, σ) in (((;), 20.0), ((c = Relative(2),), sqrt(200.0)))
+            samples = noise_samples(noise_model(GaussianWhiteNoise(seed = 1, psd = 4.0); sample_times = rates), 20_000)
+            @test abs(sqrt(moments(samples).variance) / σ - 1) < 0.03
+        end
+    end
+
     @testset "the discrete tier's phase bodies allocate nothing (§7.5)" begin
         for model in (fed_by(Constant(1.0), DiscreteIntegrator()), feedback_loop(DiscreteIntegrator()),
                       discrete_limited_model(), limiter_model(0.0, 1.0),
                       fed_by(Constant(1.0), scalar_hold()),
                       fed_by(Constant(SVector(1.0, -1.0)), DiscretizedStateSpace(two_state_block())),
                       hold_pair_model((1,), (0.5, 1), FirstOrderLag(τ = 0.5)),
-                      hold_pair_model((4,), (1, 1.2, 4), second_order()))
+                      hold_pair_model((4,), (1, 1.2, 4), second_order()),
+                      pid_single_loop(DiscretePID(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0,
+                                                  u_min = -1.0, u_max = 1.0)),
+                      pid_cascade(DiscretePID(Kp = 0.5, Ki = 0.1, Tt = 2.0, hold = true, tracking = true);
+                                  hold = true, tracking = true),
+                      noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)),
+                      noise_model(GaussianWhiteNoise(seed = 7, μ = SVector(1.0, -1.0), σ = SVector(1.0, 2.0))))
             @test build(model; activations = (Float64, LinearizeDual)) isa Build
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
@@ -1163,6 +1247,85 @@ function test_blocks()
         end
     end
 
+    @testset "the discrete PID's law is the continuous one over `s`, with the backward filter and the exact correction step (§13.7, D-313)" begin
+        # The continuous law's rows at `Δt = 0.01`: `u_raw = 2.5 + 0.3 - 0.2 · 0.4 / 0.11`,
+        # clamped to `u = 1`; `Δt Ki e = 0.0125`, and the correction reads
+        # `β (1 - 2)` against `u` or `β (0.7 - 2)` against `v`, `β = 1 - e^{-0.01}`.
+        gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0)
+        s = (q = 0.3, yf = 0.1)
+        y = (u = 1.0, u_raw = 2.0)
+        Δt = 0.01
+        for (hold, tracking, u, q_next) in
+                ((false, false, (r = 3.0, y = 0.5), 0.30254983374916805),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(1)), 0.29004983374916804),    # the gate holds
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(-1)), 0.30254983374916805),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(0)), 0.30254983374916805),
+                 (false, true, (r = 3.0, y = 0.5, v = 0.7), 0.2995647838739185),
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(1), v = 0.7), 0.2870647838739185),
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7), 0.30254983374916805))    # the fallback
+            controller = DiscretePID(; gains..., hold = hold, tracking = tracking)
+            outputs = y_direct(controller, (; s, u, Δt))
+            @test outputs.u_raw ≈ 2.0727272727272723 atol = 1e-12
+            @test outputs.u == 1.0
+            updated = s_update(controller, (; s, u, y, Δt))
+            @test updated.q ≈ q_next atol = 1e-12
+            @test updated.yf ≈ 0.13636363636363635 atol = 1e-12
+        end
+        # The correction's step alone, `-β` from `q = 0` with `Ki = 0`: exactly
+        # zero at `Tt = Inf` and exactly one at `Tt = 0`.
+        for (Tt, β) in ((1.0, 0.009950166250831947), (Inf, 0.0), (0.0, 1.0))
+            updated = s_update(DiscretePID(Kp = 1.0, Tt = Tt),
+                               (; s = (q = 0.0, yf = 0.0), u = (r = 0.0, y = 0.0), y, Δt))
+            @test -updated.q == β
+        end
+        # At `τd = 0` the D term is the backward difference, `0.1 / Δt`.
+        @test y_direct(DiscretePID(Kp = 1.0, Kd = 0.2, τd = 0.0),
+                       (; s = (q = 0.0, yf = 0.4), u = (r = 0.0, y = 0.5), Δt)).u_raw == -2.5
+        @test u_types(DiscretePID(Kp = 1.0, hold = true, tracking = true)) ==
+              (r = Float64, y = Float64, saturation = Int8, v = Float64)
+        @test y_types(DiscretePID(Kp = 1.0)) == (u = Float64, u_raw = Float64)
+        @test PID(Kp = 1.0) isa Redstone.Blocks.PIDBlock{false, false}
+        @test DiscretePID(Kp = 1.0, hold = true, tracking = true) isa Redstone.Blocks.PIDBlock{true, true}
+        @test Redstone.has_stage(y_direct, DiscretePID(Kp = 1.0))
+        @test !Redstone.has_stage(y_state, DiscretePID(Kp = 1.0))
+    end
+
+    @testset "the discrete PID's loops match the continuous block's, and `Tt = 0` and `τd = 0` are legal (§13.7, D-313)" begin
+        # Peak and settling time beside the continuous block's: 5.327 at 11.3 on
+        # the single loop, 5.931 at 23.6 on the servo, 5.202 at 26.9 on the cascade.
+        gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, u_min = -1.0, u_max = 1.0)
+        @test build(pid_single_loop(DiscretePID(; gains..., Tt = 1.0)); activations = (Float64, LinearizeDual)) isa Build
+        for (model, t_end, peak, settled) in
+                ((pid_single_loop(DiscretePID(; gains..., Tt = 1.0)), 40, 5.329, 11.3),
+                 (pid_single_loop(DiscretePID(; gains..., Tt = Inf)), 40, 8.194, 18.7),
+                 (pid_single_loop(DiscretePID(; gains..., Tt = 0.0)), 40, 5.229, 11.4),
+                 (pid_single_loop(DiscretePID(; gains..., τd = 0.0, Tt = 1.0)), 40, 5.331, 11.2),
+                 (pid_single_loop(DiscretePID(; gains..., Tt = 1.0); plant = DiscreteIntegrator()), 40, 5.329, 11.3),
+                 (pid_servo_loop(DiscretePID(; gains..., Tt = 1.0, tracking = true)), 40, 5.935, 23.6),
+                 (pid_cascade(DiscretePID(Kp = 0.5, Ki = 0.1, Tt = 2.0, hold = true, tracking = true);
+                              hold = true, tracking = true), 60, 5.202, 27.0))
+            samples = loop_samples(sim -> port(sim, "", :y), model, t_end)
+            @test maximum(samples) ≈ peak atol = 0.005
+            @test settling_time(samples) == settled
+        end
+        @test build(pid_single_loop(DiscretePID(; gains..., Tt = 1.0); plant = DiscreteIntegrator())) isa Build
+        @test build(pid_cascade(DiscretePID(Kp = 0.5, Ki = 0.1, Tt = 2.0, hold = true, tracking = true);
+                                hold = true, tracking = true); activations = (Float64, LinearizeDual)) isa Build
+        # The hold wired from a discrete limited integrator's stage-1 code.
+        @test build(discrete_hold_loop(DiscretePID(; gains..., Tt = 1.0, hold = true))) isa Build
+    end
+
+    @testset "a tracking input wired from a clamp of the discrete PID's own output is a real cycle, traced structurally (§5.4, §5.6)" begin
+        # The continuous block's cycle is artificial with the hop named; a discrete
+        # member admits no tracer scalar, so no hop is found dead.
+        err = failure(() -> build(pid_clamp_loop(DiscretePID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking = true))))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        @test isempty(d.dead)
+        @test d.wires == ["controller/u" => "sat/in1", "sat/out" => "controller/v"]
+    end
+
     @testset "every keyword constructor builds a `Float64` block from integer keywords, and a flag keyword or a misfit shape refuses one (§7.2)" begin
         @test Integrator(x0 = 1) isa Integrator{Float64}
         @test FirstOrderLag(τ = 1, x0 = 1) isa FirstOrderLag{Float64}
@@ -1179,6 +1342,7 @@ function test_blocks()
         @test RateLimiter(rising = 1) isa RateLimiter{Float64}
         @test RateLimiter(rising = 3).falling == 3.0
         @test PID(Kp = 1) isa PID{false, false}
+        @test DiscretePID(Kp = 1) isa DiscretePID{false, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa StateSpace{1, 1, 1, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
         @test TransferFunction(num = (1,), den = (1, 2)) isa TransferFunction{1, false}
@@ -1188,6 +1352,7 @@ function test_blocks()
         @test DiscretizedStateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa DiscretizedStateSpace{1, 1, 1, false}
         @test DiscretizedTransferFunction(num = (1,), den = (1, 2)) isa DiscretizedTransferFunction{1, false}
         @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
+        @test all(field -> getfield(DiscretePID(Kp = 1), field) isa Float64, fieldnames(DiscretePID))
         @test_throws TypeError Step(t_step = 0.25, localized = 1)
         @test_throws TypeError LimitedIntegrator(lower = -1, upper = 1, localized = 1)
         @test_throws TypeError PID(Kp = 1, hold = 1)
@@ -1195,6 +1360,8 @@ function test_blocks()
         @test_throws ArgumentError StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5], C = [1 2; 0 1])
         @test_throws ArgumentError StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5; 0 1], C = [1 2; 0 1], x0 = [1, 2, 3])
         @test_throws ArgumentError StateSpace(A = zeros(0, 0), B = zeros(0, 1), C = zeros(1, 0), D = [2.0;;])
+        @test_throws ArgumentError GaussianWhiteNoise(seed = 1)
+        @test_throws ArgumentError GaussianWhiteNoise(seed = 1, σ = 1.0, psd = 1.0)
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
@@ -1247,6 +1414,10 @@ function test_blocks()
                      DiscretizedStateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]),
                      DiscretizedTransferFunction(num = (1,), den = (0.5, 1)),
                      DiscretizedTransferFunction(num = (1, 2), den = (1, 5)),
+                     DiscretePID(Kp = 1.0), DiscretePID(Kp = 1.0, hold = true),
+                     DiscretePID(Kp = 1.0, tracking = true), DiscretePID(Kp = 1.0, hold = true, tracking = true),
+                     GaussianWhiteNoise(seed = 1, σ = 1.0),
+                     GaussianWhiteNoise(seed = 7, μ = SVector(1.0, -1.0), σ = SVector(1.0, 2.0)),
                      Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))

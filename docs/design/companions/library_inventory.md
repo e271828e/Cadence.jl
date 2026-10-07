@@ -97,7 +97,7 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 | `Constant{V}` | shipped | the pinned source; the zero-contributor wire and the rig stub |
 | `Step{V, L}` with a guard on the bundle's `t` in either form | shipped | the jump is localized, or lands on a step boundary, by the guard's form ([D-179][d-179]) |
 | `Source(f)`, a user function of `t` | candidate | covers ramps and sines without a block each |
-| `GaussianWhiteNoise{V}`, a discrete Gaussian white noise process, seed as instance data | candidate | a counter-based draw: the sample is a pure function of the seed and a tick counter, the store's one field ([D-231][d-231]), so the stage draws and no generator or workspace is needed; `σ` per sample, or the two-sided density `Q` read against the bundle's `Δt` as `σ² = Q/Δt` |
+| `GaussianWhiteNoise{V}`, a discrete Gaussian white noise process, seed as instance data | shipped | a counter-based draw: the sample is a pure function of the seed and a tick counter, the store's one field ([D-231][d-231]), so the stage draws and no generator or workspace is needed; `σ` per sample, or the two-sided density `Q` read against the bundle's `Δt` as `σ² = Q/Δt` |
 
 ### Continuous dynamics
 
@@ -142,7 +142,7 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 | Block | Status | Mechanism |
 |---|---|---|
 | `PID{Hold, Track}` | shipped | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; `pid_anti_windup.md` |
-| `DiscretePID{Hold, Track}` | candidate | the positional law carried to the discrete tier, the ports, the gate and the reference rule shared through `PIDBlock{Hold, Track}`; forward Euler on the integral, backward Euler on the derivative filter so `τd = 0` is the backward difference, and the correction's step `1 - e^{-Δt/Tt}` so every `Tt` is stable and `Tt = 0` is instant; `pid_anti_windup.md`, section 9 |
+| `DiscretePID{Hold, Track}` | shipped | the positional law carried to the discrete tier, the ports, the gate and the reference rule shared through `PIDBlock{Hold, Track}`; forward Euler on the integral, backward Euler on the derivative filter so `τd = 0` is the backward difference, and the correction's step `1 - e^{-Δt/Tt}` so every `Tt` is stable and `Tt = 0` is instant; `pid_anti_windup.md`, section 9 |
 | a gain-scheduled `PID`, gains as ports | candidate | the grouping admits a gain change bumplessly; built when a model asks |
 
 The PID assembly of library blocks, the first variant as a `Group`, is an
