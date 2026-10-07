@@ -12257,6 +12257,13 @@ Rationale, less its once-per-event firing, which [D-181][d-181] replaced.
 
 **Rejected.** None beyond the source entries' lists.
 
+Annotation (2026-10-07): the gate form also serves a predicate that must
+exclude equality, gated on the strict comparison of a wired signal,
+`u < 0 ? -u : -one(u)`. The gate is then not constant over the bracket, and
+the root-finder pays bisection's count on that event. [§10.4][s10-4] states the idiom;
+`companions/limited_integrator_variants.md` records the case that needed it
+and why the `σ ≥ 0` convention stands.
+
 ### D-291 — Rate compilation, the boundary gate, phases and the anchor doctrine
 
 **Status.** ratified

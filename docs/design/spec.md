@@ -5249,6 +5249,19 @@ evaluations (below) vary only θ, the normalized time within the step. `u` and
 bracket. Restricted to the bracket, σ is the continuous atom, and it can be
 bracketed as such.
 
+A predicate that must exclude equality is the other case the gate form
+serves. A release predicate, "the input points back into the range", does
+not hold at an input of exactly zero, but the sign form `-u` alone holds
+there, since `-0.0 ≥ 0`. Gate on the strict comparison instead,
+`u < 0 ? -u : -one(u)`. That gate reads a signal that varies within the
+step, so it is not constant over the bracket, and σ jumps from `-1` to a
+small positive value at the crossing. Only the sign drives the bracket, so
+it still converges on the crossing, but the root-finder loses its
+interpolation step and pays bisection's count on that event ([D-290][d-290]).
+The `Bool` form `u < 0` is the same predicate boundary-detected, strict by
+construction. `companions/limited_integrator_variants.md` works the case
+that needed it, and records why the convention itself stays at `σ ≥ 0`.
+
 #### Trial evaluations
 
 A trial evaluation computes a guard's value at one instant θ inside the step.
