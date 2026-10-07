@@ -107,7 +107,7 @@ names.
 | `FirstOrderLag{V}`, time constant as instance data | shipped | the actuator model and [§5.5][s5-5]'s α-filter idiom |
 | a continuous rate limiter | not admitted | `q̇ = clamp((in - q) / τ, -R, R)` is one line, its kinks are second-order and its offsets decay; the discrete form is the block |
 | `StateSpace` holding `A`, `B`, `C`, `D` as static matrices, scalar or `SVector` ports by the matrix shapes | candidate | `D` picks the stage, so the feedthrough class is a type parameter; `x0` in the user's coordinates; `linear_blocks.md` |
-| `TransferFunction` from coefficient tuples, one input and one output | candidate | realized to a `StateSpace` at construction and forwarding its stages to it; the class from the numerator's degree; started at rest or at the steady state for `u0`, never from an `x0`; `linear_blocks.md` |
+| `TransferFunction` from coefficient tuples, one input and one output | candidate | realized to a `StateSpace` at construction, the stage arms shared through the abstract `LinearBlock{FT}`; the class from the numerator's degree; started at rest or at the steady state for `u0`, never from an `x0`; `linear_blocks.md` |
 | a continuous transport delay | not admitted | a history buffer indexed by the step; `extensions.md` item 4 |
 
 ### Discontinuities

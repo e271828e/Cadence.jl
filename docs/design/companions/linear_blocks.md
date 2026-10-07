@@ -197,19 +197,45 @@ One type carrying all of that has a constructor with two disjoint keyword
 sets, an `x0` that is meaningful or a trap by which set was used, and a
 `show` that cannot tell them apart. What the spellings share is the two
 equations and section 3's arm selection, and that is shared without a
-shared type. The transfer function keeps its coefficients as instance data,
-holds the realized `StateSpace` beside them, and forwards its stages:
+shared concrete type. The transfer function keeps its coefficients as
+instance data and holds the realized `StateSpace` beside them. Both blocks
+subtype one abstract `LinearBlock{FT}`, and each stage arm is defined once,
+on the supertype, over an accessor that returns the matrices:
 
 ```julia
-x_deriv(c::TransferFunction, b) = x_deriv(c.realization, b)
-y_state(c::TransferFunction{N, false}, b) where {N} = y_state(c.realization, b)
-y_direct(c::TransferFunction{N, true}, b) where {N} = y_direct(c.realization, b)
+abstract type LinearBlock{FT} <: AbstractComponent end
+realization(c::StateSpace) = c
+realization(c::TransferFunction) = c.realization
+
+x_deriv(c::LinearBlock, (; x, u))        = (s = realization(c); (q = s.A * x.q + s.B * u,))
+y_state(c::LinearBlock{false}, (; x))    = (out = realization(c).C * x.q,)
+y_direct(c::LinearBlock{true}, (; x, u)) = (s = realization(c); (out = s.C * x.q + s.D * u,))
 ```
 
-This is delegation at the method level, not a `Group` around a leaf, so it
+Nothing is forwarded and no `Group` wraps a leaf, so the transfer function
 costs no cell, no gather and no scatter. The one cost is a concrete type to
 compile per order and class, the same cost a `StateSpace` of that shape
 pays.
+
+The first draft forwarded instead, `y_state(c::TransferFunction{N, false},
+b) = y_state(c.realization, b)` and its twin, and the user asked what the
+obvious generic spelling, `y_state(c::TransferFunction, b) =
+y_state(c.sys, b)` for both stages, would do. The build detects a stage by
+`hasmethod` on the component's type and never looks inside, so a method's
+existence is the declaration: the generic pair declares both stages for
+every transfer function. A probe followed the three steps an author would
+take from there. The generic pair builds nothing, since the arm the inner
+block lacks surfaces as a `UserCodeFraming` around a `MethodError`. The
+natural repair, an inner `y_direct` for every class with `D` taken as zero,
+is refused as `ProducedByTwoStages` on `out` ([§8.3][s8-3]). The next repair,
+dropping `y_state` so `y_direct` is the only producer, builds and silently
+makes a strictly proper block a feedthrough block, which only the loop test
+of section 3 catches. The supertype removes the forwarding, and with it the
+place where the generic spelling could be written. With it the probe found
+`has_stage(y_direct, ·)` false on a strictly proper transfer function and
+`has_stage(y_state, ·)` false on a proper one, the loop pair of section 3
+holding for the transfer functions, and the lag match, the `Dual` build and
+the allocation figures of section 8 unchanged.
 
 Against [D-313][d-313]'s guidelines, `TransferFunction` stands alone. It is
 domain-agnostic and the most used object in classical control. It is
@@ -259,6 +285,8 @@ against the tree at 0571605 and probed at `h = 1//100`:
 | scalar `StateSpace`, `D = 0`, in a unit-feedback loop through a difference junction | builds |
 | the same loop with `D = 1` | `AlgebraicCycle`, classification `:real` |
 | `TransferFunction(num = (1,), den = (0.5, 1))` beside `FirstOrderLag(τ = 0.5)`, both from a unit constant, at `t = 1` | outputs equal to the last bit, `0.8646647163964265`; the realized state `0.4323…`, half the lag's |
+| the strictly proper transfer function in the unit-feedback loop; the lead-lag in the same loop | builds; `AlgebraicCycle`, classification `:real` |
+| generic two-stage forwarding; an inner `y_direct` for every class; `y_direct` as the only producer of a `D = 0` block | `UserCodeFraming`; `ProducedByTwoStages` on `out`; builds, and the loop is refused |
 | `TransferFunction(num = (1, 2), den = (1, 5))` | type `{1, true, …}`; linearizes to `A = -5`, `B = 1`, `C = -3`, `D = 1` |
 | `TransferFunction(num = (4,), den = (1, 1.2, 4))` linearized, `C (sI - A)⁻¹ B + D` against `G(s)` at `s = 0, i, 2i, 1 + 3i` | agreement to `2.3e-16` or better |
 | `TransferFunction(num = (1,), den = (0.5, 1), u0 = 3)` fed `3` | output `3.0` at start and after one second |
@@ -266,6 +294,7 @@ against the tree at 0571605 and probed at `h = 1//100`:
 | `num` longer than `den` | refused at construction |
 | `step!` over `0.1 s` after warm-up, abstract `SMatrix{N, N, Float64}` fields | scalar 19,088 B, two-by-two 25,328 B |
 | the same with length parameters, and with `Matrix` fields converted in the body | scalar 8,208 B, two-by-two 8,368 B, equal to the scalar and vector lags |
+| `step!` over `0.1 s`, the transfer functions through `LinearBlock{FT}` | lag form and lead-lag 8,208 B, equal to the scalar lag |
 
 The discrete tier's filter row becomes `DiscreteTransferFunction`, the
 same realization over `s_update` with `z` in place of `s`, once the helper
@@ -280,3 +309,4 @@ exists.
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch
 [s7-2]: ../spec.md#72-numeric-genericity-eltype
+[s8-3]: ../spec.md#83-visibility-the-contract-is-the-interface

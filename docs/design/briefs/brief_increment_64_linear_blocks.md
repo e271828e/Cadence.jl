@@ -13,15 +13,25 @@ wrong at the keyboard, stop and report rather than deviate silently.
 
 ## What is settled
 
-- **Two blocks, one pair of equations.** `StateSpace` holds `A`, `B`, `C`,
-  `D` and `x0`; `TransferFunction` holds its coefficients and a realized
-  `StateSpace` it forwards every stage to. The companion's section 6 is the
-  case and section 8 the decision; this brief restates only what the
-  keyboard needs. Neither block earns a log entry: D-313 admits by
+- **Two blocks, one pair of equations, one set of arms.** `StateSpace`
+  holds `A`, `B`, `C`, `D` and `x0`; `TransferFunction` holds its
+  coefficients and a realized `StateSpace`. Both subtype the abstract
+  `LinearBlock{FT} <: AbstractComponent`, and every stage is defined once,
+  on `LinearBlock`, over `realization(c)`, which is `c` for a `StateSpace`
+  and the held block for a `TransferFunction`. Nothing is forwarded. The
+  build detects a stage by `hasmethod` on the type (`has_stage`,
+  `src/declare.jl` line 272), so a method's existence is its declaration:
+  a generic forwarding pair would declare both stages for every transfer
+  function, and the companion's section 6 records what each repair of that
+  does. The companion's section 6 is the case and section 8 the decision;
+  this brief restates only what the keyboard needs. Neither block earns a log entry: D-313 admits by
   judgement, and the PID set the precedent (user, 2026-10-07).
-- **The direct term picks the stage, in the type.** `FT::Bool` is a type
-  parameter. `FT = false` publishes `out` from `y_state`, `FT = true` from
-  `y_direct`, and `x_deriv` is one method over both (§5.3). The constructor
+- **The direct term picks the stage, in the type.** `FT::Bool` is the
+  supertype's parameter. `y_state(c::LinearBlock{false}, (; x))` publishes
+  `out`, `y_direct(c::LinearBlock{true}, (; x, u))` publishes it, and
+  `x_deriv(c::LinearBlock, (; x, u))` is one method over both (§5.3). No
+  stage method is ever defined on `StateSpace` or `TransferFunction`
+  themselves. The constructor
   sets it, `!iszero(D)` for the matrices and the degree comparison for a
   transfer function. A probe confirmed the consequence the test asserts: a
   scalar block with `D = 0` in a unit-feedback loop through a difference
@@ -34,7 +44,7 @@ wrong at the keyboard, stop and report rather than deviate silently.
   is therefore
 
   ```julia
-  struct StateSpace{NX, NU, NY, FT, LA, LB, LC, LD} <: AbstractComponent
+  struct StateSpace{NX, NU, NY, FT, LA, LB, LC, LD} <: LinearBlock{FT}
       A::SMatrix{NX, NX, Float64, LA}
       B::SMatrix{NX, NU, Float64, LB}
       C::SMatrix{NY, NX, Float64, LC}
@@ -81,7 +91,7 @@ wrong at the keyboard, stop and report rather than deviate silently.
 - **The transfer function's struct** is
 
   ```julia
-  struct TransferFunction{N, FT, M, K, LA} <: AbstractComponent
+  struct TransferFunction{N, FT, M, K, LA} <: LinearBlock{FT}
       num::NTuple{M, Float64}
       den::NTuple{K, Float64}
       realization::StateSpace{N, 1, 1, FT, LA, N, N, 1}
@@ -91,9 +101,8 @@ wrong at the keyboard, stop and report rather than deviate silently.
   `N` the order, `K = N + 1`, `M ≤ K`, `LA = N²`. The coefficients are kept
   as the user wrote them, scaled to `Float64`, so the default `show`
   displays the transfer function and not its realization. Ports are
-  `Float64`; `x_init`, `x_deriv`, `y_state`/`y_direct` forward to
-  `realization` with no `Group`, no cell and no gather, the forwarding arm
-  selected by `FT` exactly as on `StateSpace`.
+  `Float64`, which `u_types`/`y_types` on `LinearBlock` give from the held
+  block's `NU = NY = 1`; the block has no stage methods of its own.
 - **Names.** `StateSpace` and `TransferFunction` collide with
   ControlSystemsBase's exports; the companion's section 7 is the ruling and
   the inventory's section 4 the one sentence a user needs. No alias, no
@@ -144,9 +153,13 @@ wrong at the keyboard, stop and report rather than deviate silently.
 
 A new section `# --- the linear blocks (§13.7, §5.3, D-313) ---` after the
 continuous dynamics section, before the step's, holding both blocks by the
-end of stage 2. The struct of "What is settled", its keyword constructor,
-`x_init(c) = (q = c.x0,)`, `u_types`/`y_types` from `NU`/`NY`, one
-`x_deriv`, and the two output arms. The docstring shows the keyword form,
+end of stage 2. First `abstract type LinearBlock{FT} <: AbstractComponent
+end` with a short docstring saying what `FT` is and that every stage lives
+here, then `realization(c::StateSpace) = c`, then the stages on
+`LinearBlock`: `x_init(c) = (q = realization(c).x0,)`, `u_types`/`y_types`
+from the held block's `NU`/`NY`, one `x_deriv`, and the two output arms on
+`LinearBlock{false}` and `LinearBlock{true}`. Then the `StateSpace` struct
+of "What is settled" and its keyword constructor. The docstring shows the keyword form,
 states the port rule, names `FT` as the feedthrough class and says what
 picks it, and sends the reader to `linear_blocks.md` for the realization
 and the names.
@@ -220,8 +233,10 @@ level:
 
 ### The shape
 
-`realize(num, den)` and the struct of "What is settled", in the same
-section, after `StateSpace`. The constructor validates, realizes, solves
+`realize(num, den)`, the struct of "What is settled" and
+`realization(c::TransferFunction) = c.realization`, in the same section,
+after `StateSpace`. No stage method is added: the arms on `LinearBlock`
+already serve it. The constructor validates, realizes, solves
 `x0` from `u0` and builds the `StateSpace` by its positional form. The
 docstring shows the keyword form with the coefficient order, states that
 the block has no `x0` and why in one sentence, names the three refusals,
@@ -267,10 +282,13 @@ Probed values, at `h = 1//100`:
   `u0 = 3` start and its hold; the integrator with `u0 = 0` building and
   integrating; `@test_throws ArgumentError` for `num = (1, 1, 1), den =
   (1, 1)`, for `den = (1, 0), u0 = 1.0`, and for `den = (0, 1)`.
-- "the transfer function's stage follows its degree (§5.3)": the lead-lag
-  in `loop`'s place is refused as `AlgebraicCycle` `:real`, the lag form
-  builds. Reuse stage 1's `loop` with the block as a parameter if the
-  model reads well; otherwise a second model.
+- "the transfer function's stage follows its degree, and it declares no
+  stage of its own (§5.3, D-313)": the lead-lag in `loop`'s place is
+  refused as `AlgebraicCycle` `:real`, the lag form builds; and
+  `Redstone.has_stage(y_direct, lag form)` and `Redstone.has_stage(y_state,
+  lead-lag)` are both `false`, the probe's values. Reuse stage 1's `loop`
+  with the block as a parameter if the model reads well; otherwise a
+  second model.
 - The keyword testset gains `TransferFunction(num = (1,), den = (1, 2)) isa
   TransferFunction{1, false}` from integer tuples and the same from
   vectors; the shadowing tuple gains the lag form, the lead-lag and the
@@ -301,14 +319,17 @@ One fresh Opus reviewer over the two code commits: open-mind stance, probe
 scripts under `/tmp`, "empty is acceptable". Dimensions:
 
 - **Each block against its sketch here and the companion**: the length
-  parameters on every matrix field, the arm selection by `FT`, the port
-  rule, the coefficient order, the direct-term split, the monic
-  normalization, the three refusals, the forwarding with no `Group`.
+  parameters on every matrix field, every stage on `LinearBlock` and none
+  on a concrete block, the arm selection by `FT`, the port rule, the
+  coefficient order, the direct-term split, the monic normalization, the
+  three refusals.
 - **The submodule's imports.** `src/blocks.jl` reaches the parent through
   its import list alone; `SMatrix`, `SVector` and `I` are the StaticArrays
   and LinearAlgebra names the section may add, by name.
 - **Mutants on a scratch copy**, each named test going red: a matrix field
-  without its length parameter (the allocation testset); `y_direct` dropping
+  without its length parameter (the allocation testset); the `y_direct` arm
+  on `LinearBlock` without its `{true}` (the `D = 0` loop, refused as a
+  cycle); `y_direct` dropping
   `D * u` (the lead-lag's `D`); `FT` set from `D === nothing` instead of
   `iszero(D)` (an explicit zero `D` in the loop); `realize` skipping the
   monic division (the lag match); the direct term not subtracted from the

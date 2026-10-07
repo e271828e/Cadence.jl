@@ -25,9 +25,10 @@ both add names.
     feedthrough is structural (§5.3), so the strictly proper and the proper
     forms are two dispatch arms, `D` zero publishing from `y_state` and `D`
     nonzero from `y_direct`, the class a type parameter the constructor
-    sets. `TransferFunction` has one input and one output, is realized in
-    controllable canonical form to a `StateSpace` it forwards its stages
-    to, takes its class from the numerator's degree, and starts at rest or
+    sets and the arms defined once on the abstract `LinearBlock{FT}` both
+    blocks subtype. `TransferFunction` has one input and one output, is
+    realized in controllable canonical form to a held `StateSpace`, takes
+    its class from the numerator's degree, and starts at rest or
     at the steady state for `u0`, never from an `x0`, since a realization's
     coordinates are not the user's.
   - **Increment 65, the discrete tier**: `DiscreteIntegrator{V}` and
