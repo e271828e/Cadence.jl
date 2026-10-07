@@ -7,7 +7,9 @@
 spec wins. It was written on 2026-10-07, when the inventory's one
 `LinearSystem` row was split into two blocks, to keep the reasoning behind
 the split, the realization a transfer function goes through, and the
-initial-condition and naming rulings that came with it.*
+initial-condition and naming rulings that came with it. Section 9, added the
+same day, mirrors the pair onto the discrete tier and adds the two blocks
+discretized per tick from a continuous system.*
 
 The inventory listed one candidate, `LinearSystem` holding `A`, `B`, `C`
 and `D` as static matrices, and said it "covers transfer functions and
@@ -304,11 +306,130 @@ against the tree at 0571605 and probed at `h = 1//100`:
 | the same with length parameters, and with `Matrix` fields converted in the body | scalar 8,208 B, two-by-two 8,368 B, equal to the scalar and vector lags |
 | `step!` over `0.1 s`, the transfer functions through `LinearBlock{FT}` | lag form and lead-lag 8,208 B, equal to the scalar lag |
 
-The discrete tier's filter row becomes `DiscreteTransferFunction`, the
-same realization over `s_update` with `z` in place of `s`, once the helper
-exists.
+## 9. The discrete tier
+
+Every item section 6 listed as differing between the two spellings is about
+the user's boundary, not the tier, so the discrete tier gets the same pair,
+and a second pair beside it for a continuous system discretized at run time.
+The four share one abstract `DiscreteLinearBlock{FT}`. Two accessors serve
+it: `held(c)` returns the stored system, whose shapes and `x0` do not depend
+on the period, and `realization(c, Δt)` returns the discrete update matrices.
+The declarations and the output arms read `held(c)`, and only the update
+discretizes, because the hold of section 9.2 leaves `C` and `D` untouched.
+
+```julia
+abstract type DiscreteLinearBlock{FT} <: AbstractComponent end
+
+s_init(c::DiscreteLinearBlock)  = (q = held(c).x0,)
+u_types(c::DiscreteLinearBlock) = (in = port_type(size(held(c).B, 2)),)
+y_types(c::DiscreteLinearBlock) = (out = port_type(size(held(c).C, 1)),)
+function s_update(c::DiscreteLinearBlock, (; s, u, Δt))
+    (; A, B) = realization(c, Δt)
+    (q = A * s.q + B * as_vector(u.in),)
+end
+y_state(c::DiscreteLinearBlock{false}, (; s)) = (out = as_port(held(c).C * s.q),)
+function y_direct(c::DiscreteLinearBlock{true}, (; s, u))
+    (; C, D) = held(c)
+    (out = as_port(C * s.q + D * as_vector(u.in)),)
+end
+```
+
+One supertype cannot span both tiers: every leaf declares exactly one of
+`x_init` and `s_init`, and the store is the tier marker ([D-263][d-263]), so two
+parallel trees is the honest shape. A leaf holding another component
+instance as a field has `TransferFunction` as its precedent, and the
+structure step reads tiers from declarations, never from fields.
+
+### 9.1 The pair in `z`
+
+`DiscreteStateSpace` holds `A`, `B`, `C`, `D` and `x0` as the continuous
+block does, with `FT` from `iszero(D)`, and is its own `held` and
+`realization`. `DiscreteTransferFunction` takes its coefficients highest
+power of `z` first, the convention of MATLAB's `tf(num, den, Ts)` and of
+the continuous block, and holds the `DiscreteStateSpace` that `realize`
+produces unchanged, since the companion form does not know whether its
+variable is `s` or `z`. The DSP convention, `filter(b, a)` in powers of
+`z⁻¹`, agrees only when the degrees are equal, and the docstring says so.
+
+Both carry a period they cannot see. Their matrices presuppose the sample
+time they were designed at, `Δt` binds at deployment, and the instance is
+built before that, so neither the constructor nor the structure step can
+compare the two. A `Ts` field checked at the first tick was rejected as a
+run-time refusal of a deployment fact, and a declared period would need a
+hook that `sample_times` deliberately denies instances ([D-042][d-042]). The
+docstring states the dependence, and section 9.2 is the mitigation.
+
+The steady state for `u0` is `(I - A) q0 = B u0`, so `out` starts at
+`G(1) u0`. The pole with no steady state is now at `z = 1`, whose exact test
+is the denominator summing to zero, and unlike the continuous test on the
+constant coefficient this one is floating. A designed denominator such as
+`(1, -0.7, -0.3)` sums to about `-5.6e-17`, so an exact test lets the solve
+through and yields a huge state. The refusal takes a tolerance.
+
+### 9.2 The pair discretized per tick
+
+`DiscretizedStateSpace` holds a continuous `StateSpace` and discretizes it
+in `realization(c, Δt)` by the zero-order hold, which is exact when the
+input is held over each period:
+
+```
+A_d = e^{A Δt}        B_d = (∫₀^Δt e^{Aτ} dτ) B        C_d = C        D_d = D
+```
+
+The two are read off one static exponential of the augmented matrix
+`[A B; 0 0] Δt`, whose top row is `[A_d B_d]`. The output equation is
+algebraic and merely sampled, so the class is `iszero(D)` as for the
+continuous block, and `x0` in the user's coordinates is exact.
+`DiscretizedTransferFunction` takes its coefficients in `s`, realizes them
+as the continuous block does and holds the `DiscretizedStateSpace`, so the
+pattern is the continuous one with one more layer.
+
+Per tick is the only clean place for the discretization. The instance
+predates the period. The workspace allocator receives no `Δt` and the
+workspace may carry nothing between calls. The store could hold the
+matrices as isbits fields, but then a value that is not state is logged
+every tick and multiplied every tick, against [§7.3][s7-3]'s rule that no
+arithmetic is done on a store. The body is where the design put `Δt`, and
+the IMU sampler of [§8.7][s8-7] divides by it every tick for the same reason.
+The cost is small: on Julia 1.13.1 a static `exp` allocates nothing at
+every size probed, about 41 ns at 4×4 and 125 ns at 5×5, against the
+hundreds of bytes a tick's publication already allocates. The exponential
+is defined for every matrix and period, so the probe's placeholder `Δt`
+([§9.3][s9-3]) raises no singularity.
+
+The initial conditions do not depend on the period. `I - A_d` is
+`A⁻¹`-commuting times `e^{AΔt} - I`, so the discrete steady state for `u0`
+is the continuous one, `q0 = -A⁻¹ B u0`, `out` starts at `G(0) u0`, and the
+refusal is the continuous one, a zero constant coefficient, with no
+tolerance question. The solve runs once at construction from the
+continuous matrices.
+
+Tustin was weighed for the transfer function and rejected. The trapezoidal
+rule's update reads the input at `k + 1`, and the change of variable that
+removes it moves half a period of input into the output equation, so a
+strictly proper system gains a direct term for every period and every
+Tustin block is `FT = true`. The lag shows it: the hold gives
+`(1 - a)/(z - a)` with `a = e^{-Δt/τ}`, strictly proper, and Tustin gives
+`(Δt/(2τ + Δt)) (z + 1)/(z - (2τ - Δt)/(2τ + Δt))`, of equal degrees. A lag
+that broke a loop as a continuous block would be refused as an algebraic
+cycle once discretized, which is the wrong surprise for a block whose
+purpose is to stand in for its continuous original. The price is frequency
+response: the hold matches the step response at the samples, while Tustin
+preserves the response up to warping, which a controller designer may
+want. The docstring states the caveat. A Tustin design is still available
+by discretizing externally and using `DiscreteTransferFunction`, at the
+price of section 9.1's period dependence. Should the method ever be wanted
+on the block, it becomes a type parameter on the accessor's arm, with `FT`
+set from the method as well as from `D`.
+
+Four blocks and not two because a controller designed in `z`, or exported
+by a `c2d` elsewhere, arrives with no continuous original. The `Discrete`
+and `Discretized` prefixes match `DiscreteIntegrator`, and ControlSystemsBase
+spells its discrete case as a time-evolution parameter on the two names
+section 7 discussed, so none of the four new names collides.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
+[d-042]: ../decisions.md#d-042--rates-declaration-on-immediate-children-only
 [d-226]: ../decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-the-export-audit
 [d-263]: ../decisions.md#d-263--one-arity-on-both-tiers-plain-contracts-the-pinned-marker-and-the-mandatory-store
 [d-276]: ../decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
@@ -318,4 +439,7 @@ exists.
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch
 [s7-2]: ../spec.md#72-numeric-genericity-eltype
+[s7-3]: ../spec.md#73-discrete-state-modes-and-workspace
 [s8-3]: ../spec.md#83-visibility-the-contract-is-the-interface
+[s8-7]: ../spec.md#87-rate-scopes
+[s9-3]: ../spec.md#93-probing-and-input-synthesis

@@ -21,7 +21,9 @@ and the declared boundary, in forms worth recording. Sections 1 and 2 state
 the problem and the textbook schemes, section 3 what the framework adds to
 them, section 4 the two axes and the law, section 5 a scenario per variant,
 section 6 the variants not carried, section 7 the decision with the measured
-numbers, and section 8 what the episode says about the framework.
+numbers, and section 8 what the episode says about the framework. Section
+9, added the same day, carries the law to the discrete tier as
+`DiscretePID`.
 
 ## 1. Windup
 
@@ -222,8 +224,10 @@ a tracking value be used without paying for it during free transients.
 - **Gain scheduling**, the gains as ports rather than instance data. The
   grouping already admits it bumplessly; the inventory lists it as a
   candidate.
-- **The velocity form and the discrete PID**, section 2, which belong to
-  the discrete tier.
+- **The velocity form**, section 2. The positional law itself carries to
+  the discrete tier as `DiscretePID` (section 9); the velocity form would
+  be a different controller there, with the output a limited integrator,
+  a D term on the second difference and new meanings for both axes.
 - **Internal clamping**, Simulink's conditional integration against the
   block's own limits. A third moded block with the limited integrator's
   events applied to `u_raw`, including the strict gate against the
@@ -300,6 +304,76 @@ already stopped. The signed `Int8` code was chosen for the mode store's
 isbits rule ([D-231][d-231]) so that a static vector of modes could exist; that it
 reads as arithmetic in a consumer, `saturation == sign(e)`, is what made the
 hold variant a one-liner.
+
+## 9. The discrete tier
+
+`DiscretePID{Hold, Track}` is the block of section 7 with `s = (q, yf)` in
+place of `x`. Same seven fields, same ports, same two axes, same law. A
+user moves a controller onto the discrete tier by changing a name, and the
+anti-windup reasoning of sections 3 and 4 carries over unchanged. The
+velocity form stays uncarried (section 6).
+
+**The stage split is the textbook's.** The discrete PID of the control
+texts computes the output from the integral term as it stands, then updates
+the integral with the current error and the back-calculation term. That is
+`y_direct` over `s` and `s_update` reading `y`, the block's own fresh `u`
+and `u_raw` the update may read. Both outputs come from stage 2, so the
+block is feedthrough as the continuous one is, and [§5.4][s5-4]'s refusal of a
+tracking input wired from a memoryless clamp of the own `u` holds for the
+same reason. The limits stay inside.
+
+```julia
+function y_direct(c::DiscretePID, (; s, u, Δt))
+    d = (u.y - s.yf) / (c.τd + Δt)                          # backward Euler on the filter
+    u_raw = c.Kp * (u.r - u.y) + s.q - c.Kd * d
+    (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
+end
+function s_update(c::DiscretePID, (; s, u, y, Δt))
+    β = -expm1(-Δt / c.Tt)                                  # 0 at Tt = Inf, 1 at Tt = 0
+    (q  = s.q + Δt * c.Ki * gated_error(c, u.r - u.y, u) + β * (correction_reference(c, u, y) - y.u_raw),
+     yf = s.yf + Δt * (u.y - s.yf) / (c.τd + Δt))
+end
+```
+
+**The derivative filter is the trap.** Forward Euler on the continuous
+filter, `yf⁺ = yf + Δt (y - yf)/τd`, is unstable for `Δt > 2τd`. With the
+default `τd = 0.1` a 5 Hz tick sits on the margin, and nothing complains,
+since the period is unknown at construction. Backward Euler on the filter
+alone is stable for every period and every `τd ≥ 0`, and admits `τd = 0`,
+where the D term is the plain backward difference `(y_k - y_{k-1})/Δt`,
+the discrete tier's native derivative, which the continuous block cannot
+express. The integral keeps forward Euler, since a pure accumulator has no
+stability question, and the default `τd` stays at `0.1` so the two blocks
+read alike.
+
+**The correction's step is exact.** The back-calculation term relaxes `q`
+at rate `1/Tt`, and its Euler step `Δt/Tt` is stable only for `Tt > Δt/2`
+and free of ringing only for `Tt ≥ Δt`, a constraint on a tuning constant
+against a period the block cannot see. The exact step of that relaxation
+over one period with the inputs held is `β = 1 - e^{-Δt/Tt}`, spelled
+`-expm1(-Δt/Tt)` so that `Tt = Inf` gives exactly zero and small `Δt/Tt`
+reduces to the Euler step to rounding. Every `Tt` is then stable, and
+`Tt = 0` is legal and means instant back-calculation, `u_raw` brought to
+the reference by the next tick, which is Simulink's clamping scheme as a
+limit of the tracking one. The factor applies to the correction alone. The
+fully exact step would also scale the integral's drive by `Tt β`, which is
+`Inf · 0` at the default and needs a branch for nothing the plain `Δt`
+does not already give.
+
+**The law is shared, not the type.** The gate, the reference rule, the
+four `u_types` arms and `y_types` are identical in both blocks, nine
+methods, which earns a supertype in the `LinearBlock` style, `PIDBlock{Hold,
+Track}`, carrying those nine. The stores and the stages sit on each
+concrete type, and the fields repeat in the discrete struct, since an
+abstract type carries none. The continuous `PID` reparents in one line.
+
+**Two smaller points.** The hold wires from either tier, a continuous
+`LimitedIntegrator`'s code read at the tick or a `DiscreteLimitedIntegrator`
+on the same tier, whose stage-1 `saturation` breaks the loop back into the
+PID's stage-2 `u`. And `s_init` is `(q = 0.0, yf = 0.0)` with no keywords,
+as the continuous block has none; both share the start-up kick from `yf`
+starting at zero rather than at the first measurement, a not-carried item
+common to the pair.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-179]: ../decisions.md#d-179--derive-detection-policy-from-the-guards-return-type

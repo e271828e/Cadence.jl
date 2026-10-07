@@ -97,7 +97,7 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 | `Constant{V}` | shipped | the pinned source; the zero-contributor wire and the rig stub |
 | `Step{V, L}` with a guard on the bundle's `t` in either form | shipped | the jump is localized, or lands on a step boundary, by the guard's form ([D-179][d-179]) |
 | `Source(f)`, a user function of `t` | candidate | covers ramps and sines without a block each |
-| a discrete-tier noise source, seed as instance data | candidate | whether a generator state fits the discrete store's isbits rule ([D-231][d-231]) is unchecked |
+| `GaussianWhiteNoise{V}`, a discrete Gaussian white noise process, seed as instance data | candidate | a counter-based draw: the sample is a pure function of the seed and a tick counter, the store's one field ([D-231][d-231]), so the stage draws and no generator or workspace is needed; `σ` per sample, or the two-sided density `Q` read against the bundle's `Δt` as `σ² = Q/Δt` |
 
 ### Continuous dynamics
 
@@ -123,9 +123,11 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 | Block | Status | Mechanism |
 |---|---|---|
 | `UnitDelay{V}` | shipped | the tier's native `z⁻¹` ([§10.6][s10-6]) |
-| `DiscreteIntegrator{V}` | candidate | tier semantics |
-| `RateLimiter{V}` | candidate | tier semantics; `out` moves by at most `R Δt` per tick |
-| `DiscreteTransferFunction`, the realization over `s_update` | candidate | tier semantics; `TransferFunction`'s helper with `z` for `s` |
+| `DiscreteIntegrator{V}` | candidate | tier semantics; forward Euler, `out` the state from `s0`, so it breaks a loop as `UnitDelay` does; no gain and no limits, as `Integrator` has none |
+| `RateLimiter{V}` | candidate | tier semantics; feedthrough, `out` following `in` within `rising Δt` up and `falling Δt` down per tick from `s0`; its `s_update` stores `y.out` |
+| `DiscreteStateSpace` and `DiscreteTransferFunction`, the pair in `z` | candidate | the continuous pair mirrored over `DiscreteLinearBlock{FT}`, `s_update` for `x_deriv`; the period is the scope's and the block cannot check it; `linear_blocks.md`, section 9 |
+| `DiscretizedStateSpace` and `DiscretizedTransferFunction`, from a continuous system | candidate | the zero-order hold taken per tick at the bundle's `Δt`, so the class and the initial condition are the continuous ones; `linear_blocks.md`, section 9 |
+| `DiscreteLimitedIntegrator{V}` | candidate | tier semantics by contrast: the continuous block's mode and four events are one `clamp` in `s_update`, with no mode store and no localization; `LimitedIntegrator`'s interface, `lower`, `upper`, `s0` and the `Int8` `saturation` code, the code read off the state from stage 1 |
 | `Delay{V, K}`, a tapped delay | candidate | only if a model asks |
 
 ### Stop-gradient
@@ -140,6 +142,7 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 | Block | Status | Mechanism |
 |---|---|---|
 | `PID{Hold, Track}` | shipped | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; `pid_anti_windup.md` |
+| `DiscretePID{Hold, Track}` | candidate | the positional law carried to the discrete tier, the ports, the gate and the reference rule shared through `PIDBlock{Hold, Track}`; forward Euler on the integral, backward Euler on the derivative filter so `τd = 0` is the backward difference, and the correction's step `1 - e^{-Δt/Tt}` so every `Tt` is stable and `Tt = 0` is instant; `pid_anti_windup.md`, section 9 |
 | a gain-scheduled `PID`, gains as ports | candidate | the grouping admits a gain change bumplessly; built when a model asks |
 
 The PID assembly of library blocks, the first variant as a `Group`, is an
