@@ -204,7 +204,7 @@ state_events(::Step) = (fire = StateEvent(step_guard, step_handler),)
 # --- the moded blocks (§10.4, §10.6, D-313) -------------------------------------
 
 """
-    LimitedIntegrator(; lower, upper, x0 = zero(lower))
+    LimitedIntegrator(; lower, upper, x0 = zero(lower), localized = true)
 
 The integrator held between `lower` and `upper`: one continuous state `q`, with
 `q̇ = in` while free and `q̇ = 0` while saturated, and `out` publishing `q` from
@@ -213,21 +213,32 @@ stage 1. It is not a clamp. The mode `saturation`, `:free`, `:upper` or
 `hit_upper` and `hit_lower` fire when `q` reaches a limit; their handlers write
 `q` to the limit exactly and saturate. `leave_upper` and `leave_lower` fire
 when `in` turns strictly back into the range, and free it; an input of exactly
-zero at a limit keeps the mode saturated. The leave guards are gated in §10.4's
-form, so all four events are localized.
+zero at a limit keeps the mode saturated. The hit events are localized.
+
+`localized` picks the detection policy of the leave events (§2.1). Localized,
+the guards are gated in §10.4's sign form, and the departure ends the step at
+the input's zero crossing. Boundary-detected, the guards are the `Bool`
+predicates, and the departure fires at the end of the step in which `in` first
+pointed back into the range, so `q` is held on the limit for the rest of that
+step and carries an offset of at most `a h² / 2` from then on, `a` the input's
+slope at its zero crossing. The policy is the type parameter `L` rather than a
+field because the build reads it off the guard's return type (D-179).
+`limited_integrator_variants.md` gives the reasoning.
 
 `lower < upper`. `x0`, `lower` and `upper` are promoted to one `V`, which is
 `Float64`, and taken by `float`, so integer values qualify. Boundary zero sets
 every prior to not-holding (§10.6), so an `x0` outside the limits is clamped
 there, and the initial mode agrees with the initial input.
 """
-struct LimitedIntegrator{V <: Real} <: AbstractComponent
+struct LimitedIntegrator{V <: Real, L} <: AbstractComponent
     x0::V
     lower::V
     upper::V
 end
-LimitedIntegrator(; lower, upper, x0 = zero(lower)) =
-    LimitedIntegrator(float.(promote(x0, lower, upper))...)
+function LimitedIntegrator(; lower, upper, x0 = zero(lower), localized = true)
+    x0, lower, upper = float.(promote(x0, lower, upper))
+    LimitedIntegrator{typeof(x0), localized}(x0, lower, upper)
+end
 x_init(c::LimitedIntegrator) = (q = c.x0,)
 m_init(::LimitedIntegrator) = (saturation = :free,)    # :free, :upper or :lower
 u_types(::LimitedIntegrator{V}) where {V} = (in = V,)
@@ -246,10 +257,16 @@ hit_lower_guard(c::LimitedIntegrator, (; x)) = c.lower - x.q
 # `-1` to a small positive value at the input's zero crossing. The bracket still
 # converges on that crossing, since only the sign drives it, but ITP falls back
 # to bisection's count, about 15 extra interior sweeps per leave.
-leave_upper_guard(::LimitedIntegrator, (; m, u)) =
+leave_upper_guard(c::LimitedIntegrator{V, true}, (; m, u)) where {V} =
     m.saturation === :upper && u.in < 0 ? -u.in : -one(u.in)
-leave_lower_guard(::LimitedIntegrator, (; m, u)) =
+leave_lower_guard(c::LimitedIntegrator{V, true}, (; m, u)) where {V} =
     m.saturation === :lower && u.in > 0 ? u.in : -one(u.in)
+# The `Bool` forms are the same predicates, boundary-detected and strict by
+# construction.
+leave_upper_guard(c::LimitedIntegrator{V, false}, (; m, u)) where {V} =
+    m.saturation === :upper && u.in < 0
+leave_lower_guard(c::LimitedIntegrator{V, false}, (; m, u)) where {V} =
+    m.saturation === :lower && u.in > 0
 hit_upper_handler(c::LimitedIntegrator, _) = (x = (q = c.upper,), m = (saturation = :upper,))
 hit_lower_handler(c::LimitedIntegrator, _) = (x = (q = c.lower,), m = (saturation = :lower,))
 leave_handler(::LimitedIntegrator, _) = (m = (saturation = :free,),)

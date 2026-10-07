@@ -47,18 +47,28 @@ block_linearization(comp) =
      linearize(sim, taps(x = (q = get_state("c", :q),), u = (in = get_input(:in),))))
 
 # A limited integrator fed by a step from `1` down to `-1`.
-limited_model() =
+limited_model(localized) =
     Group((; s = Step(t_step = 1.05, before = 1.0, after = -1.0),
-             li = LimitedIntegrator(lower = -1.0, upper = 0.5));
+             li = LimitedIntegrator(lower = -1.0, upper = 0.5, localized = localized));
           local_wires = ("s/out" => "li/in",))
+
+# A limited integrator fed by the ramp `1.05 - t`, which crosses zero at 1.05
+# with slope `-1`.
+ramp_limited_model(localized) =
+    Group((; k = Constant(-1.0), ramp = Integrator(x0 = 1.05),
+             li = LimitedIntegrator(lower = -2.0, upper = 0.4, localized = localized));
+          local_wires = ("k/out" => "ramp/in", "ramp/out" => "li/in"))
+
+# The limited integrator's row of the events product.
+limited_events(model) = only(row for row in build(model).events.components if row.path == "li")
 
 # A limited integrator whose input falls from `level` to exactly zero at 1.05
 # and returns to `level` at 2.05.
-zero_input_model(level, lower, upper) =
+zero_input_model(level, lower, upper, localized) =
     Group((; release = Step(t_step = 1.05, before = level, after = 0.0),
              push = Step(t_step = 2.05, before = 0.0, after = level),
              input = SumJunction{Float64, 2}(),
-             li = LimitedIntegrator(lower = lower, upper = upper));
+             li = LimitedIntegrator(lower = lower, upper = upper, localized = localized));
           local_wires = ("release/out" => "input/in1", "push/out" => "input/in2",
                          "input/out" => "li/in"))
 
@@ -71,9 +81,9 @@ relay_model() =
 # The servo loop: a reference step, the error, a limited integrator as the
 # controller, a lag as the actuator and a lag as the plant, whose `out` leaves
 # the root.
-servo_loop() =
+servo_loop(localized) =
     Group((; reference = Step(t_step = 0.5), error = Junction{Float64, Float64, 2}(-),
-             controller = LimitedIntegrator(lower = -1.2, upper = 1.2),
+             controller = LimitedIntegrator(lower = -1.2, upper = 1.2, localized = localized),
              actuator = FirstOrderLag(τ = 0.1), plant = FirstOrderLag(τ = 1.0));
           local_wires = ("reference/out" => "error/in1", "plant/out" => "error/in2",
                          "error/out" => "controller/in", "controller/out" => "actuator/in",
@@ -267,16 +277,20 @@ function test_blocks()
     end
 
     @testset "the limited integrator saturates exactly, frees on its input's sign, and linearizes by its mode (§10.4, §10.6, D-313)" begin
-        sim = Simulation(limited_model(); h = 1//10)
-        init!(sim, fragment())
-        step!(sim; t_plus = 0.7)
-        @test state(sim, "li").q == 0.5 && modes(sim, "li").saturation === :upper
-        step!(sim; t_plus = 1.3)
-        bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
-        @test state(sim, "li").q ≈ -0.45 atol = bracket_width
-        @test modes(sim, "li").saturation === :free
-        step!(sim; t_plus = 1.0)
-        @test state(sim, "li").q == -1.0 && modes(sim, "li").saturation === :lower
+        # The step's jump carries its own boundary, so the boundary-detected
+        # departure fires there too.
+        for localized in (true, false)
+            sim = Simulation(limited_model(localized); h = 1//10)
+            init!(sim, fragment())
+            step!(sim; t_plus = 0.7)
+            @test state(sim, "li").q == 0.5 && modes(sim, "li").saturation === :upper
+            step!(sim; t_plus = 1.3)
+            bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+            @test state(sim, "li").q ≈ -0.45 atol = bracket_width
+            @test modes(sim, "li").saturation === :free
+            step!(sim; t_plus = 1.0)
+            @test state(sim, "li").q == -1.0 && modes(sim, "li").saturation === :lower
+        end
         # The derivative reads the mode, so the Jacobian does too.
         @test isapprox(block_linearization(LimitedIntegrator(lower = -1.0, upper = 0.5)).B, [1.0;;]; atol = 1e-12)
         rig = Simulation(fed(LimitedIntegrator(lower = -1.0, upper = 0.5), "in"); h = 1//10)
@@ -299,12 +313,36 @@ function test_blocks()
     @testset "an input of exactly zero at a limit keeps the limited integrator saturated (§10.4, D-313)" begin
         # Freed at the zero, `q` would pass the limit at the return with no edge.
         for (level, lower, upper, limit, saturation) in ((1.0, -1.0, 0.5, 0.5, :upper),
-                                                         (-1.0, -0.5, 1.0, -0.5, :lower))
-            sim = Simulation(zero_input_model(level, lower, upper); h = 1//10)
+                                                         (-1.0, -0.5, 1.0, -0.5, :lower)),
+            localized in (true, false)
+            sim = Simulation(zero_input_model(level, lower, upper, localized); h = 1//10)
             init!(sim, fragment())
             step!(sim; t_plus = 3.0)
             @test state(sim, "li").q == limit && modes(sim, "li").saturation === saturation
         end
+    end
+
+    @testset "the limited integrator's departures follow `localized`, and its arrivals are localized (§2.1, §10.4, D-179)" begin
+        @test limited_events(limited_model(true)).policies ===
+              (hit_upper = :localized, hit_lower = :localized, leave_upper = :localized, leave_lower = :localized)
+        @test limited_events(limited_model(false)).policies ===
+              (hit_upper = :localized, hit_lower = :localized, leave_upper = :boundary, leave_lower = :boundary)
+    end
+
+    @testset "the boundary-detected departure is off by at most `a h² / 2` (§2.1, §10.4)" begin
+        # The block reaches 0.4 at t = 0.5 and leaves it at the input's zero, 1.05,
+        # or at the boundary 1.1: θ = 0.5 and a = 1, so the offset is
+        # a h² (1 - θ)² / 2 = 0.00125.
+        localized_sim = Simulation(ramp_limited_model(true); h = 1//10)
+        init!(localized_sim, fragment())
+        step!(localized_sim; t_plus = 3.0)
+        bracket_width = localized_sim.deployment.localization_tol * localized_sim.deployment.h    # in time (§10.4)
+        @test state(localized_sim, "li").q ≈ 0.4 - 1.95^2 / 2 atol = bracket_width
+        boundary_sim = Simulation(ramp_limited_model(false); h = 1//10)
+        init!(boundary_sim, fragment())
+        step!(boundary_sim; t_plus = 3.0)
+        @test state(boundary_sim, "li").q ≈ -1.5 atol = 1e-12    # RK4 is exact on the quadratic
+        @test 0 < state(boundary_sim, "li").q - state(localized_sim, "li").q ≤ 0.1^2 / 2
     end
 
     @testset "the relay switches with hysteresis, from boundary zero on (§10.4, §10.6, D-313)" begin
@@ -336,8 +374,8 @@ function test_blocks()
     end
 
     @testset "the servo loop saturates its controller, leaves the limit and settles on its reference (§13.7)" begin
-        @test build(servo_loop(); activations = (Float64, LinearizeDual)) isa Build
-        sim = Simulation(servo_loop(); h = 1//100)
+        @test build(servo_loop(true); activations = (Float64, LinearizeDual)) isa Build
+        sim = Simulation(servo_loop(true); h = 1//100)
         init!(sim, fragment())
         # To t = 1, 2, 2.5, 4, 5, 10 and 40: the controller hits its upper limit
         # near t = 2.04 and leaves it near t = 3.15.
@@ -348,6 +386,11 @@ function test_blocks()
             @test modes(sim, "controller").saturation === saturation
         end
         @test port(sim, "plant", :out) ≈ 1.0 atol = 1e-3
+        # Boundary-detected, the departure moves by up to one step.
+        boundary_sim = Simulation(servo_loop(false); h = 1//100)
+        init!(boundary_sim, fragment())
+        step!(boundary_sim; t_plus = 40.0)
+        @test port(boundary_sim, "plant", :out) ≈ 1.0 atol = 1e-3
     end
 
     @testset "every keyword constructor builds a `Float64` block from integer keywords (§7.2)" begin
@@ -355,11 +398,12 @@ function test_blocks()
         @test FirstOrderLag(τ = 1, x0 = 1) isa FirstOrderLag{Float64}
         @test Step(t_step = 0.25, before = 0, after = 2) isa Step{Float64, true}
         @test LimitedIntegrator(lower = -1, upper = 1) isa LimitedIntegrator{Float64}
+        @test LimitedIntegrator(lower = -1, upper = 1, localized = false) isa LimitedIntegrator{Float64, false}
         @test Relay(lower = 0, upper = 1) isa Relay{Float64}
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
-        for model in (servo_loop(), bang_bang_loop())
+        for model in (servo_loop(true), servo_loop(false), bang_bang_loop())
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
             for name in (:sweep_1, :sweep_2, :rhs, :ticks)
@@ -383,6 +427,7 @@ function test_blocks()
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
                      Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),
                      Step(t_step = 1.0, localized = false), LimitedIntegrator(lower = -1.0, upper = 1.0),
+                     LimitedIntegrator(lower = -1.0, upper = 1.0, localized = false),
                      Relay(lower = 0.2, upper = 0.8), Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))
