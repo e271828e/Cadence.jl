@@ -124,6 +124,9 @@ The standard component library, the submodule `Redstone.Blocks`:
 - `Integrator`, `FirstOrderLag`, `Step`, `LimitedIntegrator` and `Relay` (D-313).
   `Step` and `LimitedIntegrator` each ship two detection policies, localized
   and boundary-detected, selected by the type parameter `L` (D-179).
+  `LimitedIntegrator` and `Relay` are over `Real` and static vectors, with
+  `Int8` modes and, over a vector, events generated per component.
+  `LimitedIntegrator` publishes its mode as the output `saturation`.
 - The anonymous assembly `Group`, with `_entries` (D-184).
 
 It reaches the parent through its import list alone, as a user's component

@@ -3,7 +3,7 @@ module Blocks
 import ..Redstone: AbstractComponent, Pinned, StateEvent,
     x_init, s_init, m_init, u_types, y_types, y_direct, y_state, x_deriv, s_update,
     state_events, local_wires, input_wires, output_wires, sample_times, transparent_container
-using StaticArrays: StaticArray
+using StaticArrays: StaticArray, similar_type
 import ForwardDiff
 
 # The standard component library (§13.7, D-313). Written as a user's component
@@ -214,12 +214,18 @@ state_events(::Step) = (fire = StateEvent(step_guard, step_handler),)
 
 The integrator held between `lower` and `upper`: one continuous state `q`, with
 `q̇ = in` while free and `q̇ = 0` while saturated, and `out` publishing `q` from
-stage 1. It is not a clamp. The mode `saturation`, `:free`, `:upper` or
-`:lower`, is read by the derivative, and four state events move it.
+stage 1. It is not a clamp. The mode `saturation` is read by the derivative,
+and four state events move it. It is a signed `Int8` code, the sign of the
+limit in force: `-1` at `lower`, `0` free and `+1` at `upper`.
 `hit_upper` and `hit_lower` fire when `q` reaches a limit; their handlers write
 `q` to the limit exactly and saturate. `leave_upper` and `leave_lower` fire
 when `in` turns strictly back into the range, and free it; an input of exactly
 zero at a limit keeps the mode saturated. The hit events are localized.
+
+A second output, also `saturation`, publishes the code from stage 1, so it has
+no feedthrough. It serves an anti-windup consumer, such as a controller that
+gates its integrator on the code, which flips only when an event fires and so
+only on a declared boundary.
 
 `localized` picks the detection policy of the leave events (§2.1). Localized,
 the guards are gated in §10.4's sign form, and the departure ends the step at
@@ -233,12 +239,19 @@ sweeps and a boundary. The policy is the type parameter `L` rather than a
 field because the build reads it off the guard's return type (D-179).
 `limited_integrator_variants.md` gives the reasoning.
 
-`lower < upper`. `x0`, `lower` and `upper` are promoted to one `V`, which is
-`Float64`, and taken by `float`, so integer values qualify. Boundary zero sets
-every prior to not-holding (§10.6), so an `x0` outside the limits is clamped
-there, and the initial mode agrees with the initial input.
+Over a static vector, the limits and the codes are componentwise, and
+`saturation` publishes a static vector of `Int8`. The block declares `N` copies
+of the scalar events, one per component, named `hit_upper_1` to `hit_upper_N`,
+then `hit_lower_i`, `leave_upper_i` and `leave_lower_i`: each guard reads its
+one component and each handler writes it.
+
+`lower < upper`, componentwise over a vector. `x0`, `lower` and `upper` are
+promoted to one `V`, which is `Float64` or a static array of `Float64`, and
+taken by `float`, so integer values qualify. Boundary zero sets every prior to
+not-holding (§10.6), so an `x0` outside the limits is clamped there, and the
+initial mode agrees with the initial input.
 """
-struct LimitedIntegrator{V <: Real, L} <: AbstractComponent
+struct LimitedIntegrator{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, L} <: AbstractComponent
     x0::V
     lower::V
     upper::V
@@ -248,14 +261,15 @@ function LimitedIntegrator(; lower, upper, x0 = zero(lower), localized = true)
     LimitedIntegrator{typeof(x0), localized}(x0, lower, upper)
 end
 x_init(c::LimitedIntegrator) = (q = c.x0,)
-m_init(::LimitedIntegrator) = (saturation = :free,)    # :free, :upper or :lower
+m_init(c::LimitedIntegrator) = (saturation = Int8.(zero(c.x0)),)    # -1 lower, 0 free, +1 upper
 u_types(::LimitedIntegrator{V}) where {V} = (in = V,)
-y_types(::LimitedIntegrator{V}) where {V} = (out = V,)
-y_state(::LimitedIntegrator, (; x)) = (out = x.q,)
-x_deriv(::LimitedIntegrator, (; u, m)) = (q = m.saturation === :free ? u.in : zero(u.in),)
-# The hit guards are not gated by `:free` on purpose. Gated, a hit guard would
-# read `0` the instant a leave handler frees the mode, present a fresh edge and
-# saturate the block again.
+y_types(::LimitedIntegrator{V}) where {V <: Real} = (out = V, saturation = Int8)
+y_types(::LimitedIntegrator{V}) where {V <: StaticArray} = (out = V, saturation = similar_type(V, Int8))
+y_state(::LimitedIntegrator, (; x, m)) = (out = x.q, saturation = m.saturation)
+x_deriv(::LimitedIntegrator, (; u, m)) = (q = ifelse.(m.saturation .== 0, u.in, zero(u.in)),)
+# The hit guards are not gated by the free code on purpose. Gated, a hit guard
+# would read `0` the instant a leave handler frees the mode, present a fresh
+# edge and saturate the block again.
 hit_upper_guard(c::LimitedIntegrator, (; x)) = x.q - c.upper
 hit_lower_guard(c::LimitedIntegrator, (; x)) = c.lower - x.q
 # The leave guards gate on strictly inward input. Gated on the mode alone, an
@@ -266,62 +280,112 @@ hit_lower_guard(c::LimitedIntegrator, (; x)) = c.lower - x.q
 # converges on that crossing, since only the sign drives it, but ITP falls back
 # to bisection's count, about 15 extra interior sweeps per leave.
 leave_upper_guard(::LimitedIntegrator{V, true}, (; m, u)) where {V} =
-    m.saturation === :upper && u.in < 0 ? -u.in : -one(u.in)
+    m.saturation == 1 && u.in < 0 ? -u.in : -one(u.in)
 leave_lower_guard(::LimitedIntegrator{V, true}, (; m, u)) where {V} =
-    m.saturation === :lower && u.in > 0 ? u.in : -one(u.in)
+    m.saturation == -1 && u.in > 0 ? u.in : -one(u.in)
 # The `Bool` forms are the same predicates, boundary-detected and strict by
 # construction.
 leave_upper_guard(::LimitedIntegrator{V, false}, (; m, u)) where {V} =
-    m.saturation === :upper && u.in < 0
+    m.saturation == 1 && u.in < 0
 leave_lower_guard(::LimitedIntegrator{V, false}, (; m, u)) where {V} =
-    m.saturation === :lower && u.in > 0
-hit_upper_handler(c::LimitedIntegrator, _) = (x = (q = c.upper,), m = (saturation = :upper,))
-hit_lower_handler(c::LimitedIntegrator, _) = (x = (q = c.lower,), m = (saturation = :lower,))
-leave_handler(::LimitedIntegrator, _) = (m = (saturation = :free,),)
-state_events(::LimitedIntegrator) = (hit_upper = StateEvent(hit_upper_guard, hit_upper_handler),
-                                     hit_lower = StateEvent(hit_lower_guard, hit_lower_handler),
-                                     leave_upper = StateEvent(leave_upper_guard, leave_handler),
-                                     leave_lower = StateEvent(leave_lower_guard, leave_handler))
+    m.saturation == -1 && u.in > 0
+hit_upper_handler(c::LimitedIntegrator, _) = (x = (q = c.upper,), m = (saturation = Int8(1),))
+hit_lower_handler(c::LimitedIntegrator, _) = (x = (q = c.lower,), m = (saturation = Int8(-1),))
+leave_handler(::LimitedIntegrator, _) = (m = (saturation = Int8(0),),)
+state_events(::LimitedIntegrator{V}) where {V <: Real} =
+    (hit_upper = StateEvent(hit_upper_guard, hit_upper_handler),
+     hit_lower = StateEvent(hit_lower_guard, hit_lower_handler),
+     leave_upper = StateEvent(leave_upper_guard, leave_handler),
+     leave_lower = StateEvent(leave_lower_guard, leave_handler))
+# The events are per component, not reductions over the vector, so the scalar
+# reasoning holds component by component. A reduced hit guard holds for good
+# once one component sits clamped on its limit, so a second arrival makes no
+# edge, and gating it by the mode brings back the re-saturation above.
+function state_events(::LimitedIntegrator{V, L}) where {V <: StaticArray, L}
+    N = length(V)
+    hit_upper = ntuple(N) do i
+        StateEvent((c, (; x)) -> x.q[i] - c.upper[i],
+                   (c, (; x, m)) -> (x = (q = Base.setindex(x.q, c.upper[i], i),),
+                                     m = (saturation = Base.setindex(m.saturation, Int8(1), i),)))
+    end
+    hit_lower = ntuple(N) do i
+        StateEvent((c, (; x)) -> c.lower[i] - x.q[i],
+                   (c, (; x, m)) -> (x = (q = Base.setindex(x.q, c.lower[i], i),),
+                                     m = (saturation = Base.setindex(m.saturation, Int8(-1), i),)))
+    end
+    leave_upper = ntuple(N) do i
+        guard = L ? ((c, (; m, u)) -> m.saturation[i] == 1 && u.in[i] < 0 ? -u.in[i] : -one(u.in[i])) :
+                    ((c, (; m, u)) -> m.saturation[i] == 1 && u.in[i] < 0)
+        StateEvent(guard, (c, (; m)) -> (m = (saturation = Base.setindex(m.saturation, Int8(0), i),),))
+    end
+    leave_lower = ntuple(N) do i
+        guard = L ? ((c, (; m, u)) -> m.saturation[i] == -1 && u.in[i] > 0 ? u.in[i] : -one(u.in[i])) :
+                    ((c, (; m, u)) -> m.saturation[i] == -1 && u.in[i] > 0)
+        StateEvent(guard, (c, (; m)) -> (m = (saturation = Base.setindex(m.saturation, Int8(0), i),),))
+    end
+    names = (ntuple(i -> Symbol(:hit_upper_, i), N)..., ntuple(i -> Symbol(:hit_lower_, i), N)...,
+             ntuple(i -> Symbol(:leave_upper_, i), N)..., ntuple(i -> Symbol(:leave_lower_, i), N)...)
+    NamedTuple{names}((hit_upper..., hit_lower..., leave_upper..., leave_lower...))
+end
 
 """
-    Relay(; lower, upper, off = zero(lower), on = one(lower))
+    Relay(; lower, upper, off = zero(lower), on = one.(lower))
 
 The relay with hysteresis: `out` publishes `off` or `on` by the mode `state`,
-from stage 1. Two state events move the mode. `switch_on` fires when `in` rises
-to `upper` while off, and `switch_off` when `in` falls to `lower` while on.
-Both guards are sign forms gated by the mode in §10.4's form, so both are
-localized.
+from stage 1. The mode is an `Int8` code, `0` off and `1` on. Two state events
+move it. `switch_on` fires when `in` rises to `upper` while off, and
+`switch_off` when `in` falls to `lower` while on. Both guards are sign forms
+gated by the mode in §10.4's form, so both are localized.
 
 `out` reads no input, so the block has no feedthrough (§5.3), and a relay
 closing a feedback loop makes no algebraic loop. It is the library's reference
 mode-switching leaf. `lower < upper`. The four values are promoted to one `V`,
-which is `Float64`, and taken by `float`, so integer values qualify. `out` is
-pinned at `V` (D-312): it depends on the mode and the instance alone, so it
-carries zero partials under every activation.
+which is `Float64` or a static array of `Float64`, and taken by `float`, so
+integer values qualify. `out` is pinned at `V` (D-312): it depends on the mode
+and the instance alone, so it carries zero partials under every activation.
+
+Over a static vector, the thresholds, the values and the codes are
+componentwise. The block declares `N` copies of the two events, one per
+component, named `switch_on_1` to `switch_on_N`, then `switch_off_i`: each
+guard reads its one component and each handler writes it.
 
 The relay starts off. Boundary zero sets every prior to not-holding (§10.6), so
 an input already at or above `upper` at `t₀` turns it on there, and an input
 between the thresholds leaves it off, which is the hysteresis itself.
 """
-struct Relay{V <: Real} <: AbstractComponent
+struct Relay{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
     lower::V      # switch off when `in` falls to it
     upper::V      # switch on when `in` rises to it
     off::V        # `out` while off
     on::V         # `out` while on
 end
-Relay(; lower, upper, off = zero(lower), on = one(lower)) =
+Relay(; lower, upper, off = zero(lower), on = one.(lower)) =
     Relay(float.(promote(lower, upper, off, on))...)
 x_init(::Relay) = (;)
-m_init(::Relay) = (state = :off,)
+m_init(c::Relay) = (state = Int8.(zero(c.lower)),)    # 0 off, 1 on
 u_types(::Relay{V}) where {V} = (in = V,)
 y_types(::Relay{V}) where {V} = (out = Pinned{V},)
-y_state(c::Relay, (; m)) = (out = m.state === :on ? c.on : c.off,)
-switch_on_guard(c::Relay, (; m, u)) = m.state === :off ? u.in - c.upper : -one(u.in)
-switch_off_guard(c::Relay, (; m, u)) = m.state === :on ? c.lower - u.in : -one(u.in)
-switch_on_handler(::Relay, _) = (m = (state = :on,),)
-switch_off_handler(::Relay, _) = (m = (state = :off,),)
-state_events(::Relay) = (switch_on = StateEvent(switch_on_guard, switch_on_handler),
-                         switch_off = StateEvent(switch_off_guard, switch_off_handler))
+y_state(c::Relay, (; m)) = (out = ifelse.(m.state .== 1, c.on, c.off),)
+switch_on_guard(c::Relay, (; m, u)) = m.state == 0 ? u.in - c.upper : -one(u.in)
+switch_off_guard(c::Relay, (; m, u)) = m.state == 1 ? c.lower - u.in : -one(u.in)
+switch_on_handler(::Relay, _) = (m = (state = Int8(1),),)
+switch_off_handler(::Relay, _) = (m = (state = Int8(0),),)
+state_events(::Relay{V}) where {V <: Real} =
+    (switch_on = StateEvent(switch_on_guard, switch_on_handler),
+     switch_off = StateEvent(switch_off_guard, switch_off_handler))
+function state_events(::Relay{V}) where {V <: StaticArray}
+    N = length(V)
+    switch_on = ntuple(N) do i
+        StateEvent((c, (; m, u)) -> m.state[i] == 0 ? u.in[i] - c.upper[i] : -one(u.in[i]),
+                   (c, (; m)) -> (m = (state = Base.setindex(m.state, Int8(1), i),),))
+    end
+    switch_off = ntuple(N) do i
+        StateEvent((c, (; m, u)) -> m.state[i] == 1 ? c.lower[i] - u.in[i] : -one(u.in[i]),
+                   (c, (; m)) -> (m = (state = Base.setindex(m.state, Int8(0), i),),))
+    end
+    names = (ntuple(i -> Symbol(:switch_on_, i), N)..., ntuple(i -> Symbol(:switch_off_, i), N)...)
+    NamedTuple{names}((switch_on..., switch_off...))
+end
 
 # --- the anonymous assembly (§8.5, D-211) -------------------------------------
 

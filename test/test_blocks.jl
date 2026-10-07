@@ -78,6 +78,23 @@ relay_model() =
              r = Relay(lower = 0.2, upper = 0.8));
           local_wires = ("s/out" => "i/in", "i/out" => "r/in"))
 
+# A vector limited integrator fed by a step: component 2 saturates at 0.4 and
+# component 1 at 0.5; after 1.05 component 1 leaves and reaches its lower limit
+# at 2.55, while component 2's input is exactly zero and it stays saturated.
+vector_limited_model(localized) =
+    Group((; s = Step(t_step = 1.05, before = SVector(1.0, 2.0), after = SVector(-1.0, 0.0)),
+             li = LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(0.5, 0.8),
+                                    localized = localized));
+          local_wires = ("s/out" => "li/in",))
+
+# A vector relay reading a vector integrator: component 1 is `relay_model`'s,
+# and component 2 climbs to 0.5 and never reaches its upper threshold.
+vector_relay_model() =
+    Group((; s = Step(t_step = 1.0, before = SVector(1.0, 0.5), after = SVector(-1.0, -0.5)),
+             i = Integrator(x0 = SVector(0.0, 0.0)),
+             r = Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8)));
+          local_wires = ("s/out" => "i/in", "i/out" => "r/in"))
+
 # The servo loop: a reference step, the error, a limited integrator as the
 # controller, a lag as the actuator and a lag as the plant, whose `out` leaves
 # the root.
@@ -277,43 +294,47 @@ function test_blocks()
     end
 
     @testset "the limited integrator saturates exactly, frees on its input's sign, and linearizes by its mode (§10.4, §10.6, D-313)" begin
+        @test y_types(LimitedIntegrator(lower = -1.0, upper = 0.5)) == (out = Float64, saturation = Int8)
         # The step's jump carries its own boundary, so the boundary-detected
         # departure fires there too.
         for localized in (true, false)
             sim = Simulation(limited_model(localized); h = 1//10)
             init!(sim, fragment())
             step!(sim; t_plus = 0.7)
-            @test state(sim, "li").q == 0.5 && modes(sim, "li").saturation === :upper
+            @test state(sim, "li").q == 0.5 && modes(sim, "li").saturation === Int8(1)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
             step!(sim; t_plus = 1.3)
             bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
             @test state(sim, "li").q ≈ -0.45 atol = bracket_width
-            @test modes(sim, "li").saturation === :free
+            @test modes(sim, "li").saturation === Int8(0)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
             step!(sim; t_plus = 1.0)
-            @test state(sim, "li").q == -1.0 && modes(sim, "li").saturation === :lower
+            @test state(sim, "li").q == -1.0 && modes(sim, "li").saturation === Int8(-1)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
         end
         # The derivative reads the mode, so the Jacobian does too.
         @test isapprox(block_linearization(LimitedIntegrator(lower = -1.0, upper = 0.5)).B, [1.0;;]; atol = 1e-12)
         rig = Simulation(fed(LimitedIntegrator(lower = -1.0, upper = 0.5), "in"); h = 1//10)
         init!(rig, fragment(u = (in = 1.0,)))
         step!(rig; t_plus = 0.7)
-        @test state(rig, "c").q == 0.5 && modes(rig, "c").saturation === :upper
+        @test state(rig, "c").q == 0.5 && modes(rig, "c").saturation === Int8(1)
         linearization = linearize(rig, taps(x = (q = get_state("c", :q),), u = (in = get_input(:in),)))
         @test isapprox(linearization.B, [0.0;;]; atol = 1e-12)
         # An `x0` outside the limits is clamped at boundary zero (§10.6).
         clamped = Simulation(fed(LimitedIntegrator(x0 = 2.0, lower = -1.0, upper = 0.5), "in"); h = 1//10)
         init!(clamped, fragment(u = (in = 1.0,)))
-        @test state(clamped, "c").q == 0.5 && modes(clamped, "c").saturation === :upper
+        @test state(clamped, "c").q == 0.5 && modes(clamped, "c").saturation === Int8(1)
         clamped_lower = Simulation(fed(LimitedIntegrator(x0 = -2.0, lower = -1.0, upper = 0.5), "in"); h = 1//10)
         init!(clamped_lower, fragment(u = (in = -1.0,)))
-        @test state(clamped_lower, "c").q == -1.0 && modes(clamped_lower, "c").saturation === :lower
+        @test state(clamped_lower, "c").q == -1.0 && modes(clamped_lower, "c").saturation === Int8(-1)
         @test LimitedIntegrator(lower = -1, upper = 0.5) isa LimitedIntegrator{Float64}
         @test LimitedIntegrator(lower = -1, upper = 0.5).x0 === 0.0
     end
 
     @testset "an input of exactly zero at a limit keeps the limited integrator saturated (§10.4, D-313)" begin
         # Freed at the zero, `q` would pass the limit at the return with no edge.
-        for (level, lower, upper, limit, saturation) in ((1.0, -1.0, 0.5, 0.5, :upper),
-                                                         (-1.0, -0.5, 1.0, -0.5, :lower)),
+        for (level, lower, upper, limit, saturation) in ((1.0, -1.0, 0.5, 0.5, Int8(1)),
+                                                         (-1.0, -0.5, 1.0, -0.5, Int8(-1))),
             localized in (true, false)
             sim = Simulation(zero_input_model(level, lower, upper, localized); h = 1//10)
             init!(sim, fragment())
@@ -322,11 +343,54 @@ function test_blocks()
         end
     end
 
+    @testset "the vector limited integrator saturates and frees each component on its own (§10.4, §10.6, D-313)" begin
+        # The step's jump carries its own boundary, so the boundary-detected
+        # departure fires there too. At 0.4 only component 2 is clamped, which
+        # tells a handler writing its one component from one writing them all;
+        # from 1.05 component 2's input is exactly zero, which tells a leave
+        # guard reading its own component from one reading the first.
+        for localized in (true, false)
+            sim = Simulation(vector_limited_model(localized); h = 1//10)
+            init!(sim, fragment())
+            step!(sim; t_plus = 0.4)
+            @test state(sim, "li").q[1] ≈ 0.4 atol = 1e-12
+            @test state(sim, "li").q[2] == 0.8
+            @test modes(sim, "li").saturation == SVector{2, Int8}(0, 1)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
+            step!(sim; t_plus = 0.3)
+            @test state(sim, "li").q == SVector(0.5, 0.8)
+            @test modes(sim, "li").saturation == SVector{2, Int8}(1, 1)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
+            step!(sim; t_plus = 1.3)
+            bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+            @test state(sim, "li").q[1] ≈ -0.45 atol = bracket_width
+            @test state(sim, "li").q[2] == 0.8
+            @test modes(sim, "li").saturation == SVector{2, Int8}(0, 1)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
+            step!(sim; t_plus = 1.0)
+            @test state(sim, "li").q == SVector(-1.0, 0.8)
+            @test modes(sim, "li").saturation == SVector{2, Int8}(-1, 1)
+            @test port(sim, "li", :saturation) === modes(sim, "li").saturation
+        end
+        @test y_types(LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(0.5, 0.8))) ==
+              (out = SVector{2, Float64}, saturation = SVector{2, Int8})
+        @test build(vector_limited_model(true); activations = (Float64, LinearizeDual)) isa Build
+    end
+
     @testset "the limited integrator's departures follow `localized`, and its arrivals are localized (§2.1, §10.4, D-179)" begin
         @test limited_events(limited_model(true)).policies ===
               (hit_upper = :localized, hit_lower = :localized, leave_upper = :localized, leave_lower = :localized)
         @test limited_events(limited_model(false)).policies ===
               (hit_upper = :localized, hit_lower = :localized, leave_upper = :boundary, leave_lower = :boundary)
+        # Over a vector, `N` copies of each event, in the scalar order.
+        @test limited_events(vector_limited_model(true)).policies ===
+              (hit_upper_1 = :localized, hit_upper_2 = :localized, hit_lower_1 = :localized,
+               hit_lower_2 = :localized, leave_upper_1 = :localized, leave_upper_2 = :localized,
+               leave_lower_1 = :localized, leave_lower_2 = :localized)
+        @test limited_events(vector_limited_model(false)).policies ===
+              (hit_upper_1 = :localized, hit_upper_2 = :localized, hit_lower_1 = :localized,
+               hit_lower_2 = :localized, leave_upper_1 = :boundary, leave_upper_2 = :boundary,
+               leave_lower_1 = :boundary, leave_lower_2 = :boundary)
     end
 
     @testset "the boundary-detected departure is off by at most `a h² / 2` (§2.1, §10.4)" begin
@@ -350,17 +414,38 @@ function test_blocks()
         sim = Simulation(relay_model(); h = 1//10)
         init!(sim, fragment())
         # At t = 0.5, 0.9, 1.5 (inside the band, still on) and 1.9.
-        for (t_plus, out, relay_state) in ((0.5, 0.0, :off), (0.4, 1.0, :on), (0.6, 1.0, :on), (0.4, 0.0, :off))
+        for (t_plus, out, relay_state) in ((0.5, 0.0, Int8(0)), (0.4, 1.0, Int8(1)), (0.6, 1.0, Int8(1)),
+                                            (0.4, 0.0, Int8(0)))
             step!(sim; t_plus = t_plus)
             @test port(sim, "r", :out) == out && modes(sim, "r").state === relay_state
         end
-        for (value, relay_state) in ((1.0, :on), (0.5, :off))
+        for (value, relay_state) in ((1.0, Int8(1)), (0.5, Int8(0)))
             model = Group((; k = Constant(value), r = Relay(lower = 0.2, upper = 0.8));
                           local_wires = ("k/out" => "r/in",))
             constant_sim = Simulation(model; h = 1//10)
             init!(constant_sim, fragment())
             @test modes(constant_sim, "r").state === relay_state
         end
+    end
+
+    @testset "the vector relay switches each component with its own hysteresis (§10.4, §10.6, D-313)" begin
+        @test y_types(Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8))) ==
+              (out = Pinned{SVector{2, Float64}},)    # D-312
+        sim = Simulation(vector_relay_model(); h = 1//10)
+        init!(sim, fragment())
+        # At t = 0.5, 0.9, 1.5 and 1.9; component 2 never reaches 0.8.
+        for (t_plus, out, relay_state) in ((0.5, SVector(0.0, 0.0), SVector{2, Int8}(0, 0)),
+                                           (0.4, SVector(1.0, 0.0), SVector{2, Int8}(1, 0)),
+                                           (0.6, SVector(1.0, 0.0), SVector{2, Int8}(1, 0)),
+                                           (0.4, SVector(0.0, 0.0), SVector{2, Int8}(0, 0)))
+            step!(sim; t_plus = t_plus)
+            @test port(sim, "r", :out) == out && modes(sim, "r").state == relay_state
+        end
+        model = Group((; k = Constant(SVector(1.0, 0.5)), r = Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8)));
+                      local_wires = ("k/out" => "r/in",))
+        constant_sim = Simulation(model; h = 1//10)
+        init!(constant_sim, fragment())
+        @test modes(constant_sim, "r").state == SVector{2, Int8}(1, 0)
     end
 
     @testset "the bang-bang loop builds with no algebraic loop and cycles between the thresholds (§5.3, §13.7)" begin
@@ -379,8 +464,8 @@ function test_blocks()
         init!(sim, fragment())
         # To t = 1, 2, 2.5, 4, 5, 10 and 40: the controller hits its upper limit
         # near t = 2.04 and leaves it near t = 3.15.
-        for (t_plus, saturation) in ((1.0, :free), (1.0, :free), (0.5, :upper), (1.5, :free),
-                                     (1.0, :free), (5.0, :free), (30.0, :free))
+        for (t_plus, saturation) in ((1.0, Int8(0)), (1.0, Int8(0)), (0.5, Int8(1)), (1.5, Int8(0)),
+                                     (1.0, Int8(0)), (5.0, Int8(0)), (30.0, Int8(0)))
             step!(sim; t_plus = t_plus)
             @test state(sim, "controller").q ≤ 1.2
             @test modes(sim, "controller").saturation === saturation
@@ -400,10 +485,13 @@ function test_blocks()
         @test LimitedIntegrator(lower = -1, upper = 1) isa LimitedIntegrator{Float64}
         @test LimitedIntegrator(lower = -1, upper = 1, localized = false) isa LimitedIntegrator{Float64, false}
         @test Relay(lower = 0, upper = 1) isa Relay{Float64}
+        @test LimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
+              LimitedIntegrator{SVector{2, Float64}, true}
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
-        for model in (servo_loop(true), servo_loop(false), bang_bang_loop())
+        for model in (servo_loop(true), servo_loop(false), bang_bang_loop(),
+                      vector_limited_model(true), vector_limited_model(false), vector_relay_model())
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
             for name in (:sweep_1, :sweep_2, :rhs, :ticks)
@@ -428,7 +516,10 @@ function test_blocks()
                      Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),
                      Step(t_step = 1.0, localized = false), LimitedIntegrator(lower = -1.0, upper = 1.0),
                      LimitedIntegrator(lower = -1.0, upper = 1.0, localized = false),
-                     Relay(lower = 0.2, upper = 0.8), Group((; k = Constant(1.0))))
+                     Relay(lower = 0.2, upper = 0.8),
+                     LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
+                     LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0), localized = false),
+                     Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8)), Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))
             @test build(comp) isa Build

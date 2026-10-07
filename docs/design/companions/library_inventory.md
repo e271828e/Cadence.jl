@@ -100,8 +100,7 @@ proves standard). Every block is generic over its port type `V`, in the
 | Block | Status | Mechanism |
 |---|---|---|
 | `Integrator{V}` | shipped | walks under `Dual` |
-| `LimitedIntegrator{V <: Real, L}` | shipped | a mode the derivative reads, and four events, the leave pair gated by the mode and strictly inward input; departures localized or boundary-detected, by `L` ([D-179][d-179]) |
-| `LimitedIntegrator` over a `StaticArray` | candidate | componentwise modes as `Int8` codes, `4N` per-component events generated from `N` |
+| `LimitedIntegrator{V, L}` over `Real` or a `StaticArray` | shipped | a mode the derivative reads, and four events, the leave pair gated by the mode and strictly inward input; departures localized or boundary-detected, by `L` ([D-179][d-179]); modes as `Int8` codes, `4N` per-component events over a vector; `saturation` published |
 | `FirstOrderLag{V}`, time constant as instance data | shipped | the actuator model and [§5.5][s5-5]'s α-filter idiom |
 | a continuous rate limiter | not admitted | `q̇ = clamp((in - q) / τ, -R, R)` is one line, its kinks are second-order and its offsets decay; the discrete form is the block |
 | `LinearSystem` holding `A`, `B`, `C`, `D` as static matrices | candidate | covers transfer functions and state-space models |
@@ -111,8 +110,7 @@ proves standard). Every block is generic over its port type `V`, in the
 
 | Block | Status | Mechanism |
 |---|---|---|
-| `Relay{V <: Real}` (hysteresis) | shipped | the reference mode-switching leaf |
-| `Relay` over a `StaticArray` | candidate | componentwise modes as `Int8` codes, `2N` per-component events generated from `N` |
+| `Relay{V}` (hysteresis) over `Real` or a `StaticArray` | shipped | the reference mode-switching leaf; modes as `Int8` codes, `2N` per-component events over a vector |
 | Saturation, dead zone | not admitted | one-line clamps, unless localization doctrine wants a declared kink |
 
 ### Discrete tier
