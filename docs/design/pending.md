@@ -13,7 +13,7 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The library's three tranches**, the candidate rows of
+- **The library's two remaining tranches**, the candidate rows of
   `docs/design/companions/library_inventory.md` batched by the mechanism each
   exercises (§13.7, D-313), one brief, two stages and one review each, in
   this order:
