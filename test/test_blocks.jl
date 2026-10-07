@@ -1,8 +1,8 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
-# stop-gradient, the integrator, the lag, the step, the limited integrator, the
-# relay and the PID, the PID assembled from blocks, and the loops built from
+# stop-gradient, the integrator, the lag, the state space, the step, the limited
+# integrator, the relay and the PID, the PID assembled from blocks, and the loops built from
 # them alone. The models are built at top level, like the fixtures they reuse:
 # `RealEntry` and `PinnedEntry` are test_build.jl's.
 
@@ -33,6 +33,23 @@ integrator_model(x0, value) =
 lag_model(value) =
     Group((; k = Constant(value), l = FirstOrderLag(τ = 0.5, x0 = zero(value)));
           local_wires = ("k/out" => "l/in",))
+
+# The two-state state space with two inputs and two outputs, strictly proper.
+two_state_block() = StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5; 0 1], C = [1 2; 0 1])
+
+# A linear block fed by a constant.
+linear_model(block, value) = Group((; k = Constant(value), c = block); local_wires = ("k/out" => "c/in",))
+
+# A linear block under the root faces `in` and `out`.
+linear_root_model(block) =
+    Group((; c = block); input_wires = ("in" => "c/in",), output_wires = ("c/out" => "out",))
+
+# A unit-feedback loop through a difference junction around a scalar state
+# space whose direct term is `D`.
+feedback_loop(D) =
+    Group((; r = Constant(1.0), e = Junction{Float64, Float64, 2}(-),
+             p = StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [D;;]));
+          local_wires = ("r/out" => "e/in1", "p/out" => "e/in2", "e/out" => "p/in"))
 
 # A step into an integrator, which ramps from the instant the jump lands.
 step_model(source) = Group((; s = source, i = Integrator()); local_wires = ("s/out" => "i/in",))
@@ -316,6 +333,69 @@ function test_blocks()
         @test isapprox(linearization.B, [2.0;;]; atol = 1e-12)
         # The time constant is pinned at `Float64` whatever the keyword's type.
         @test FirstOrderLag(τ = 1) isa FirstOrderLag{Float64}
+    end
+
+    @testset "the state space linearizes to its own matrices at any operating point, over scalar or vector ports (§13.7, §14.10, D-313)" begin
+        sim = Simulation(linear_root_model(two_state_block()); h = 1//100)
+        init!(sim, fragment(u = (in = SVector(1.0, -1.0),)))
+        step!(sim; t_plus = 0.3)
+        linearization = linearize(sim, taps(x = (q1 = get_state("c", "q[1]"), q2 = get_state("c", "q[2]")),
+                                            u = (in1 = get_input("in[1]"), in2 = get_input("in[2]")),
+                                            y = (out1 = get_face("out[1]"), out2 = get_face("out[2]"))))
+        @test isapprox(linearization.A, [-1 0.5; 0 -2]; atol = 1e-12)
+        @test isapprox(linearization.B, [1 0.5; 0 1]; atol = 1e-12)
+        @test isapprox(linearization.C, [1 2; 0 1]; atol = 1e-12)
+        @test isapprox(linearization.D, zeros(2, 2); atol = 1e-12)
+        # The state is an `SVector` at every size, so a scalar block's tap takes
+        # an index step.
+        scalar_sim = Simulation(fed(StateSpace(A = [-2.0;;], B = [3.0;;], C = [1.0;;]), "in"); h = 1//100)
+        init!(scalar_sim, fragment(u = (in = 0.0,)))
+        scalar_linearization = linearize(scalar_sim, taps(x = (q = get_state("c", "q[1]"),),
+                                                          u = (in = get_input(:in),)))
+        @test isapprox(scalar_linearization.A, [-2.0;;]; atol = 1e-12)
+        @test isapprox(scalar_linearization.B, [3.0;;]; atol = 1e-12)
+        # The ports are scalars one wide and `SVector`s wider, by the matrix shapes.
+        scalar_block = StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;])
+        @test u_types(scalar_block) == (in = Float64,) && y_types(scalar_block) == (out = Float64,)
+        @test u_types(two_state_block()) == (in = SVector{2, Float64},)
+        @test y_types(two_state_block()) == (out = SVector{2, Float64},)
+        single_output = StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5; 0 1], C = [1 2])
+        @test u_types(single_output) == (in = SVector{2, Float64},) && y_types(single_output) == (out = Float64,)
+    end
+
+    @testset "the direct term picks the stage: `D = 0` breaks the loop, `D ≠ 0` closes an algebraic cycle (§5.3, §5.5, D-313)" begin
+        @test build(feedback_loop(0.0)) isa Build
+        err = failure(() -> build(feedback_loop(1.0)))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        @test StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]) isa StateSpace{1, 1, 1, true}
+        @test StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;]) isa StateSpace{1, 1, 1, false}
+    end
+
+    @testset "the state space runs from `x0` and walks under `Dual` (§7.2, §13.7)" begin
+        scalar_model = linear_model(StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], x0 = 2), 1.0)
+        sim = Simulation(scalar_model; h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 1.0)
+        @test state(sim, "c").q[1] ≈ 1 + exp(-1) rtol = 1e-7
+        @test port(sim, "c", :out) == state(sim, "c").q[1]
+        @test build(scalar_model; activations = (Float64, LinearizeDual)) isa Build
+        @test build(linear_model(two_state_block(), SVector(1.0, -1.0)); activations = (Float64, LinearizeDual)) isa Build
+        @test build(linear_root_model(two_state_block()); activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the linear blocks' phase bodies allocate nothing (§7.5)" begin
+        for model in (linear_model(two_state_block(), SVector(1.0, -1.0)), feedback_loop(0.0))
+            sim = Simulation(model; h = 1//100)
+            bodies = phase_bodies(sim)
+            for name in (:sweep_1, :sweep_2, :rhs, :ticks)
+                body = bodies[name]
+                body(); body(0)
+                @test @ballocated($body()) == 0
+                @test @ballocated($body(1)) == 0
+            end
+        end
     end
 
     @testset "the localized step jumps at the crossing (§2.1, §10.4, D-179)" begin
@@ -731,7 +811,7 @@ function test_blocks()
         end
     end
 
-    @testset "every keyword constructor builds a `Float64` block from integer keywords, and a flag keyword refuses one (§7.2)" begin
+    @testset "every keyword constructor builds a `Float64` block from integer keywords, and a flag keyword or a misfit shape refuses one (§7.2)" begin
         @test Integrator(x0 = 1) isa Integrator{Float64}
         @test FirstOrderLag(τ = 1, x0 = 1) isa FirstOrderLag{Float64}
         @test Step(t_step = 0.25, before = 0, after = 2) isa Step{Float64, true}
@@ -741,11 +821,15 @@ function test_blocks()
         @test LimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
               LimitedIntegrator{SVector{2, Float64}, true}
         @test PID(Kp = 1) isa PID{false, false}
+        @test StateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa StateSpace{1, 1, 1, false}
+        @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
         @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
         @test_throws TypeError Step(t_step = 0.25, localized = 1)
         @test_throws TypeError LimitedIntegrator(lower = -1, upper = 1, localized = 1)
         @test_throws TypeError PID(Kp = 1, hold = 1)
         @test_throws TypeError PID(Kp = 1, tracking = 1)
+        @test_throws ArgumentError StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5], C = [1 2; 0 1])
+        @test_throws ArgumentError StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5; 0 1], C = [1 2; 0 1], x0 = [1, 2, 3])
     end
 
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
@@ -786,7 +870,10 @@ function test_blocks()
                      LimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0), localized = false),
                      Relay(lower = SVector(0.2, 0.2), upper = SVector(0.8, 0.8)),
                      PID(Kp = 1.0), PID(Kp = 1.0, hold = true), PID(Kp = 1.0, tracking = true),
-                     PID(Kp = 1.0, hold = true, tracking = true), Group((; k = Constant(1.0))))
+                     PID(Kp = 1.0, hold = true, tracking = true),
+                     StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [0.0;;]),
+                     StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]), two_state_block(),
+                     Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))
             @test build(comp) isa Build

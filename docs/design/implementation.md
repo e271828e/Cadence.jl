@@ -129,6 +129,8 @@ The standard component library, the submodule `Redstone.Blocks`:
   `LimitedIntegrator` publishes its mode as the output `saturation`.
 - `PID{Hold, Track}`, with the helpers `gated_error` and
   `correction_reference` (D-313).
+- `StateSpace`, over scalar or `SVector` ports by its matrix shapes, its
+  feedthrough class the type parameter `FT` (D-313).
 - The anonymous assembly `Group`, with `_entries` (D-184).
 
 It reaches the parent through its import list alone, as a user's component

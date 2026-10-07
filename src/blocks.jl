@@ -3,7 +3,7 @@ module Blocks
 import ..Redstone: AbstractComponent, Pinned, StateEvent,
     x_init, s_init, m_init, u_types, y_types, y_direct, y_state, x_deriv, s_update,
     state_events, local_wires, input_wires, output_wires, sample_times, transparent_container
-using StaticArrays: StaticArray, similar_type
+using StaticArrays: StaticArray, SMatrix, SVector, similar_type
 import ForwardDiff
 
 # The standard component library (§13.7, D-313). Written as a user's component
@@ -164,6 +164,90 @@ u_types(::FirstOrderLag{V}) where {V} = (in = V,)
 y_types(::FirstOrderLag{V}) where {V} = (out = V,)
 y_state(::FirstOrderLag, (; x)) = (out = x.q,)
 x_deriv(c::FirstOrderLag, (; x, u)) = (q = (u.in - x.q) / c.τ,)
+
+# --- the linear blocks (§13.7, §5.3, D-313) -------------------------------------
+
+"""
+    LinearBlock{FT}
+
+The supertype of the linear blocks. `FT` is the feedthrough class: `false` when
+the direct term is zero and `out` comes from stage 1, `true` when it is not and
+`out` comes from stage 2 (§5.3). Every stage is defined here, once, over the
+block's `realization`, so no linear block declares a stage of its own.
+"""
+abstract type LinearBlock{FT} <: AbstractComponent end
+
+# The port edges. A port one wide is a `Float64` and a wider one an `SVector`,
+# while the bodies always take matrix products over vectors.
+port_type(n) = n == 1 ? Float64 : SVector{n, Float64}
+as_vector(v::Real) = SVector(v)
+as_vector(v::SVector) = v
+as_port(v::SVector{1}) = v[1]
+as_port(v::SVector) = v
+
+x_init(c::LinearBlock) = (q = realization(c).x0,)
+u_types(c::LinearBlock) = (in = port_type(size(realization(c).B, 2)),)
+y_types(c::LinearBlock) = (out = port_type(size(realization(c).C, 1)),)
+function x_deriv(c::LinearBlock, (; x, u))
+    (; A, B) = realization(c)
+    (q = A * x.q + B * as_vector(u.in),)
+end
+y_state(c::LinearBlock{false}, (; x)) = (out = as_port(realization(c).C * x.q),)
+function y_direct(c::LinearBlock{true}, (; x, u))
+    (; C, D) = realization(c)
+    (out = as_port(C * x.q + D * as_vector(u.in)),)
+end
+
+"""
+    StateSpace(; A, B, C, D = zeros(n_y, n_u), x0 = zeros(n_x))
+
+The linear system in state-space form, one continuous state `q` from `x0`:
+
+    q̇   = A q + B in
+    out = C q + D in
+
+`A` is `n_x × n_x`, `B` is `n_x × n_u`, `C` is `n_y × n_x` and `D` is
+`n_y × n_u`. Each is any `AbstractMatrix` of reals, stored at full shape as a
+static matrix of `Float64`, so integer entries qualify; a matrix that does not
+fit the others is refused. `x0` is in the coordinates of `A`, a vector of length
+`n_x`, or a real when `n_x` is one. The state is an `SVector` at every size. `in`
+is a `Float64` when `n_u` is one and an `SVector{n_u, Float64}` otherwise, and
+`out` likewise by `n_y`.
+
+The type parameter `FT` is the feedthrough class, and `D` picks it. A zero `D`
+publishes `out` from stage 1, so the block breaks an algebraic loop as the lag
+does. A nonzero `D` publishes it from stage 2, so a loop closed on the block
+through a memoryless path is refused (§5.3, §5.5). The matrices are pinned at
+`Float64`, and the state and the ports walk under a `Dual` activation (§7.2), so
+the block linearizes to its own matrices.
+
+`linear_blocks.md` gives the reasoning: the storage, the realization a transfer
+function goes through, and why the name is the one ControlSystemsBase exports.
+"""
+struct StateSpace{NX, NU, NY, FT, LA, LB, LC, LD} <: LinearBlock{FT}
+    A::SMatrix{NX, NX, Float64, LA}
+    B::SMatrix{NX, NU, Float64, LB}
+    C::SMatrix{NY, NX, Float64, LC}
+    D::SMatrix{NY, NU, Float64, LD}
+    x0::SVector{NX, Float64}
+end
+StateSpace(A::SMatrix{NX, NX, Float64}, B::SMatrix{NX, NU, Float64}, C::SMatrix{NY, NX, Float64},
+           D::SMatrix{NY, NU, Float64}, x0::SVector{NX, Float64}) where {NX, NU, NY} =
+    StateSpace{NX, NU, NY, !iszero(D), NX * NX, NX * NU, NY * NX, NY * NU}(A, B, C, D, x0)
+function StateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
+                    D::AbstractMatrix = zeros(size(C, 1), size(B, 2)), x0 = zeros(size(A, 1)))
+    n_x, n_u, n_y = size(A, 1), size(B, 2), size(C, 1)
+    for (name, matrix, shape) in (("A", A, (n_x, n_x)), ("B", B, (n_x, n_u)),
+                                  ("C", C, (n_y, n_x)), ("D", D, (n_y, n_u)))
+        size(matrix) == shape ||
+            throw(ArgumentError("`$name` is $(join(size(matrix), '×')) where $(join(shape, '×')) is needed"))
+    end
+    x0 isa Real && n_x == 1 || x0 isa AbstractVector && length(x0) == n_x ||
+        throw(ArgumentError("`x0` has length $(length(x0)) where `A` asks for $n_x"))
+    StateSpace(SMatrix{n_x, n_x, Float64}(A), SMatrix{n_x, n_u, Float64}(B), SMatrix{n_y, n_x, Float64}(C),
+               SMatrix{n_y, n_u, Float64}(D), SVector{n_x, Float64}(x0...))
+end
+realization(c::StateSpace) = c
 
 # --- the step (§2.1, §10.4, D-313) ----------------------------------------------
 
