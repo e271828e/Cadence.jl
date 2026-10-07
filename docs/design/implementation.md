@@ -134,6 +134,9 @@ The standard component library, the submodule `Redstone.Blocks`:
 - `StateSpace`, over scalar or `SVector` ports by its matrix shapes, its
   feedthrough class the type parameter `FT`, and `TransferFunction`, realized
   by `realize` into a held `StateSpace` (D-313).
+- `DiscreteLinearBlock{FT}` with the accessors `held` and `realization(c, Δt)`,
+  over `DiscreteStateSpace`, `DiscreteTransferFunction`, `DiscretizedStateSpace`
+  and `DiscretizedTransferFunction` (D-313).
 - The anonymous assembly `Group`, with `_entries` (D-184).
 
 It reaches the parent through its import list alone, as a user's component

@@ -125,8 +125,8 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 | `UnitDelay{V}` | shipped | the tier's native `z⁻¹` ([§10.6][s10-6]) |
 | `DiscreteIntegrator{V}` | shipped | tier semantics; forward Euler, `out` the state from `s0`, so it breaks a loop as `UnitDelay` does; no gain and no limits, as `Integrator` has none |
 | `RateLimiter{V}` | shipped | tier semantics; feedthrough, `out` following `in` within `rising Δt` up and `falling Δt` down per tick from `s0`; its `s_update` stores `y.out` |
-| `DiscreteStateSpace` and `DiscreteTransferFunction`, the pair in `z` | candidate | the continuous pair mirrored over `DiscreteLinearBlock{FT}`, `s_update` for `x_deriv`; the period is the scope's and the block cannot check it; `linear_blocks.md`, section 9 |
-| `DiscretizedStateSpace` and `DiscretizedTransferFunction`, from a continuous system | candidate | the zero-order hold taken per tick at the bundle's `Δt`, so the class and the initial condition are the continuous ones; `linear_blocks.md`, section 9 |
+| `DiscreteStateSpace` and `DiscreteTransferFunction`, the pair in `z` | shipped | the continuous pair mirrored over `DiscreteLinearBlock{FT}`, `s_update` for `x_deriv`; the period is the scope's and the block cannot check it; `linear_blocks.md`, section 9 |
+| `DiscretizedStateSpace` and `DiscretizedTransferFunction`, from a continuous system | shipped | the zero-order hold taken per tick at the bundle's `Δt`, so the class and the initial condition are the continuous ones; `linear_blocks.md`, section 9 |
 | `DiscreteLimitedIntegrator{V}` | shipped | tier semantics by contrast: the continuous block's mode and four events are one `clamp` in `s_update`, with no mode store and no localization; `LimitedIntegrator`'s interface, `lower`, `upper`, `s0` and the `Int8` `saturation` code, the code read off the state from stage 1 |
 | `Delay{V, K}`, a tapped delay | candidate | only if a model asks |
 

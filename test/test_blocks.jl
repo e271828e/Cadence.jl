@@ -2,9 +2,9 @@
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
 # discrete integrators and the rate limiter, the stop-gradient, the integrator,
-# the lag, the state space, the transfer function, the step, the limited
-# integrator, the relay and the PID, the PID assembled from blocks, and the
-# loops built from them alone. The models are built at top level,
+# the lag, the state space, the transfer function, their discrete twins, the
+# step, the limited integrator, the relay and the PID, the PID assembled from
+# blocks, and the loops built from them alone. The models are built at top level,
 # like the fixtures they reuse: `RealEntry` and `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
@@ -84,6 +84,15 @@ lead_lag_loop() =
              plant = FirstOrderLag(τ = 1.0));
           local_wires = ("r/out" => "e/in1", "plant/out" => "e/in2", "e/out" => "controller/in",
                          "controller/out" => "plant/in"))
+
+# The hold of the scalar lag `1/(s + 1)` from `x0`.
+scalar_hold(; x0 = 0.0) = DiscretizedStateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], x0 = x0)
+
+# The hold of the transfer function `num / den` beside a continuous block, both
+# fed by one constant, under the given rates.
+hold_pair_model(num, den, continuous; sample_times = (;)) =
+    Group((; k = Constant(1.0), d = DiscretizedTransferFunction(num = num, den = den), c = continuous);
+          local_wires = ("k/out" => "d/in", "k/out" => "c/in"), sample_times = sample_times)
 
 # A step into an integrator, which ramps from the instant the jump lands.
 step_model(source) = Group((; s = source, i = Integrator()); local_wires = ("s/out" => "i/in",))
@@ -396,7 +405,11 @@ function test_blocks()
 
     @testset "the discrete tier's phase bodies allocate nothing (§7.5)" begin
         for model in (fed_by(Constant(1.0), DiscreteIntegrator()), feedback_loop(DiscreteIntegrator()),
-                      discrete_limited_model(), limiter_model(0.0, 1.0))
+                      discrete_limited_model(), limiter_model(0.0, 1.0),
+                      fed_by(Constant(1.0), scalar_hold()),
+                      fed_by(Constant(SVector(1.0, -1.0)), DiscretizedStateSpace(two_state_block())),
+                      hold_pair_model((1,), (0.5, 1), FirstOrderLag(τ = 0.5)),
+                      hold_pair_model((4,), (1, 1.2, 4), second_order()))
             @test build(model; activations = (Float64, LinearizeDual)) isa Build
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
@@ -626,6 +639,115 @@ function test_blocks()
                 @test @ballocated($body(1)) == 0
             end
         end
+    end
+
+    @testset "the pair in `z` mirrors the continuous pair over `DiscreteLinearBlock`, with `D` picking the stage (§13.7, §5.3, D-313)" begin
+        block = DiscreteStateSpace(A = [0.5;;], B = [1.0;;], C = [1.0;;])
+        @test typeof(block) === DiscreteStateSpace{1, 1, 1, false, 1, 1, 1, 1}
+        sim = Simulation(fed_by(Constant(1.0), block); h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 5//100)
+        @test port(sim, "c", :out) == 2(1 - 0.5^5)
+        @test build(fed_by(Constant(1.0), block); activations = (Float64, LinearizeDual)) isa Build
+        @test build(feedback_loop(block)) isa Build
+        err = failure(() -> build(feedback_loop(DiscreteStateSpace(A = [0.5;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]))))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        two_state = DiscreteStateSpace(A = [0.5 0.1; 0 0.8], B = [1 0; 0 1], C = [1 0; 0 1])
+        @test u_types(two_state) == (in = SVector{2, Float64},) && y_types(two_state) == (out = SVector{2, Float64},)
+        two_state_model = fed_by(Constant(SVector(1.0, 1.0)), two_state)
+        two_state_sim = Simulation(two_state_model; h = 1//100)
+        init!(two_state_sim, fragment())
+        step!(two_state_sim; t_plus = 3//100)
+        @test isapprox(port(two_state_sim, "c", :out), SVector(1.98, 2.44); atol = 1e-12)
+        @test build(two_state_model; activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the discrete transfer function realizes in `z`, starts at `G(1) u0` and refuses a pole at `z = 1` with `u0` by tolerance (§13.7, D-313)" begin
+        strict = DiscreteTransferFunction(num = (0.5,), den = (1, -0.5))
+        system = Redstone.Blocks.held(strict)
+        @test system.A == [0.5;;] && system.B == [1.0;;] && system.C == [0.5;;] && system.D == [0.0;;]
+        @test typeof(strict) === DiscreteTransferFunction{1, false, 1, 2, 1}
+        sim = Simulation(fed_by(Constant(1.0), strict); h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 5//100)
+        @test port(sim, "c", :out) == 0.96875
+        @test build(fed_by(Constant(1.0), strict); activations = (Float64, LinearizeDual)) isa Build
+        # The steady state solves `(I - A) q = B u0`, so `out` starts at `G(1) u0`.
+        steady = DiscreteTransferFunction(num = (0.5,), den = (1, -0.5), u0 = 2.0)
+        @test Redstone.Blocks.held(steady).x0 == SVector(4.0)
+        steady_sim = Simulation(fed_by(Constant(2.0), steady); h = 1//100)
+        init!(steady_sim, fragment())
+        @test port(steady_sim, "c", :out) == 2.0
+        step!(steady_sim; t_plus = 1)
+        @test port(steady_sim, "c", :out) == 2.0
+        proper = DiscreteTransferFunction(num = (1, -0.9), den = (1, -0.5))
+        @test typeof(proper) === DiscreteTransferFunction{1, true, 2, 2, 1}
+        # The third denominator sums to about 5.6e-17, which an exact test would pass.
+        for den in ((1, -1), (1, -0.7, -0.3), (1, -1.5, 0.5))
+            @test_throws ArgumentError DiscreteTransferFunction(num = (1,), den = den, u0 = 1.0)
+        end
+        @test build(fed(DiscreteTransferFunction(num = (1,), den = (1, -1)), "in")) isa Build
+        @test !Redstone.has_stage(y_direct, strict)
+        @test !Redstone.has_stage(y_state, proper)
+    end
+
+    @testset "the zero-order hold reproduces the exact solution at every period and keeps the class (§10.5, §13.7, D-313)" begin
+        for sample_times in ((;), (c = Relative(2),))
+            sim = Simulation(fed_by(Constant(1.0), scalar_hold(); sample_times); h = 1//100)
+            init!(sim, fragment())
+            step!(sim; t_plus = 1)
+            @test port(sim, "c", :out) ≈ 1 - exp(-1) atol = 1e-12
+        end
+        from_x0 = Simulation(fed_by(Constant(1.0), scalar_hold(x0 = 2.0)); h = 1//100)
+        init!(from_x0, fragment())
+        step!(from_x0; t_plus = 1)
+        @test port(from_x0, "c", :out) ≈ 1 + exp(-1) atol = 1e-12
+        (; A, B) = Redstone.Blocks.realization(scalar_hold(), 0.01)
+        @test A[1] ≈ exp(-0.01) && B[1] ≈ 1 - exp(-0.01)
+        # The two-state hold against the continuous block it wraps, RK4 at the same h.
+        hold_sim = Simulation(fed_by(Constant(SVector(1.0, -1.0)), DiscretizedStateSpace(two_state_block()));
+                              h = 1//100)
+        continuous_sim = Simulation(fed_by(Constant(SVector(1.0, -1.0)), two_state_block()); h = 1//100)
+        for sim in (hold_sim, continuous_sim)
+            init!(sim, fragment())
+            step!(sim; t_plus = 3//10)
+        end
+        @test isapprox(port(hold_sim, "c", :out), port(continuous_sim, "c", :out); atol = 1e-8)
+        lag_sim = Simulation(hold_pair_model((1,), (0.5, 1), FirstOrderLag(τ = 0.5)); h = 1//100)
+        init!(lag_sim, fragment())
+        step!(lag_sim; t_plus = 1)
+        @test port(lag_sim, "d", :out) ≈ 1 - exp(-2) atol = 1e-12
+        @test port(lag_sim, "d", :out) ≈ port(lag_sim, "c", :out) atol = 1e-8
+        slow_sim = Simulation(hold_pair_model((1,), (0.5, 1), FirstOrderLag(τ = 0.5);
+                                              sample_times = (d = Relative(5),)); h = 1//100)
+        init!(slow_sim, fragment())
+        step!(slow_sim; t_plus = 1)
+        @test port(slow_sim, "d", :out) ≈ 1 - exp(-2) atol = 1e-12
+        steady_sim = Simulation(fed_by(Constant(3.0), DiscretizedTransferFunction(num = (1,), den = (0.5, 1), u0 = 3.0));
+                                h = 1//100)
+        init!(steady_sim, fragment())
+        @test port(steady_sim, "c", :out) == 3.0
+        step!(steady_sim; t_plus = 1)
+        @test port(steady_sim, "c", :out) ≈ 3.0 rtol = 1e-12
+        second_sim = Simulation(hold_pair_model((4,), (1, 1.2, 4), second_order()); h = 1//100)
+        init!(second_sim, fragment())
+        step!(second_sim; t_plus = 1)
+        @test port(second_sim, "d", :out) ≈ port(second_sim, "c", :out) atol = 1e-9
+        # The class is the continuous one: the lag breaks a loop, the lead-lag closes one.
+        lag = DiscretizedTransferFunction(num = (1,), den = (0.5, 1))
+        lead_lag_hold = DiscretizedTransferFunction(num = (1, 2), den = (1, 5))
+        @test typeof(lag) === DiscretizedTransferFunction{1, false, 1, 2, 1}
+        @test typeof(lead_lag_hold) === DiscretizedTransferFunction{1, true, 2, 2, 1}
+        @test build(feedback_loop(lag); activations = (Float64, LinearizeDual)) isa Build
+        err = failure(() -> build(feedback_loop(lead_lag_hold)))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        @test !Redstone.has_stage(y_direct, lag)
+        @test !Redstone.has_stage(y_state, lead_lag_hold)
+        @test_throws ArgumentError DiscretizedTransferFunction(num = (1,), den = (1, 0), u0 = 1.0)
     end
 
     @testset "the localized step jumps at the crossing (§2.1, §10.4, D-179)" begin
@@ -1061,6 +1183,10 @@ function test_blocks()
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
         @test TransferFunction(num = (1,), den = (1, 2)) isa TransferFunction{1, false}
         @test TransferFunction(num = [1], den = [1, 2]) isa TransferFunction{1, false}
+        @test DiscreteStateSpace(A = [1;;], B = [1;;], C = [1;;]) isa DiscreteStateSpace{1, 1, 1, false}
+        @test DiscreteTransferFunction(num = (1,), den = (2, -1)) isa DiscreteTransferFunction{1, false}
+        @test DiscretizedStateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa DiscretizedStateSpace{1, 1, 1, false}
+        @test DiscretizedTransferFunction(num = (1,), den = (1, 2)) isa DiscretizedTransferFunction{1, false}
         @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
         @test_throws TypeError Step(t_step = 0.25, localized = 1)
         @test_throws TypeError LimitedIntegrator(lower = -1, upper = 1, localized = 1)
@@ -1116,6 +1242,11 @@ function test_blocks()
                      StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [0.0;;]),
                      StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]), two_state_block(),
                      lag_form(), lead_lag(), second_order(),
+                     DiscreteStateSpace(A = [0.5;;], B = [1.0;;], C = [1.0;;]),
+                     DiscreteTransferFunction(num = (0.5,), den = (1, -0.5)), scalar_hold(),
+                     DiscretizedStateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], D = [1.0;;]),
+                     DiscretizedTransferFunction(num = (1,), den = (0.5, 1)),
+                     DiscretizedTransferFunction(num = (1, 2), den = (1, 5)),
                      Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))

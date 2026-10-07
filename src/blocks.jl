@@ -3,7 +3,7 @@ module Blocks
 import ..Redstone: AbstractComponent, Pinned, StateEvent,
     x_init, s_init, m_init, u_types, y_types, y_direct, y_state, x_deriv, s_update,
     state_events, local_wires, input_wires, output_wires, sample_times, transparent_container
-using StaticArrays: StaticArray, SMatrix, SVector, similar_type
+using StaticArrays: StaticArray, SMatrix, SVector, SOneTo, SUnitRange, similar_type
 using LinearAlgebra: I
 import ForwardDiff
 
@@ -329,8 +329,13 @@ end
 StateSpace(A::SMatrix{NX, NX, Float64}, B::SMatrix{NX, NU, Float64}, C::SMatrix{NY, NX, Float64},
            D::SMatrix{NY, NU, Float64}, x0::SVector{NX, Float64}) where {NX, NU, NY} =
     StateSpace{NX, NU, NY, !iszero(D), NX * NX, NX * NU, NY * NX, NY * NU}(A, B, C, D, x0)
-function StateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
-                    D::AbstractMatrix = zeros(size(C, 1), size(B, 2)), x0 = zeros(size(A, 1)))
+StateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
+           D::AbstractMatrix = zeros(size(C, 1), size(B, 2)), x0 = zeros(size(A, 1))) =
+    StateSpace(static_system(A, B, C, D, x0)...)
+
+# The keyword constructors' matrices and `x0`, checked against each other and
+# made static. `DiscreteStateSpace` shares it.
+function static_system(A, B, C, D, x0)
     size(A, 1) == 0 && throw(ArgumentError(
         "a state space with no state is a gain, which is written in a stage body, not a block"))
     n_x, n_u, n_y = size(A, 1), size(B, 2), size(C, 1)
@@ -341,8 +346,8 @@ function StateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
     end
     x0 isa Real && n_x == 1 || x0 isa AbstractVector && length(x0) == n_x ||
         throw(ArgumentError("`x0` has length $(length(x0)) where `A` asks for $n_x"))
-    StateSpace(SMatrix{n_x, n_x, Float64}(A), SMatrix{n_x, n_u, Float64}(B), SMatrix{n_y, n_x, Float64}(C),
-               SMatrix{n_y, n_u, Float64}(D), SVector{n_x, Float64}(x0...))
+    (SMatrix{n_x, n_x, Float64}(A), SMatrix{n_x, n_u, Float64}(B), SMatrix{n_y, n_x, Float64}(C),
+     SMatrix{n_y, n_u, Float64}(D), SVector{n_x, Float64}(x0...))
 end
 realization(c::StateSpace) = c
 
@@ -420,6 +425,177 @@ function TransferFunction(; num, den, u0 = 0.0)
     TransferFunction(Float64.(Tuple(num)), Float64.(Tuple(den)), StateSpace(A, B, C, D, x0))
 end
 realization(c::TransferFunction) = c.realization
+
+# --- the discrete linear blocks (§13.7, §5.3, D-313) ----------------------------
+
+"""
+    DiscreteLinearBlock{FT}
+
+The supertype of the discrete linear blocks, the linear blocks' twin on the
+discrete tier. `FT` is the feedthrough class, as on `LinearBlock`: `false` when
+the direct term is zero and `out` comes from stage 1, `true` when it is not and
+`out` comes from stage 2 (§5.3). Two accessors serve every stage, defined here
+once: `held(c)` returns the stored system, whose shapes, `C`, `D` and `x0` do
+not depend on the period, and `realization(c, Δt)` returns the update matrices
+at the period `Δt`. Only the update discretizes, so the declarations and the
+output read `held` alone.
+"""
+abstract type DiscreteLinearBlock{FT} <: AbstractComponent end
+
+s_init(c::DiscreteLinearBlock)  = (q = held(c).x0,)
+u_types(c::DiscreteLinearBlock) = (in = port_type(size(held(c).B, 2)),)
+y_types(c::DiscreteLinearBlock) = (out = port_type(size(held(c).C, 1)),)
+function s_update(c::DiscreteLinearBlock, (; s, u, Δt))
+    (; A, B) = realization(c, Δt)
+    (q = A * s.q + B * as_vector(u.in),)
+end
+y_state(c::DiscreteLinearBlock{false}, (; s)) = (out = as_port(held(c).C * s.q),)
+function y_direct(c::DiscreteLinearBlock{true}, (; s, u))
+    (; C, D) = held(c)
+    (out = as_port(C * s.q + D * as_vector(u.in)),)
+end
+
+"""
+    DiscreteStateSpace(; A, B, C, D = zeros(n_y, n_u), x0 = zeros(n_x))
+
+The linear system in discrete state-space form, one store field `q` from `x0`,
+advanced once per tick:
+
+    q⁺  = A q + B in
+    out = C q + D in
+
+The shapes, the storage, the ports and the refusals are `StateSpace`'s, and so
+is the class: a zero `D` publishes `out` from stage 1, so the block breaks an
+algebraic loop, and a nonzero `D` publishes it from stage 2 (§5.3, §5.5). The
+tier pins wholesale (D-263): under a `Dual` activation the block holds its last
+value (§9.4).
+
+The matrices presuppose the period they were designed at. That period is the
+scope's, bound at deployment after the block is built (§10.5), so the block
+cannot check it. A system that should follow its period is a
+`DiscretizedStateSpace`. `linear_blocks.md`, section 9, gives the reasoning.
+"""
+struct DiscreteStateSpace{NX, NU, NY, FT, LA, LB, LC, LD} <: DiscreteLinearBlock{FT}
+    A::SMatrix{NX, NX, Float64, LA}
+    B::SMatrix{NX, NU, Float64, LB}
+    C::SMatrix{NY, NX, Float64, LC}
+    D::SMatrix{NY, NU, Float64, LD}
+    x0::SVector{NX, Float64}
+end
+DiscreteStateSpace(A::SMatrix{NX, NX, Float64}, B::SMatrix{NX, NU, Float64}, C::SMatrix{NY, NX, Float64},
+                   D::SMatrix{NY, NU, Float64}, x0::SVector{NX, Float64}) where {NX, NU, NY} =
+    DiscreteStateSpace{NX, NU, NY, !iszero(D), NX * NX, NX * NU, NY * NX, NY * NU}(A, B, C, D, x0)
+DiscreteStateSpace(; A::AbstractMatrix, B::AbstractMatrix, C::AbstractMatrix,
+                   D::AbstractMatrix = zeros(size(C, 1), size(B, 2)), x0 = zeros(size(A, 1))) =
+    DiscreteStateSpace(static_system(A, B, C, D, x0)...)
+held(c::DiscreteStateSpace) = c
+realization(c::DiscreteStateSpace, _) = c
+
+"""
+    DiscreteTransferFunction(; num, den, u0 = 0.0)
+
+The linear system of one input and one output given by its transfer function in
+`z`,
+
+    G(z) = (num[1] zᵐ + … + num[end]) / (den[1] zⁿ + … + den[end])
+
+the coefficients highest power of `z` first, as `TransferFunction` takes them in
+`s`. This is not the `z⁻¹` convention of `filter(b, a)`, which agrees with it
+only when the degrees are equal. The block keeps the coefficients and holds
+their realization in controllable canonical form, a `DiscreteStateSpace` whose
+stages it shares, and the degrees pick the class as for `TransferFunction`.
+
+The block starts at rest, or, with `u0` given, at the steady state for the
+constant input `u0`, where `(I - A) q = B u0` and `out` is `G(1) u0`. The
+refusals are `TransferFunction`'s, save that the pole with no steady state is at
+`z = 1`: a nonzero `u0` is refused over a denominator whose coefficients sum to
+zero within `1e-12` of the sum of their magnitudes, since a designed denominator
+such as `(1, -0.7, -0.3)` misses an exact zero by rounding.
+
+The coefficients presuppose the period they were designed at, which the block
+cannot check, as for `DiscreteStateSpace`.
+"""
+struct DiscreteTransferFunction{N, FT, M, K, LA} <: DiscreteLinearBlock{FT}
+    num::NTuple{M, Float64}
+    den::NTuple{K, Float64}
+    realization::DiscreteStateSpace{N, 1, 1, FT, LA, N, N, 1}
+end
+function DiscreteTransferFunction(; num, den, u0 = 0.0)
+    length(den) < 2 && throw(ArgumentError(
+        "a transfer function of order zero is a gain, which is written in a stage body, not a block"))
+    length(num) <= length(den) || throw(ArgumentError(
+        "`num` has $(length(num)) coefficients where `den` has $(length(den)), an improper transfer function"))
+    iszero(first(den)) && throw(ArgumentError("the leading coefficient of `den` is zero"))
+    monic = collect(den) ./ first(den)
+    iszero(u0) || abs(sum(monic)) > 1e-12 * sum(abs, monic) ||
+        throw(ArgumentError("`u0` is $u0 where `den` has a pole at `z = 1`, which has no steady state"))
+    (; A, B, C, D) = realize(num, den)
+    forced = B * SVector(float(u0))
+    x0 = iszero(u0) ? zero(forced) : (I - A) \ forced
+    DiscreteTransferFunction(Float64.(Tuple(num)), Float64.(Tuple(den)), DiscreteStateSpace(A, B, C, D, x0))
+end
+held(c::DiscreteTransferFunction) = c.realization
+realization(c::DiscreteTransferFunction, _) = c.realization
+
+"""
+    DiscretizedStateSpace(sys::StateSpace)
+    DiscretizedStateSpace(; A, B, C, D = zeros(n_y, n_u), x0 = zeros(n_x))
+
+The continuous `StateSpace` `sys`, or the one the keywords build, run on the
+discrete tier through a zero-order hold taken at each tick:
+
+    A_d = e^{A Δt}        B_d = (∫₀^Δt e^{Aτ} dτ) B
+
+with `C` and `D` unchanged. `A_d` and `B_d` are the top row of one exponential
+of the augmented matrix `[A B; 0 0] Δt`. The hold is exact for an input held
+constant over each period, so the samples are the continuous system's own.
+
+`Δt` is the component's own period (§10.5), so the block follows its scope's
+rate and carries no period of its own, where a `DiscreteStateSpace` presupposes
+one. The class, the ports and `x0` are the continuous block's, `x0` in its
+coordinates. The tier pins wholesale (D-263): under a `Dual` activation the
+block holds its last value (§9.4). `linear_blocks.md`, section 9.2, gives the
+reasoning.
+"""
+struct DiscretizedStateSpace{NX, NU, NY, FT, LA, LB, LC, LD} <: DiscreteLinearBlock{FT}
+    continuous::StateSpace{NX, NU, NY, FT, LA, LB, LC, LD}
+end
+DiscretizedStateSpace(; kwargs...) = DiscretizedStateSpace(StateSpace(; kwargs...))
+held(c::DiscretizedStateSpace) = c.continuous
+# Assembled by `vcat` and `hcat`: the bracket spelling goes through a static
+# `hvcat` that allocates on every call.
+function realization(c::DiscretizedStateSpace{NX, NU}, Δt) where {NX, NU}
+    (; A, B, C, D) = c.continuous
+    augmented = vcat(hcat(A, B), hcat(zeros(SMatrix{NU, NX, Float64}), zeros(SMatrix{NU, NU, Float64})))
+    exponential = exp(augmented * Δt)
+    (; A = exponential[SOneTo(NX), SOneTo(NX)], B = exponential[SOneTo(NX), SUnitRange(NX + 1, NX + NU)], C, D)
+end
+
+"""
+    DiscretizedTransferFunction(; num, den, u0 = 0.0)
+
+The transfer function in `s` of `TransferFunction`, with its keywords, its
+refusals and its start at rest or at `G(0) u0`, run on the discrete tier
+through the zero-order hold of `DiscretizedStateSpace`, taken at each tick's
+`Δt` (§10.5). The block keeps the coefficients and holds the realization
+wrapped for the hold, and the degrees pick the class as for `TransferFunction`.
+
+The hold keeps the class and matches the step response at the samples, where
+Tustin's method would make every block feedthrough. A design that wants Tustin's
+frequency response discretizes externally and uses `DiscreteTransferFunction`.
+`linear_blocks.md`, section 9.2, gives the reasoning.
+"""
+struct DiscretizedTransferFunction{N, FT, M, K, LA} <: DiscreteLinearBlock{FT}
+    num::NTuple{M, Float64}
+    den::NTuple{K, Float64}
+    realization::DiscretizedStateSpace{N, 1, 1, FT, LA, N, N, 1}
+end
+function DiscretizedTransferFunction(; num, den, u0 = 0.0)
+    continuous = TransferFunction(; num, den, u0)
+    DiscretizedTransferFunction(continuous.num, continuous.den, DiscretizedStateSpace(continuous.realization))
+end
+held(c::DiscretizedTransferFunction) = held(c.realization)
+realization(c::DiscretizedTransferFunction, Δt) = realization(c.realization, Δt)
 
 # --- the step (§2.1, §10.4, D-313) ----------------------------------------------
 
