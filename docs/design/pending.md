@@ -13,6 +13,33 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
+- **The library's three tranches**, the candidate rows of
+  `docs/design/companions/library_inventory.md` batched by the mechanism each
+  exercises (§13.7, D-313), one brief, two stages and one review each, in
+  this order:
+  - **Increment 63, the vector moded blocks**: `LimitedIntegrator` and
+    `Relay` over a `StaticArray`, with `4N` and `2N` per-component events
+    generated from `N`, so the scalar reasoning transfers verbatim, and
+    both departure policies for the integrator. The mode is an
+    `SVector{N, Int8}` of signed codes, `-1`, `0` and `+1` for lower, free
+    and upper, since the store refuses a container of `Symbol`s (D-231),
+    and the scalar `LimitedIntegrator` and `Relay` move to `Int8` codes for
+    consistency. The PID example model lands here as a third demonstrating
+    loop, clamping anti-windup first.
+  - **Increment 64, the discrete tier**: `DiscreteIntegrator{V}` and
+    `RateLimiter{V}`, the latter moving `out` by at most `R Δt` per tick,
+    both reading their period from the bundle's `Δt`; `DiscreteFilter` in
+    direct form II transposed, an `SVector` state and coefficient tuples as
+    instance data; and the noise source in §7.3's blessed idiom, the
+    generator in the workspace and its four words in `s` (D-231).
+    `Delay{V, K}` waits for a model that asks.
+  - **Increment 65, structure, sources and the linear system**: `Pack{N}`,
+    `Unpack{N}`, `Switch{V}`, `Source(f)`, `LinearSystem` and `Freeze` over
+    a struct `V`. The linear system's feedthrough is structural (§5.3), so
+    the strictly proper and the proper forms are two dispatch arms, `D`
+    absent publishing from `y_state` and `D` present from `y_direct`. The
+    struct `Freeze` needs the allocation-free leafwise map D-312 asks for,
+    and becomes a loose fix of its own if the tranche is kept pure.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `describe` together; the bridge, an ordinary
@@ -148,8 +175,8 @@ Each is additive, so it can land later without breaking user code.
     OrdinaryDiffEq as a dependency and the HDF5 export is undecided, so the
     bullet is reworded when this deferral lifts.
 - **The library's remaining candidates.** Whatever of the inventory in
-  `docs/design/companions/library_inventory.md` is unbuilt at release, each
-  block built when wanted (§13.7, D-313).
+  `docs/design/companions/library_inventory.md` is unbuilt at release,
+  `Delay{V, K}` among them, each block built when wanted (§13.7, D-313).
 
 ## Deviations
 
