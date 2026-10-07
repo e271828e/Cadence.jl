@@ -20,6 +20,12 @@ The N-to-1 block (§6.2): inputs `in1` to `inN` at `In`, one output `out` at
 stateless continuous leaf. The fold is instance data and `F` is inferred from
 it. A custom fold, a weighted blend or a mass-properties composition, is written
 at the site.
+
+The fold is stateless and declares no events, so a discontinuity written into
+it lands wherever it lands inside a step (§2.1). A clamp is fine, since its
+kink is second-order downstream, and so is a branch on a `Bool` that flips at a
+boundary, as a saturation code does. A branch on a continuous quantity is a
+mode made silently, which the moded blocks exist to declare.
 """
 struct Junction{In, Out, N, F} <: AbstractComponent
     f::F
