@@ -67,6 +67,8 @@ out. A listed block is built whenever wanted, with no demonstrating model
 required. How the limited integrator's exact-zero defect was found, which
 implementation variants were weighed against it, and why the block ships two
 detection policies for its departures is `limited_integrator_variants.md`.
+How the PID's anti-windup design space was weighed, why the block carries
+two independent ports and what it does not carry is `pid_anti_windup.md`.
 
 ## 3. The inventory
 
@@ -130,11 +132,18 @@ proves standard). Every block is generic over its port type `V`, in the
 | `Freeze{V}` over `Real` and `StaticArray` | shipped | the declared stop-gradient ([D-266][d-266]) |
 | `Freeze` over a struct `V` | candidate | needs an allocation-free leafwise map ([D-312][d-312]) |
 
-### Composites
+### Controllers
 
 | Block | Status | Mechanism |
 |---|---|---|
-| a PID with anti-windup | example first | back-calculation against a tracking input, which serves a single loop and a cascade alike; an assembly of the leaves above beside one leaf, the two forms compared |
+| `PID{Flag, Track}` | candidate | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; `pid_anti_windup.md` |
+| a gain-scheduled `PID`, gains as ports | candidate | the grouping admits a gain change bumplessly; built when a model asks |
+
+The PID assembly of library blocks, the first variant as a `Group`, is an
+example model in the tests, the inspector's example beside the block, not a
+library row. A tracking leaf wired from a memoryless clamp of its own output
+is refused as an artificial cycle ([§5.4][s5-4]), which is why the limits live inside
+the block.
 
 ## 4. The order of work
 
@@ -159,6 +168,7 @@ question ([D-313][d-313]).
 [s13-5]: ../spec.md#135-termination-is-a-state-not-an-exception
 [s13-7]: ../spec.md#137-tooling-consequences-face-routes-and-the-component-library
 [s2-1]: ../spec.md#21-events-two-detection-policies
+[s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch
 [s5-5]: ../spec.md#55-algebraic-loop-policy-reject-at-build-time
 [s6-1]: ../spec.md#61-connections-and-hierarchy
 [s6-2]: ../spec.md#62-aggregation-explicit-summing-junctions

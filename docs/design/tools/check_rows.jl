@@ -45,7 +45,8 @@ const FILES = [SPEC,
                "companions/migration_outline.md",
                "companions/flight_case_studies.md",
                "companions/library_inventory.md",
-               "companions/limited_integrator_variants.md"]
+               "companions/limited_integrator_variants.md",
+               "companions/pid_anti_windup.md"]
 
 # One citation group: "row 80", "rows 185–187", "rows 7 and 37", "rows 33, 34
 # and 55". The inner token is a number or an (en- or hyphen-dashed) range.

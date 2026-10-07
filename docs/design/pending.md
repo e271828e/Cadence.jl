@@ -25,13 +25,14 @@ both add names.
     and upper, since the store refuses a container of `Symbol`s (D-231),
     and the scalar `LimitedIntegrator` and `Relay` move to `Int8` codes for
     consistency. `LimitedIntegrator` publishes its code as a second output,
-    `saturation`, pinned and read from the mode, for anti-windup consumers.
-    The PID example lands here in two forms side by side, an assembly of
-    library blocks and one leaf, both with back-calculation against a
-    tracking input `v`, `q̇ = e + (v - u_raw) / Tt`, and the derivative on
-    the measurement through a lag. Two tests wire the same assembly: a
-    single loop with `v` from a clamp at the actuator, and a cascade with
-    `v` from the inner measurement.
+    `saturation`, read from the mode, for anti-windup consumers. The PID
+    joins the library as `PID{Flag, Track}`, one leaf with back-calculation
+    against its own limits, an optional saturation-code input that gates
+    the integrator, and an optional tracking input, `Ki` inside the
+    integral; `pid_anti_windup.md` records the reasoning. A simplified PID
+    assembly of library blocks stays a test model for the inspector. The
+    loops: a single loop on the own limits, a servo loop tracking a
+    stateful actuator, and a cascade reading the inner block's code.
   - **Increment 64, the discrete tier**: `DiscreteIntegrator{V}` and
     `RateLimiter{V}`, the latter moving `out` by at most `R Δt` per tick,
     both reading their period from the bundle's `Δt`; `DiscreteFilter` in
