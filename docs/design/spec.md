@@ -3721,7 +3721,7 @@ defaults. That is impossible with a bundled face, under the write-side rule of
 ## 9. The build pipeline
 
 The build consumes a root [component](#g-component) instance and produces the
-runnable artifact. It consists of the resolved wires, the
+runnable artifact. It consists of the declared wires and their resolution, the
 [execution order](#g-execution-order), the anchor-relative rate triples and the
 [root inputs](#g-root-input), plus the nominal activation's typed
 [signal table](#g-signal-table) and flat state layout.
@@ -3863,15 +3863,19 @@ instance alone fixes), and that is its whole product ([D-253][d-253]).
 
 - the component instances by path;
 - the tier each one sits on;
-- the resolved wires;
-- the two-sided face table, with each face's routing chain;
+- one row per assembly, the root included: its children in declaration
+  order, each with the field that contributed it, and the wires it declares
+  as producer-to-consumer pairs in declaration order;
 - the root inputs;
 - per component, its rate chain of `Relative`/`Absolute` links;
 - for each assembly an explicit `sample_times` key names, the scope triple
   that key gives it.
 
-Class and contracts are read off the instance on demand. Nothing in
-`Structure` depends on a scalar type.
+Class and contracts are read off the instance on demand. `Structure` holds
+no resolved table. The terminal producer of any face at any level, the
+two-sided face table and each face's routing chain are functions over the
+wires, computed where they are read ([D-315][d-315]). Nothing in `Structure` depends
+on a scalar type.
 
 #### The nominal evaluation
 
@@ -3974,10 +3978,11 @@ and may back any number of `Deployment`s and `Simulation`s, concurrently
 [§9.4][s9-4] states the ownership rule, the keying and the guarantee.
 
 The `Build` is the inspectable derived contract of the instantiation that
-[§8.8][s8-8] gestures at. Its parts hold the wire list, face table,
-[root inputs](#g-root-input) and [execution order](#g-execution-order) as
-plain printable data. The first three sit on [`Structure`](#g-structure) (the
-structure step's product, the components, wires, faces and tiers). The last
+[§8.8][s8-8] gestures at. Its parts hold the wire list, per assembly and as
+declared, the [root inputs](#g-root-input) and the
+[execution order](#g-execution-order) as plain printable data. The first two
+sit on [`Structure`](#g-structure) (the structure step's product, the
+components, wires and tiers). The last
 sits on [`Outputs`](#g-outputs) (the nominal evaluation's product, the port
 classes and the execution order). "Printable" names the representation. Paths,
 names and rationals are inspectable as fields, and any REPL prints them
@@ -3990,14 +3995,18 @@ activation's cell layout is that home for address facts. A compiled form
 stored beside its declared one is a second home, with no enforcer but the
 constructor that filled both.
 
-**The face table on `Structure` is two-sided** ([D-207][d-207]). Beside each
-level's output faces and their routes, it retains that level's *input* faces.
-Each is resolved producer-ward to the one feed its consumers share, either a
-root input or a producer inside the model. The record is total, because
+**The face table is two-sided, and `Structure` answers it as a function
+over the declared wires** ([D-207][d-207], [D-315][d-315]). For every input face at
+every level, the resolution runs producer-ward to the one feed its consumers
+share, either a root input or a producer inside the model. For every output
+face it runs down to the producing terminal. The record is total, because
 one-level routing gives every signal a declared face at every boundary it
-crosses ([§6.1][s6-1]). The input side is what a [fragment](#g-fragment)'s `u`
-payload resolves against from any authoring level ([§14.2][s14-2],
-[§14.3][s14-3]).
+crosses ([§6.1][s6-1]). No resolved table is stored on the artifact. The
+activation's cell layout compiles the addresses it needs once, and every
+other reader calls the function. The input side is what a
+[fragment](#g-fragment)'s `u` payload resolves against from any authoring
+level ([§14.2][s14-2], [§14.3][s14-3]), the port views read it ([§11.7][s11-7]),
+and so does mounting ([§14.9][s14-9]).
 
 **`Structure`'s timing tables are anchor-relative**, and the `Deployment` binds
 them ([D-283][d-283]). From the structure step the artifact gains two
@@ -4130,9 +4139,9 @@ divisor is `D = m·D₁`, with `D₁ = T₁/Δt_base = (1//50)/(1//500) = 10`.
 
 - `show(::Structure)` prints the anchor table with the `A₀` row and the
   component table with the [rate-scope](#g-rate-scope) rows (an assembly's
-  `sample_times` declaration against the enclosing scope). The structure step
-  records each face's routing chain at every level, and `show(::Structure)`
-  prints the root's routes, one line per chain ([§13.7][s13-7]).
+  `sample_times` declaration against the enclosing scope). `show(::Structure)`
+  derives each root face's routing chain from the declared wires and prints
+  the root's routes, one line per chain ([§13.7][s13-7]).
 - `show(::Outputs)` prints the execution order with each port's class.
 - `show(::Events)` prints each component's event names with their policies.
 - `show(::Schedule)` prints the rows and the hyperperiod chart.
@@ -9754,9 +9763,9 @@ producers' stage-2 names ([D-261][d-261]).
 that means the resolved chain down to the producing terminal, printed as one
 line per chain (`crashed → aircraft/crashed → aircraft/monitor/out`). Once
 faces are computed rather than hand-listed, "what does this face actually
-reach" is a question the artifact must answer, not the reader. The structure
-step records each face's routing chain at every level, and `show(::Structure)` prints
-the root's routes ([D-257][d-257]). Each line joins the hops with `→` and ends
+reach" is a question the artifact must answer, not the reader.
+`show(::Structure)` derives each face's routing chain from the declared wires
+and prints the root's routes ([D-257][d-257], [D-315][d-315]). Each line joins the hops with `→` and ends
 at the terminal. An input face that fans out prints one line per consumer. The
 same rendering serves the wiring diagnostics, which already carry endpoint
 paths.
@@ -11589,9 +11598,10 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 - `build(world) → Build`. Standalone. It yields the inspectable derived-contract
   artifact, [`Structure`](#g-structure) (the structure step's product, the components, wires,
   faces and tiers), [`Outputs`](#g-outputs) (the nominal evaluation's product, the port classes and the execution order), [`Events`](#g-events) (the nominal evaluation's other product, the event
-  names and policies), the activations and `warnings`; the wire list, face table
-  with routes and root inputs are `Structure`'s and the execution order is
-  `Outputs`'s ([§9.2][s9-2]).
+  names and policies), the activations and `warnings`; the wire list per
+  assembly and the root inputs are `Structure`'s, the face table and the
+  routes are functions over them, and the execution order is `Outputs`'s
+  ([§9.2][s9-2]).
   `build(world; activations = (Float64, ProbeDual))` additionally pins
   activation invariants for CI (`ProbeDual` is the public canonical concrete
   probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
@@ -12941,11 +12951,13 @@ it physically lives (buffer ranges, store and root-input indices)
 ([§14.3][s14-3]).
 
 <a id="g-structure"></a>**`Structure`** — the structure step's product: the component instances by
-path, the tier each sits on, the resolved wires, the two-sided face table with
-each face's routing chain, the root inputs, per component its rate chain of
-`Relative`/`Absolute` links, and, for each assembly an explicit `sample_times`
-key names, the scope triple that key gives it. Nothing in it depends on a
-scalar type ([§9.1][s9-1], [D-253][d-253]).
+path, the tier each sits on, one row per assembly with its children in
+declaration order and the wires it declares, the root inputs with their
+types, per component its rate chain of `Relative`/`Absolute` links, and, for
+each assembly an explicit `sample_times` key names, the scope triple that key
+gives it. The face table and each face's routing chain are functions over its
+wires ([D-315][d-315]). Nothing in it depends on a scalar type ([§9.1][s9-1],
+[D-253][d-253]).
 
 <a id="g-walked"></a>**walked / pinned / exempt** — the eltype-genericity classes. Walked
 payload/value types follow the activation scalar, pinned parameters and
@@ -13691,6 +13703,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-312]: decisions.md#d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
 [d-313]: decisions.md#d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [d-314]: decisions.md#d-314--rename-inner_wires-to-local_wires
+[d-315]: decisions.md#d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

@@ -33,6 +33,17 @@ both add names.
     inputs and reads the bundle's `t`, so those three stay blocks. The
     struct `Freeze` needs the allocation-free leafwise map D-312 asks for,
     and becomes a loose fix of its own if the tranche is kept pure.
+- **Increment 67, the `Structure` refactor** (D-315), one brief, its stages
+  and one review. The artifact keeps one row per assembly, its children and
+  its declared wires, and no resolved table: `child_lists`, `root`, the two
+  face tables, the two route tables and `ComponentEntry.conns` go;
+  `terminal_producer` and `face_routes` resolve over the wires, the layout's
+  alias pass compiles the input-side addresses, and `show` derives the
+  routes. The specialization test of `test_build.jl` gains the new functions
+  and a per-activation case over the scalar-free sublist. The compile-cost
+  harness's drift since its tip, the `Group` import and keywords, is noted
+  in the increment's bookkeeping. The inspector's first session follows at
+  this increment's tip.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment

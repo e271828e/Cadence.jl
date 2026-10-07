@@ -339,6 +339,7 @@ were derived.
 | [D-312][d-312] | Settle the leaf blocks: `Constant` pins, `UnitDelay` holds its initial value, `Freeze` strips by broadcast | ratified |
 | [D-313][d-313] | Admit a library block by judgement against three guidelines | ratified |
 | [D-314][d-314] | Rename `inner_wires` to `local_wires` | ratified |
+| [D-315][d-315] | Hold the declared wiring on `Structure` and resolve it by function | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -7576,6 +7577,10 @@ recoverable a posteriori as sugar where clarity does not.
   component-fed signal highways; at a root input it collides with [§4.3][s4-3]'s
   write-side granularity and forfeits partial scripting ([§8.8][s8-8]).
 
+Annotation (2026-10-07): the face graph the `Build` retains is the declared
+wiring per level, and the two-sided table is a function over it ([D-315][d-315]). The
+one-level rule and the totality it buys stand.
+
 ### D-208 — Root inputs are the root component's input faces, whatever its class
 
 **Status.** ratified
@@ -9936,6 +9941,10 @@ argument says not to trust. A hundred base ticks is a screen.
   rule.
 
 
+Annotation (2026-10-07): the routing chain is no longer recorded.
+`show(::Structure)` derives each root face's route from the declared wires
+through `face_routes` ([D-315][d-315]); the printed form is unchanged.
+
 ### D-258 — "Schedule" is the tick timing and "execution order" the stage sequence
 
 **Status.** ratified
@@ -10241,6 +10250,11 @@ compile was the one reason the run had to be built ahead of the plane.
   The placeholder stays and is emptied.
 
 ---
+
+Annotation (2026-10-07): `ComponentEntry` drops its resolved inputs, and
+`Structure` gains one `LevelEntry` per assembly, its children and its declared
+wires. Every resolution over the wiring is a function, and the layout is the
+one address home, as the artifact rule above already says ([D-315][d-315]).
 
 ### D-262 — Post-commit checks on the trim problem
 
@@ -11128,6 +11142,10 @@ package's context verb is a method of the same function, `peek(ctx, face)`
 beside `peek(view, handle, snapshot)`, so one verb keeps one meaning across
 the two halves. [§11.7][s11-7] and [Appendix B][sB] carry the new spelling; this entry
 keeps its own.
+
+Annotation (2026-10-07): the input views come off `terminal_producer` over
+every input face at every level, `Structure.in_faces` having gone with [D-315][d-315].
+The rulings stand.
 
 ### D-271 — Admit the component index on `get_input` and `get_face`
 
@@ -13160,6 +13178,107 @@ faces are defined, not a difference the names expose.
   that pairs a local wire with an `input_wires` chain. One rename suffices
   for readability, and the aliasing fact already has a home in the prose.
 
+### D-315 — Hold the declared wiring on `Structure` and resolve it by function
+
+**Status.** ratified
+
+**Position.** `Structure` holds the declared facts of the structure step and
+no resolved table. Beside the primitives' entries, the anchors, the scopes
+and the root inputs with their types, it carries one row per assembly, the
+root included, with that assembly's children in declaration order and the
+wires it declares. Every resolution over the wiring is a function over those
+rows, computed where it is read.
+
+- `LevelEntry` replaces `child_lists` and `root`: one row per assembly in
+  walk order, holding `path`, `instance`, `children` and `wires`. A child is
+  a `Child`, its `segment`, the `field` that contributed it and its
+  `instance`; container membership, plain or name-transparent, is read off
+  the segment against the field in one accessor. The wires are the level's
+  three declarations as `(path, face) => (path, face)` pairs, producer to
+  consumer, in declaration order, the level's own face on the boundary side
+  of an input or output wire. The root is the first row's instance.
+- `ComponentEntry` drops `conns`. `in_faces`, `out_faces`, `in_routes` and
+  `out_routes` go.
+- `terminal_producer(structure, (path, face))` resolves a face at any level
+  producer-ward to a primitive's port or a root input.
+  `face_routes(structure, (path, face))` returns the hops, one route for an
+  output face and one per consumer for an input face. Both take plain data
+  and compile once ([D-289][d-289]).
+- The activation's cell layout is the one home for resolved addresses
+  ([D-261][d-261]). Its alias pass enters every primitive input face and every
+  assembly output face into the address table from `terminal_producer`. The
+  execution-order graph, the root-input type meet, the probe chain, the
+  tracer, the linearizer's pinning check, fragment resolution, mounting, the
+  port views and the route printer call the two functions.
+- The specialization test of `test_build.jl` gains the new functions, and a
+  fourth case: a second activation after a nominal build adds no
+  specialization to the functions that take no scalar.
+
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§13.7][s13-7], [Appendix B][sB], [Appendix D][sD]
+
+**Rationale.** A census of the wiring fields ahead of the inspector's
+descriptor found that three of the five were derived from the other two by
+the constructor itself: `out_faces` is the last hop of every `out_routes`
+row, and `in_faces` is `conns` read at the last hop of every `in_routes` row
+plus every primitive's `conns` flattened. The two route tables had one
+reader, `show`. What no field held was the one fact a diagram draws, the
+sibling-to-sibling wire as the author declared it, and the structure step
+had composed it away: a consumer wired to a nested assembly's face is
+recorded against the terminal two levels down, and when that assembly
+exports one source under two faces no reconstruction tells which face the
+author wired. The declared wires are the fact; every table was a compiled
+form of them, and [D-261][d-261] names a compiled form stored beside its declared one
+as a second home with no enforcer but the constructor. [D-207][d-207] placed the
+resolved table on the artifact and [D-257][d-257] recorded the routing chain before
+[D-261][d-261] stated the rule, and neither was revisited under it.
+
+Resolution is cheap enough to compute at every reader. On a fixture of sixty
+primitives over twenty-one levels the whole structure step takes 7 ms warm
+and one resolution of every input face at every level, by linear search
+over the wire rows, a quarter of a millisecond. About six such passes run per
+build and activation. The functions take a structure and a `(String,
+Symbol)` pair, so they compile once at package load, and nothing in the
+per-scalar layout compile drags them along.
+
+The wires are grouped by the assembly that declares them because the three
+declarations are one assembly's, and a level row is then a canvas: its
+blocks, its boundary faces, which are the wire endpoints carrying its own
+path, and its wires. The service walk, the route printer and the descriptor
+each read one row. Dropping `conns` with the tables keeps the resolution in
+one place; the layout already aliased assembly output faces onto their
+producers' cells, and the input side joins that pass.
+
+The guard against the one regression this invites, a helper that quietly
+specializes per type or per scalar, is the specialization test [D-289][d-289] left in
+`test_build.jl`, deterministic and inside the gate. Its existing cases
+exercise a new component type and a new root type; the fourth case covers a
+new activation scalar over the sublist that takes none, since `declarations`
+takes the scalar and legitimately specializes per activation.
+
+**Rejected.**
+- *A `wires` table beside the resolved ones:* the declared form beside four
+  compiled forms of it, the shape [D-261][d-261] rejects, with the new fact being one
+  of four kinds of pair the table would hold.
+- *Reconstructing one-level wires at the consumer from the resolved tables:*
+  exact for boundary wires, which are the routes' first hops, and for local
+  wires into a primitive, but ambiguous for a local wire into a nested
+  assembly that aliases one source under two faces. A rule that is almost
+  always right is the wrong rule for a tool whose job is to explain.
+- *Re-evaluating the wiring declarations at the consumer:* user code run
+  outside the build, against the factorization [§9.2][s9-2] states, and a warning
+  raised by a passthrough helper would reach no artifact.
+- *Keeping `conns` as the one resolved column:* splits the resolution
+  between a field and a function. Four of its seven readers run before any
+  layout exists, but each needs one call in place of one field read, and
+  [D-261][d-261]'s roster of `ComponentEntry` was the only argument for the field.
+- *Storing the wires flat with the level derived:* the level is the
+  declarations' owner, and the grouped form is what the service walk, the
+  printer and the descriptor read.
+- *Correcting the compile-cost harness as the non-regression check:* it
+  cannot resolve a slice of a few milliseconds against a run-to-run spread of
+  a hundred, and its scenarios are small models. The specialization test
+  catches the leak deterministically.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -13475,6 +13594,7 @@ faces are defined, not a difference the names expose.
 [d-312]: #d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
 [d-313]: #d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [d-314]: #d-314--rename-inner_wires-to-local_wires
+[d-315]: #d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
