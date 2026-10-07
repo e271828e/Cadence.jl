@@ -448,9 +448,9 @@ function test_blocks()
         @test samples == [Redstone.Blocks.gaussian(42, k) for k in 1:1000]
         # The store counts the ticks run, `t₀`'s included: the next sample's index.
         @test state(sim, "c").k === UInt64(1001)
-        thousand = moments(samples)
-        @test abs(thousand.mean) < 0.1
-        @test 0.9 < sqrt(thousand.variance) < 1.1
+        sample_moments = moments(samples)
+        @test abs(sample_moments.mean) < 0.1
+        @test 0.9 < sqrt(sample_moments.variance) < 1.1
         # Replay reproduces the stream, and another seed is another stream.
         @test noise_samples(noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)), 10)[end] ===
               noise_samples(noise_model(GaussianWhiteNoise(seed = 42, σ = 1.0)), 10)[end]
@@ -461,12 +461,24 @@ function test_blocks()
         vector_sim = Simulation(noise_model(vector_noise); h = 1//100)
         init!(vector_sim, fragment())
         @test isapprox(port(vector_sim, "c", :out), SVector(1.9884743323187353, -4.728511613462453); atol = 1e-12)
+        # Three ticks on, `out` is sample 3, read over the sub-counters 6 and 7.
+        for _ in 1:3
+            step!(vector_sim; t_plus = 1//100)
+        end
+        @test port(vector_sim, "c", :out) ==
+              SVector(1.0, -1.0) .+ SVector(1.0, 2.0) .* SVector(Redstone.Blocks.gaussian(7, 6), Redstone.Blocks.gaussian(7, 7))
+        # A scalar pairs with a vector, `μ` defaults to the scale's zero, and
+        # `Float32` widens.
+        @test GaussianWhiteNoise(seed = 1, σ = SVector(1.0, 2.0)) isa GaussianWhiteNoise{SVector{2, Float64}}
+        @test GaussianWhiteNoise(seed = 1, σ = SVector(1.0, 2.0)).μ == SVector(0.0, 0.0)
+        @test GaussianWhiteNoise(seed = 1, μ = SVector(1.0, 2.0), σ = 1.0).σ == SVector(1.0, 1.0)
+        @test GaussianWhiteNoise(seed = 1, σ = 1f0) isa GaussianWhiteNoise{Float64}
         # The first output of a SplitMix64 seeded with zero.
         @test Redstone.Blocks.splitmix(0, 0) == 0xe220a8397b1dcdaf
-        million = moments([Redstone.Blocks.gaussian(42, k) for k in 0:999_999])
-        @test abs(million.mean) < 0.005
-        @test abs(million.variance - 1) < 0.01
-        @test abs(million.kurtosis - 3) < 0.05
+        stream_moments = moments([Redstone.Blocks.gaussian(42, k) for k in 0:999_999])
+        @test abs(stream_moments.mean) < 0.005
+        @test abs(stream_moments.variance - 1) < 0.01
+        @test abs(stream_moments.kurtosis - 3) < 0.05
         @test Redstone.has_stage(y_state, vector_noise)
         @test !Redstone.has_stage(y_direct, vector_noise)
         @test build(noise_integrator_model(); activations = (Float64, LinearizeDual)) isa Build
@@ -766,6 +778,12 @@ function test_blocks()
         @test port(steady_sim, "c", :out) == 2.0
         step!(steady_sim; t_plus = 1)
         @test port(steady_sim, "c", :out) == 2.0
+        # At this pole `I - A` differs from `A`, which the pole at 0.5 cannot show.
+        slow = DiscreteTransferFunction(num = (0.2,), den = (1, -0.8), u0 = 2.0)
+        @test isapprox(Redstone.Blocks.held(slow).x0, SVector(10.0); atol = 1e-12)
+        slow_sim = Simulation(fed_by(Constant(2.0), slow); h = 1//100)
+        init!(slow_sim, fragment())
+        @test port(slow_sim, "c", :out) ≈ 2.0 atol = 1e-12
         proper = DiscreteTransferFunction(num = (1, -0.9), den = (1, -0.5))
         @test typeof(proper) === DiscreteTransferFunction{1, true, 2, 2, 1}
         # The third denominator sums to about 5.6e-17, which an exact test would pass.
@@ -1291,8 +1309,9 @@ function test_blocks()
     end
 
     @testset "the discrete PID's loops match the continuous block's, and `Tt = 0` and `τd = 0` are legal (§13.7, D-313)" begin
-        # Peak and settling time beside the continuous block's: 5.327 at 11.3 on
-        # the single loop, 5.931 at 23.6 on the servo, 5.202 at 26.9 on the cascade.
+        # Peak and settling time beside the continuous block's at the same gains
+        # and limits: 5.327 at 11.3 on the single loop, 5.931 at 23.6 on the servo,
+        # 5.202 at 26.9 on the cascade.
         gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, u_min = -1.0, u_max = 1.0)
         @test build(pid_single_loop(DiscretePID(; gains..., Tt = 1.0)); activations = (Float64, LinearizeDual)) isa Build
         for (model, t_end, peak, settled) in

@@ -217,21 +217,23 @@ s_update(::RateLimiter, (; y)) = (v = y.out,)
 # --- the noise source (§7.3, §2.2, D-231, D-313) --------------------------------
 
 """
-    GaussianWhiteNoise(; seed, μ = 0.0, σ = nothing, psd = nothing)
+    GaussianWhiteNoise(; seed, μ = zero(σ), σ = nothing, psd = nothing)
 
 A discrete Gaussian white noise process: at each tick `out` publishes an
 independent sample of mean `μ` and standard deviation `σ`, from stage 1. The
 sample is a pure function of `seed` and the tick count `k`, the one store field
 (D-231), so the stage draws, no generator or workspace is needed, and replay
-reproduces the stream (§2.2). Two blocks with one seed publish one stream, so
-independent sources take distinct seeds.
+reproduces the stream (§2.2). After a tick the store holds the next sample's
+index, so `k` reads `N + 1` after `N` steps from `t₀`. Two blocks with one seed
+publish one stream, so independent sources take distinct seeds.
 
 Exactly one of `σ` and `psd` is given. `σ` is the standard deviation per
 sample, at any period. `psd` is the two-sided intensity `Q` of the white noise
 the samples stand for, with `σ² = Q/Δt` at the component's own period `Δt`
-(§10.5), and a one-sided density is halved before being passed. `μ` and the
-scale are promoted to one `V`, `Float64` or an `SVector` of `Float64`, and over
-a vector the components are independent.
+(§10.5), and a one-sided density is halved before being passed. `μ` defaults to
+zero in the scale's shape. `μ` and the scale are broadcast to one `V`, `Float64`
+or an `SVector` of `Float64`, so a scalar pairs with a vector, and over a vector
+the components are independent.
 """
 struct GaussianWhiteNoise{V <: Union{Float64, SVector{<:Any, Float64}}} <: AbstractComponent
     seed::UInt64
@@ -239,11 +241,12 @@ struct GaussianWhiteNoise{V <: Union{Float64, SVector{<:Any, Float64}}} <: Abstr
     σ::V              # per sample, or `sqrt(psd)` with `density` set
     density::Bool     # whether `σ` scales by `1/sqrt(Δt)`
 end
-function GaussianWhiteNoise(; seed, μ = 0.0, σ = nothing, psd = nothing)
+function GaussianWhiteNoise(; seed, μ = nothing, σ = nothing, psd = nothing)
     (σ === nothing) == (psd === nothing) &&
         throw(ArgumentError("GaussianWhiteNoise takes exactly one of `σ` and `psd`."))
-    μ, scale = float.(promote(μ, psd === nothing ? σ : sqrt.(psd)))
-    GaussianWhiteNoise(UInt64(seed), μ, scale, psd !== nothing)
+    scale = psd === nothing ? σ : sqrt.(psd)
+    μ = something(μ, zero(scale))
+    GaussianWhiteNoise(UInt64(seed), Float64.(μ .+ zero(scale)), Float64.(scale .+ zero(μ)), psd !== nothing)
 end
 
 # SplitMix64's output on the state after `k + 1` advances from `seed`: the
@@ -1024,8 +1027,8 @@ DiscretePID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max =
 
 s_init(::DiscretePID) = (q = 0.0, yf = 0.0)
 function y_direct(c::DiscretePID, (; s, u, Δt))
-    d = (u.y - s.yf) / (c.τd + Δt)
-    u_raw = c.Kp * (u.r - u.y) + s.q - c.Kd * d
+    deriv = (u.y - s.yf) / (c.τd + Δt)
+    u_raw = c.Kp * (u.r - u.y) + s.q - c.Kd * deriv
     (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
 end
 function s_update(c::DiscretePID, (; s, u, y, Δt))

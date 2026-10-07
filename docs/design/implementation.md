@@ -133,9 +133,9 @@ The standard component library, the submodule `Redstone.Blocks`:
   `LimitedIntegrator` publishes its mode as the output `saturation`.
 - `PIDBlock{Hold, Track}`, carrying the ports, `gated_error` and
   `correction_reference`, over `PID` and `DiscretePID` (D-313).
-- `StateSpace`, over scalar or `SVector` ports by its matrix shapes, its
-  feedthrough class the type parameter `FT`, and `TransferFunction`, realized
-  by `realize` into a held `StateSpace` (D-313).
+- `StateSpace` with the helper `static_system`, over scalar or `SVector` ports
+  by its matrix shapes, its feedthrough class the type parameter `FT`, and
+  `TransferFunction`, realized by `realize` into a held `StateSpace` (D-313).
 - `DiscreteLinearBlock{FT}` with the accessors `held` and `realization(c, Δt)`,
   over `DiscreteStateSpace`, `DiscreteTransferFunction`, `DiscretizedStateSpace`
   and `DiscretizedTransferFunction` (D-313).
@@ -145,7 +145,7 @@ It reaches the parent through its import list alone, as a user's component
 file does (D-313). Nothing in the package depends on it, so `src/Redstone.jl`
 includes it last.
 
-Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-211, D-311, D-312, D-313.
+Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-211, D-231, D-311, D-312, D-313.
 
 ### `src/build.jl`
 
