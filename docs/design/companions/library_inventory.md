@@ -64,7 +64,9 @@ plainly belongs is not argued into them.
 
 A gain fails the second and the third, and section 1 prices it, so it stays
 out. A listed block is built whenever wanted, with no demonstrating model
-required.
+required. How the limited integrator's exact-zero defect was found, which
+implementation variants were weighed against it, and why the block ships two
+detection policies for its departures is `limited_integrator_variants.md`.
 
 ## 3. The inventory
 
