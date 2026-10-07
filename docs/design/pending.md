@@ -24,8 +24,14 @@ both add names.
     `SVector{N, Int8}` of signed codes, `-1`, `0` and `+1` for lower, free
     and upper, since the store refuses a container of `Symbol`s (D-231),
     and the scalar `LimitedIntegrator` and `Relay` move to `Int8` codes for
-    consistency. The PID example model lands here as a third demonstrating
-    loop, clamping anti-windup first.
+    consistency. `LimitedIntegrator` publishes its code as a second output,
+    `saturation`, pinned and read from the mode, for anti-windup consumers.
+    The PID example lands here in two forms side by side, an assembly of
+    library blocks and one leaf, both with back-calculation against a
+    tracking input `v`, `q̇ = e + (v - u_raw) / Tt`, and the derivative on
+    the measurement through a lag. Two tests wire the same assembly: a
+    single loop with `v` from a clamp at the actuator, and a cascade with
+    `v` from the inner measurement.
   - **Increment 64, the discrete tier**: `DiscreteIntegrator{V}` and
     `RateLimiter{V}`, the latter moving `out` by at most `R Δt` per tick,
     both reading their period from the bundle's `Δt`; `DiscreteFilter` in

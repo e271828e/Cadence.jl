@@ -134,7 +134,7 @@ proves standard). Every block is generic over its port type `V`, in the
 
 | Block | Status | Mechanism |
 |---|---|---|
-| a PID with anti-windup | example first | an assembly of the leaves above; the design space (form, anti-windup scheme, derivative filter) is wide |
+| a PID with anti-windup | example first | back-calculation against a tracking input, which serves a single loop and a cascade alike; an assembly of the leaves above beside one leaf, the two forms compared |
 
 ## 4. The order of work
 
