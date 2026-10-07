@@ -75,5 +75,6 @@ import Redstone: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
     wait_deadline!, wait_next_snapshot, warnings, ws_init,
     x_deriv, x_init, x_projection, y_direct, y_state, y_types
 import Redstone.Blocks: Group, Junction, SumJunction, Or, And,
-    Constant, Freeze, UnitDelay, Integrator, FirstOrderLag, Step, LimitedIntegrator, Relay, PID,
+    Constant, Freeze, UnitDelay, DiscreteIntegrator, DiscreteLimitedIntegrator, RateLimiter,
+    Integrator, FirstOrderLag, Step, LimitedIntegrator, Relay, PID,
     StateSpace, TransferFunction

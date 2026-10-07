@@ -121,6 +121,8 @@ The standard component library, the submodule `Redstone.Blocks`:
 
 - `Junction`, with the aliases `SumJunction`, `Or` and `And` (D-311).
 - `Constant`, `UnitDelay` and `Freeze` (D-312).
+- `DiscreteIntegrator`, `DiscreteLimitedIntegrator` with the helper
+  `saturation_code`, and `RateLimiter` (D-313).
 - `Integrator`, `FirstOrderLag`, `Step`, `LimitedIntegrator` and `Relay` (D-313).
   `Step` and `LimitedIntegrator` each ship two detection policies, localized
   and boundary-detected, selected by the type parameter `L` (D-179).

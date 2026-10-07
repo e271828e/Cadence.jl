@@ -121,6 +121,99 @@ u_types(::Freeze{V}) where {V} = (in = V,)
 y_types(::Freeze{V}) where {V} = (out = Pinned{V},)
 y_direct(::Freeze, (; u)) = (out = ForwardDiff.value.(u.in),)
 
+# --- the discrete tier (§7.3, §10.5, D-313) -------------------------------------
+
+"""
+    DiscreteIntegrator(; s0 = 0.0)
+
+The discrete integrator: one store field `q` from `s0`, advanced each tick by
+forward Euler, `q⁺ = q + Δt in`, and `out` publishing `q` from stage 1, so the
+block breaks an algebraic loop as `UnitDelay` does (§5.5). `Δt` is the
+component's own period (§10.5), so the integral is per second at any rate. `V`
+is `Float64` or a static array of `Float64`, taken from `float(s0)`, so an
+integer `s0` qualifies. The tier pins wholesale (D-263): under a `Dual`
+activation the block holds its last value (§9.4).
+"""
+struct DiscreteIntegrator{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
+    s0::V
+end
+DiscreteIntegrator(; s0 = 0.0) = DiscreteIntegrator(float(s0))
+s_init(c::DiscreteIntegrator) = (q = c.s0,)
+u_types(::DiscreteIntegrator{V}) where {V} = (in = V,)
+y_types(::DiscreteIntegrator{V}) where {V} = (out = V,)
+y_state(::DiscreteIntegrator, (; s)) = (out = s.q,)
+s_update(::DiscreteIntegrator, (; s, u, Δt)) = (q = s.q + Δt * u.in,)
+
+"""
+    DiscreteLimitedIntegrator(; lower, upper, s0 = zero(lower))
+
+The discrete integrator held between `lower` and `upper`: `q⁺ = clamp(q + Δt in,
+lower, upper)` from `s0`, and `out` publishing `q` from stage 1. The continuous
+`LimitedIntegrator`'s mode and four events are this one `clamp`, with no mode
+store and no localization. A second output, `saturation`, publishes the same
+`Int8` code read off the state, also from stage 1: `1` at `upper`, `-1` at
+`lower` and `0` between. At a limit with the input already pointing inward, the
+code reads saturated until the next tick moves the state off.
+
+Over a static vector, the limits and the codes are componentwise, and
+`saturation` publishes a static vector of `Int8`. `lower < upper`,
+componentwise over a vector. `s0`, `lower` and `upper` are promoted to one `V`,
+which is `Float64` or a static array of `Float64`, and taken by `float`, so
+integer values qualify.
+"""
+struct DiscreteLimitedIntegrator{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
+    s0::V
+    lower::V
+    upper::V
+end
+function DiscreteLimitedIntegrator(; lower, upper, s0 = zero(lower))
+    s0, lower, upper = float.(promote(s0, lower, upper))
+    DiscreteLimitedIntegrator(s0, lower, upper)
+end
+saturation_code(q, lower, upper) = q >= upper ? Int8(1) : q <= lower ? Int8(-1) : Int8(0)
+s_init(c::DiscreteLimitedIntegrator) = (q = c.s0,)
+u_types(::DiscreteLimitedIntegrator{V}) where {V} = (in = V,)
+y_types(::DiscreteLimitedIntegrator{V}) where {V <: Real} = (out = V, saturation = Int8)
+y_types(::DiscreteLimitedIntegrator{V}) where {V <: StaticArray} = (out = V, saturation = similar_type(V, Int8))
+y_state(c::DiscreteLimitedIntegrator, (; s)) =
+    (out = s.q, saturation = saturation_code.(s.q, c.lower, c.upper))
+s_update(c::DiscreteLimitedIntegrator, (; s, u, Δt)) = (q = clamp.(s.q + Δt * u.in, c.lower, c.upper),)
+
+"""
+    RateLimiter(; rising, falling = rising, s0 = 0.0)
+
+The rate limiter: `out` follows `in`, moving at most `rising Δt` up and
+`falling Δt` down per tick. `Δt` is the component's own period (§10.5), so both
+rates are per second, positive and pinned at `Float64`. One store field `v`
+holds the previous output, and each tick stores `out`:
+
+    out = v + clamp(in - v, -falling Δt, rising Δt)
+
+`s0` is the previous output at the first tick, so the output at `t₀` is already
+one slew step from it.
+
+`out` reads `in`, so the block is feedthrough (§5.3), and a loop closed on it
+through a memoryless path is refused. A form publishing the stored value from
+stage 1 would break that loop, but it lags its input by one tick at every rate:
+it is this block followed by a `UnitDelay`, a modelling decision (§5.5) the
+model makes by placing the delay. `V` is `Float64` or a static array of
+`Float64`, taken from `float(s0)`, and over a vector the slew is componentwise.
+"""
+struct RateLimiter{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
+    rising::Float64
+    falling::Float64
+    s0::V
+end
+function RateLimiter(; rising, falling = rising, s0 = 0.0)
+    s0 = float(s0)
+    RateLimiter{typeof(s0)}(rising, falling, s0)
+end
+s_init(c::RateLimiter) = (v = c.s0,)
+u_types(::RateLimiter{V}) where {V} = (in = V,)
+y_types(::RateLimiter{V}) where {V} = (out = V,)
+y_direct(c::RateLimiter, (; s, u, Δt)) = (out = s.v + clamp.(u.in - s.v, -c.falling * Δt, c.rising * Δt),)
+s_update(::RateLimiter, (; y)) = (v = y.out,)
+
 # --- the continuous dynamics (§13.7, D-313) -------------------------------------
 
 """

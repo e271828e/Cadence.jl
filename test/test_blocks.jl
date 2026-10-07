@@ -1,9 +1,10 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
-# stop-gradient, the integrator, the lag, the state space, the transfer function,
-# the step, the limited integrator, the relay and the PID, the PID assembled from
-# blocks, and the loops built from them alone. The models are built at top level,
+# discrete integrators and the rate limiter, the stop-gradient, the integrator,
+# the lag, the state space, the transfer function, the step, the limited
+# integrator, the relay and the PID, the PID assembled from blocks, and the
+# loops built from them alone. The models are built at top level,
 # like the fixtures they reuse: `RealEntry` and `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
@@ -19,6 +20,20 @@ blocks_sum_model() =
 
 # A delay behind a tick counter: the counter's `n` is its tick index.
 delay_model(v0) = Group((; c = TickCounter(), d = UnitDelay(v0)); local_wires = ("c/n" => "d/in",))
+
+# A block fed by a source, under the given rates.
+fed_by(src, c; sample_times = (;)) =
+    Group((; k = src, c = c); local_wires = ("k/out" => "c/in",), sample_times = sample_times)
+
+# A discrete limited integrator fed by a step from `1` down to `-1` at 0.1.
+discrete_limited_model() =
+    fed_by(Step(t_step = 0.1, before = 1.0, after = -1.0), DiscreteLimitedIntegrator(lower = -0.03, upper = 0.05))
+
+# A rate limiter rising at 2 and falling at 5, fed by a step at 0.1 and
+# starting at the step's first value.
+limiter_model(before, after) =
+    fed_by(Step(t_step = 0.1, before = before, after = after),
+           RateLimiter(rising = 2.0, falling = 5.0, s0 = before))
 
 # The pendulum's angle leaving the root twice, once through a freeze.
 freeze_model() = Group((; p = Pendulum(), f = Freeze{Float64}());
@@ -282,6 +297,120 @@ function test_blocks()
         # The store is isbits by rule (D-231), which bounds `V`.
         err = failure(() -> build(delay_model([1.0])))
         @test err isa DiagnosticError && only(diagnostics(err)) isa IllegalStoreField
+    end
+
+    @testset "the discrete integrator accumulates `Δt in` per tick from `s0`, at its own period, and breaks a loop from stage 1 (§7.3, §10.5, §5.5, D-313)" begin
+        sim = Simulation(fed_by(Constant(1.0), DiscreteIntegrator()); h = 1//100)
+        init!(sim, fragment())
+        @test port(sim, "c", :out) == 0.0
+        step!(sim; t_plus = 1//10)
+        @test port(sim, "c", :out) ≈ 0.1 atol = 1e-12    # ten additions of 0.01
+        # `Δt` is the component's own period, so half the rate reaches the same value.
+        halved = Simulation(fed_by(Constant(1.0), DiscreteIntegrator(); sample_times = (c = Relative(2),));
+                            h = 1//100)
+        init!(halved, fragment())
+        step!(halved; t_plus = 1//10)
+        @test port(halved, "c", :out) ≈ 0.1 atol = 1e-12
+        vector_model = fed_by(Constant(SVector(1.0, -2.0)), DiscreteIntegrator(s0 = SVector(0.0, 1.0)))
+        vector_sim = Simulation(vector_model; h = 1//100)
+        init!(vector_sim, fragment())
+        step!(vector_sim; t_plus = 1//10)
+        @test isapprox(port(vector_sim, "c", :out), SVector(0.1, 0.8); atol = 1e-12)
+        @test build(vector_model; activations = (Float64, LinearizeDual)) isa Build
+        @test !Redstone.has_stage(y_direct, DiscreteIntegrator())
+        @test Redstone.has_stage(y_state, DiscreteIntegrator())
+        # Forward Euler around unit feedback: the error decays by `1 - Δt` per tick.
+        loop_sim = Simulation(feedback_loop(DiscreteIntegrator()); h = 1//100)
+        init!(loop_sim, fragment())
+        step!(loop_sim; t_plus = 1)
+        @test port(loop_sim, "p", :out) ≈ 1 - 0.99^100 rtol = 1e-12
+    end
+
+    @testset "the discrete limited integrator clamps in one line and publishes its code off the state (§7.3, §13.7, D-313)" begin
+        sim = Simulation(discrete_limited_model(); h = 1//100)
+        init!(sim, fragment())
+        @test port(sim, "c", :out) == 0.0 && port(sim, "c", :saturation) === Int8(0)
+        # Up at 1 to the upper limit by tick 5; the step flips at tick 10, where
+        # the code still reads the state on the limit; down at 1 from tick 11.
+        for k in 1:16
+            step!(sim; t_plus = 1//100)
+            out, code = port(sim, "c", :out), port(sim, "c", :saturation)
+            if 5 <= k <= 10
+                @test out == 0.05 && code === Int8(1)
+            else
+                @test out ≈ (k < 5 ? 0.01k : 0.05 - 0.01(k - 10)) atol = 1e-12
+                @test code === Int8(0)
+            end
+        end
+        vector_block = DiscreteLimitedIntegrator(lower = SVector(-0.02, -0.02), upper = SVector(0.03, 0.03))
+        vector_model = fed_by(Constant(SVector(1.0, -1.0)), vector_block)
+        vector_sim = Simulation(vector_model; h = 1//100)
+        init!(vector_sim, fragment())
+        step!(vector_sim; t_plus = 1//10)
+        @test port(vector_sim, "c", :out) == SVector(0.03, -0.02)
+        @test port(vector_sim, "c", :saturation) === SVector{2, Int8}(1, -1)
+        @test y_types(vector_block) == (out = SVector{2, Float64}, saturation = SVector{2, Int8})
+        @test build(vector_model; activations = (Float64, LinearizeDual)) isa Build
+        @test !Redstone.has_stage(y_direct, vector_block)
+    end
+
+    @testset "the rate limiter follows its input within two slews per tick and is feedthrough (§7.3, §5.3, D-313)" begin
+        rising_sim = Simulation(limiter_model(0.0, 1.0); h = 1//100)
+        init!(rising_sim, fragment())
+        step!(rising_sim; t_plus = 1//10)
+        @test port(rising_sim, "c", :out) == 0.02
+        step!(rising_sim; t_plus = 1//100)
+        @test port(rising_sim, "c", :out) == 0.04
+        step!(rising_sim; t_plus = 1//4)
+        @test port(rising_sim, "c", :out) ≈ 0.54 atol = 1e-12
+        step!(rising_sim; t_plus = 1//4)
+        @test port(rising_sim, "c", :out) == 1.0
+        falling_sim = Simulation(limiter_model(1.0, 0.0); h = 1//100)
+        init!(falling_sim, fragment())
+        step!(falling_sim; t_plus = 1//10)
+        @test port(falling_sim, "c", :out) == 0.95
+        step!(falling_sim; t_plus = 1//10)
+        @test port(falling_sim, "c", :out) ≈ 0.45 atol = 1e-12
+        step!(falling_sim; t_plus = 1//10)
+        @test port(falling_sim, "c", :out) == 0.0
+        # `s0` is the previous output at the first tick, so `t₀` is one slew in.
+        startup_sim = Simulation(fed_by(Constant(10.0), RateLimiter(rising = 2.0)); h = 1//100)
+        init!(startup_sim, fragment())
+        @test port(startup_sim, "c", :out) == 0.02
+        step!(startup_sim; t_plus = 1//100)
+        @test port(startup_sim, "c", :out) == 0.04
+        @test Redstone.has_stage(y_direct, RateLimiter(rising = 1.0))
+        @test !Redstone.has_stage(y_state, RateLimiter(rising = 1.0))
+        err = failure(() -> build(feedback_loop(RateLimiter(rising = 1.0))))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        vector_model = fed_by(Constant(SVector(1.0, -1.0)),
+                              RateLimiter(rising = 2.0, falling = 5.0, s0 = SVector(0.0, 0.0)))
+        vector_sim = Simulation(vector_model; h = 1//100)
+        init!(vector_sim, fragment())
+        step!(vector_sim; t_plus = 1//10)
+        @test isapprox(port(vector_sim, "c", :out), SVector(0.22, -0.55); atol = 1e-12)
+        @test build(vector_model; activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the discrete tier's phase bodies allocate nothing (§7.5)" begin
+        for model in (fed_by(Constant(1.0), DiscreteIntegrator()), feedback_loop(DiscreteIntegrator()),
+                      discrete_limited_model(), limiter_model(0.0, 1.0))
+            @test build(model; activations = (Float64, LinearizeDual)) isa Build
+            sim = Simulation(model; h = 1//10)
+            bodies = phase_bodies(sim)
+            for name in (:sweep_1, :sweep_2, :rhs, :ticks)
+                body = bodies[name]
+                body(); body(0)
+                @test @ballocated($body()) == 0
+                @test @ballocated($body(1)) == 0
+            end
+            init!(sim, fragment())
+            boundary!(sim, 1); offtick_boundary!(sim)
+            @test @ballocated(boundary!($sim, 1)) == 0
+            @test @ballocated(offtick_boundary!($sim)) == 0
+        end
     end
 
     @testset "the freeze drops the partials, and nothing else (§13.7, D-312)" begin
@@ -921,6 +1050,12 @@ function test_blocks()
         @test Relay(lower = 0, upper = 1) isa Relay{Float64}
         @test LimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
               LimitedIntegrator{SVector{2, Float64}, true}
+        @test DiscreteIntegrator(s0 = 1) isa DiscreteIntegrator{Float64}
+        @test DiscreteLimitedIntegrator(lower = -1, upper = 1) isa DiscreteLimitedIntegrator{Float64}
+        @test DiscreteLimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
+              DiscreteLimitedIntegrator{SVector{2, Float64}}
+        @test RateLimiter(rising = 1) isa RateLimiter{Float64}
+        @test RateLimiter(rising = 3).falling == 3.0
         @test PID(Kp = 1) isa PID{false, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa StateSpace{1, 1, 1, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
@@ -966,6 +1101,9 @@ function test_blocks()
         # does, so a missing import here would surface as `DeclarationShadowed`.
         for comp in (Or{3}(), And{2}(), SumJunction{Float64,2}(), Junction{Float64,Float64,2}(max),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
+                     DiscreteIntegrator(), DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
+                     DiscreteLimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
+                     RateLimiter(rising = 1.0),
                      Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),
                      Step(t_step = 1.0, localized = false), LimitedIntegrator(lower = -1.0, upper = 1.0),
                      LimitedIntegrator(lower = -1.0, upper = 1.0, localized = false),
