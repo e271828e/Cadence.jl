@@ -320,7 +320,11 @@ the integral with the current error and the back-calculation term. That is
 and `u_raw` the update may read. Both outputs come from stage 2, so the
 block is feedthrough as the continuous one is, and [§5.4][s5-4]'s refusal of a
 tracking input wired from a memoryless clamp of the own `u` holds for the
-same reason. The limits stay inside.
+same reason. The limits stay inside. One difference in the diagnostic: a
+discrete member traces structurally ([§5.6][s5-6]), its pinned declarations
+admitting no tracer scalar, so the cycle is classified `:real` with no dead
+hop, where the continuous block's is `:artificial` with the hop named. The
+probe confirmed both.
 
 ```julia
 function y_direct(c::DiscretePID, (; s, u, Δt))
@@ -384,4 +388,5 @@ common to the pair.
 [s2-1]: ../spec.md#21-events-two-detection-policies
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch
+[s5-6]: ../spec.md#56-diagnostics-feedthrough-tracing
 [s7-3]: ../spec.md#73-discrete-state-modes-and-workspace

@@ -377,7 +377,11 @@ A_d = e^{A Δt}        B_d = (∫₀^Δt e^{Aτ} dτ) B        C_d = C        D_
 ```
 
 The two are read off one static exponential of the augmented matrix
-`[A B; 0 0] Δt`, whose top row is `[A_d B_d]`. The output equation is
+`[A B; 0 0] Δt`, whose top row is `[A_d B_d]`. One trap is recorded, as
+section 4's was: the matrix is assembled with `vcat` and `hcat`, because
+the bracket spelling goes through a static `hvcat` that allocated about
+1 KB per call in the probe, where the concatenations, the exponential and
+the static slices allocate nothing. The output equation is
 algebraic and merely sampled, so the class is `iszero(D)` as for the
 continuous block, and `x0` in the user's coordinates is exact.
 `DiscretizedTransferFunction` takes its coefficients in `s`, realizes them
