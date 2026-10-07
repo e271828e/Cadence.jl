@@ -365,9 +365,9 @@ fully exact step would also scale the integral's drive by `Tt β`, which is
 does not already give.
 
 **The law is shared, not the type.** The gate, the reference rule, the
-four `u_types` arms and `y_types` are identical in both blocks, nine
+four `u_types` arms and `y_types` are identical in both blocks, ten
 methods, which earns a supertype in the `LinearBlock` style, `PIDBlock{Hold,
-Track}`, carrying those nine. The stores and the stages sit on each
+Track}`, carrying those ten. The stores and the stages sit on each
 concrete type, and the fields repeat in the discrete struct, since an
 abstract type carries none. The continuous `PID` reparents in one line.
 

@@ -363,7 +363,7 @@ The steady state for `u0` is `(I - A) q0 = B u0`, so `out` starts at
 `G(1) u0`. The pole with no steady state is now at `z = 1`, whose exact test
 is the denominator summing to zero, and unlike the continuous test on the
 constant coefficient this one is floating. A designed denominator such as
-`(1, -0.7, -0.3)` sums to about `-5.6e-17`, so an exact test lets the solve
+`(1, -0.7, -0.3)` sums to about `5.6e-17`, so an exact test lets the solve
 through and yields a huge state. The refusal takes a tolerance.
 
 ### 9.2 The pair discretized per tick
