@@ -467,8 +467,10 @@ function test_blocks()
         @test_throws ArgumentError TransferFunction(num = (1, 1, 1), den = (1, 1))
         @test_throws ArgumentError TransferFunction(num = (1,), den = (1, 0), u0 = 1.0)
         @test_throws ArgumentError TransferFunction(num = (1,), den = (0, 1))
-        @test_throws ArgumentError TransferFunction(num = (2,), den = (1,))
-        @test_throws ArgumentError TransferFunction(num = (), den = ())
+        # The message is matched: both inputs threw Julia's own `ArgumentError`
+        # before the explicit refusal existed.
+        @test_throws "order zero" TransferFunction(num = (2,), den = (1,))
+        @test_throws "order zero" TransferFunction(num = (), den = ())
     end
 
     @testset "the transfer function's stage follows its degree, and it declares no stage of its own (§5.3, D-313)" begin
