@@ -76,9 +76,10 @@ and why it takes a steady-state input and no `x0` is `linear_blocks.md`.
 
 Status is one of *shipped*, *candidate* (listed, built when wanted), or
 *example first* (built as an example model, promoted only if one form
-proves standard). Every block but the PID is generic over its port type
-`V`, in the [D-263][d-263] spelling, with `in`, `in1…inN` and `out` as port
-names.
+proves standard). A block is generic over its port type `V`, in the
+[D-263][d-263] spelling, unless its ports are fixed by what it is: the `Bool`
+gates, the PID and the linear blocks, whose ports follow their matrix
+shapes. The port names are `in`, `in1…inN` and `out`.
 
 ### Structure
 

@@ -108,11 +108,12 @@ constructor sets it, from `iszero(D)` for the matrices and from the degree
 comparison for a transfer function. The two arms are
 
 ```julia
-y_state(c::StateSpace{NX, NU, NY, false}, (; x))     = (out = C q,)
-y_direct(c::StateSpace{NX, NU, NY, true}, (; x, u))  = (out = C q + D u,)
+y_state(c::LinearBlock{false}, (; x))     = (out = C q,)
+y_direct(c::LinearBlock{true}, (; x, u))  = (out = C q + D u,)
 ```
 
-and `x_deriv` is one method over both. The lesson is testable. A scalar
+on the abstract supertype section 6 introduces, and `x_deriv` is one method
+over both. The lesson is testable. A scalar
 block with `D = 0` wired into a unit-feedback loop through a difference
 junction builds; the same loop with `D = 1` is refused as an
 `AlgebraicCycle` classified `:real`, which the probe in section 8 confirmed.
@@ -163,7 +164,9 @@ other, and it is well defined in any coordinates because it comes from the
 equations rather than from the state's meaning: `0 = A q0 + B u0` gives
 `q0 = -A⁻¹ B u0`, and the output starts at `(D - C A⁻¹ B) u0 = G(0) u0`,
 the DC gain times the input. The block takes `u0`, solves once at
-construction, and never surfaces `q0`.
+construction, and offers no `x0` keyword; the solved state is visible only
+inside the held realization, which the default `show` prints with the
+coefficients.
 
 The solve needs `A` invertible, meaning no pole at the origin. A static
 `\` on a singular matrix does not throw: the probe got `-Inf` for the
