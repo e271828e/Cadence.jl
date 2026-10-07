@@ -59,9 +59,13 @@ wrong at the keyboard, stop and report rather than deviate silently.
   same and were not chosen, for the heap field in instance data.
 - **Ports from the shapes.** `in` is `Float64` when `NU == 1` and
   `SVector{NU, Float64}` otherwise; `out` likewise over `NY`. One layout:
-  the bodies always do matrix products, a scalar input is lifted to an
-  `SVector{1}` and a one-element result is read out, both by two-method
-  helpers dispatching on `Real`/`SVector` and `SVector{1}`/`SVector`.
+  the bodies always do matrix products, and three private helpers of the
+  submodule do the edges. `as_vector(v)` lifts a `Real` to `SVector(v)` and
+  returns an `SVector` as is; `as_port(v)` reads an `SVector{1}` out as its
+  one element and returns any other `SVector` as is; `port_type(n)` is
+  `Float64` for `n == 1` and `SVector{n, Float64}` otherwise. `x_deriv` and
+  the `y_direct` arm lift `u.in` with `as_vector`, both output arms pass
+  their result through `as_port`, and `u_types`/`y_types` call `port_type`.
   Matrices are pinned `Float64` instance data; the state and the ports walk
   under `Dual` through `SMatrix * SVector` promotion (§7.2), confirmed by
   building under `(Float64, LinearizeDual)` at every probed shape.
@@ -155,7 +159,8 @@ A new section `# --- the linear blocks (§13.7, §5.3, D-313) ---` after the
 continuous dynamics section, before the step's, holding both blocks by the
 end of stage 2. First `abstract type LinearBlock{FT} <: AbstractComponent
 end` with a short docstring saying what `FT` is and that every stage lives
-here, then `realization(c::StateSpace) = c`, then the stages on
+here, then `port_type`, `as_vector` and `as_port`, then
+`realization(c::StateSpace) = c`, then the stages on
 `LinearBlock`: `x_init(c) = (q = realization(c).x0,)`, `u_types`/`y_types`
 from the held block's `NU`/`NY`, one `x_deriv`, and the two output arms on
 `LinearBlock{false}` and `LinearBlock{true}`. Then the `StateSpace` struct

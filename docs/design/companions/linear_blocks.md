@@ -124,8 +124,9 @@ When `NU` and `NY` are both one the ports are scalars, otherwise they are
 `SVector{NU}` and `SVector{NY}`, decided from the matrix shapes at
 construction. The matrices are stored at full shape in every case, and the
 bodies always do matrix products. The scalar case converts at the edges, a
-scalar input lifted to an `SVector{1}` and a one-element result read out,
-so there is one layout and the scalar block is not a second
+scalar input lifted to an `SVector{1}` by `as_vector` and a one-element
+result read out by `as_port`, with `port_type` naming the port for each
+width, so there is one layout and the scalar block is not a second
 implementation.
 
 One trap was met and is recorded because it is silent. `SMatrix{N, N,
