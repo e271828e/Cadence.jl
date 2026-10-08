@@ -679,10 +679,13 @@ function assembly_levels()
 
         # The root always has a row: a primitive root's holds no child and no wire.
         plant = Plant()
-        levels = build(plant).structure.levels
+        structure = build(plant).structure
+        levels = structure.levels
         @test length(levels) == 1
         @test only(levels).path == "" && only(levels).instance === plant
         @test isempty(only(levels).children) && isempty(only(levels).wires)
+        # Its input face is its own one route.
+        @test face_routes(structure, ("", :u)) == [[("", :u)]]
     end
 
     @testset "container membership is read off the segment and the field (§8.5, D-211, D-315)" begin

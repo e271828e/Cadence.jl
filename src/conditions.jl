@@ -435,11 +435,11 @@ end
 
 # A `u` payload names a face of the authoring level's contract, whatever
 # that level's class; resolution walks the export chain to the root input and
-# errors if the face never surfaces (§14.2). The chain is the `Build`'s own
-# input-side face graph, total under one-level routing (§9.2, D-207): a face's
-# producer is either a root input or an internal port, and a component-fed face
-# reaches none — writing it would be meaningless, because the first sweep
-# overwrites it.
+# errors if the face never surfaces (§14.2). The chain's resolution is a
+# function over the level rows' wires, total under one-level routing (§9.2,
+# D-207): a face's producer is either a root input or an internal port, and a
+# component-fed face reaches none — writing it would be meaningless, because
+# the first sweep overwrites it.
 function _root_input(structure::Structure, decls::Vector{Decls}, entry::CEntry,
                      diags::Vector{Diagnostic})
     producer = _face_producer(structure, decls, entry.path, entry.field)

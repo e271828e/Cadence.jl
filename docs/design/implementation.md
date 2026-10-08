@@ -630,7 +630,8 @@ D-261.
     and the producers' stage-2 names.
 - The `Structure`'s `input routes:` and `output routes:` blocks after the
   anchors, one line per route of a root face, its hops joined with ` → `
-  (§13.7), derived through `face_routes` over the root's level row (D-315). A side with no root face prints no block.
+  (§13.7), derived through `face_routes` over the root's level row (D-315).
+  A side with no root face prints no block.
 - The `Schedule`'s hyperperiod chart, over `lcm(Dᵢ)` base ticks, with its
   binary guard at 100.
 - The `Deployment` sets `_grid_block`'s lines under `grid:`.

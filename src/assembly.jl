@@ -717,7 +717,7 @@ resolve any face at any level over the level rows' wires, where the face is
 read. The activation's cell layout is the one home for addresses (D-261): it
 aliases each assembly output face onto its terminal producer's cell, and a
 primitive input face's address is read through `terminal_producer`, nothing
-being stored under an input key (D-210).
+being stored under a primitive's or an assembly's input face (D-210).
 
 The component index `ci` is the position in `components`; nothing pushes into a
 `Structure`'s vectors after construction.
@@ -1125,7 +1125,7 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
             routes = _fanout(draft, entry, path, comp, inner, diags)
             # Every entry routes to at least one internal endpoint, at every level
             # (D-210): a face feeding nothing declares nothing, and the empty tuple
-            # would otherwise reach no consumer, leave no row in §9.2's face graph,
+            # would otherwise reach no consumer, record no wire in its level row,
             # and let a condition addressing it misdiagnose as a bare typo. Declared
             # empty is the refusal; empty because every endpoint failed to resolve is
             # already recorded, and registers nothing more.

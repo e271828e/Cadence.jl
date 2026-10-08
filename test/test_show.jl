@@ -153,6 +153,11 @@ function test_show()
                              "    u → pair/u → pair/b/e\n" *
                              "  output routes:\n" *
                              "    y → pair/y → pair/a/out")
+        # A root face fanned out at the root level itself prints each route once.
+        @test endswith(plain(build(FannedLoops(2)).structure),
+                       "\n  input routes:\n" *
+                       "    ref → loops/l1/ref → loops/l1/sum/a\n" *
+                       "    ref → loops/l2/ref → loops/l2/sum/a")
         # A side with no root face prints no block.
         @test !occursin("input routes:", plain(multirate.structure))
         @test !occursin("routes:", plain(pendulum.structure))
