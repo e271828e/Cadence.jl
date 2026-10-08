@@ -58,11 +58,6 @@ in.
   - `StructureDraft` accumulates the per-component columns the `Structure` is
     built from, among them the tiers, the rate chains and the fold's `Timing`s;
   - resolvers record into the step's list;
-  - `wire!` derives the face graph's input side after the barrier, and the
-    walk records the output side;
-  - the `Structure` carries `in_routes` and `out_routes` beside the two face
-    tables, one row per route at every level, and `out_faces` is their last
-    hops;
   - `Structure.root_types` holds the root-input types the wire pass fixes
     ahead of construction;
   - as the step's last act, the artifact is built complete as rows at the
@@ -195,7 +190,7 @@ Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-
   three layout arms (D-237) and the flat `x` ranges every offset is read from
   (D-261). Its alias pass enters assembly output faces alone, from
   `terminal_producer`; `compile`'s input group reads a primitive input face's
-  address as its terminal producer's, and `input_addr` is gone (D-210, D-315).
+  address as its terminal producer's (D-210, D-315).
 - The nominal evaluation `_nominal`. It returns the `Outputs`, the `Events` and
   the nominal activation. The `Events` hold one `ComponentEvents` row per
   component, with its path, policies and bundle.

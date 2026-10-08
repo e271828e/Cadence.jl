@@ -1712,15 +1712,27 @@ const DECLARATION_LAYER = (
     resolve_dest, _check_transparent, _container_fields, _elements, _element_keys,
     _is_container, terminal_producer, face_routes, membership, LevelEntry, Child)
 
-specialization_counts() =
+# The layer's functions that take no scalar: the list less those that take one
+# in an argument, a `::Type{T}` parameter (`declarations`, `declared_at`,
+# `_workspace`) or a closure or vararg that carries it (`at_component`,
+# `invoke_declaration`). Those compile once per activation scalar by design.
+const SCALAR_FREE_LAYER = Tuple(fn for fn in DECLARATION_LAYER
+                                if fn ∉ (declarations, declared_at, _workspace,
+                                         at_component, invoke_declaration))
+
+specialization_counts(fns = DECLARATION_LAYER) =
     [nameof(fn) => sum(count(Returns(true), Base.specializations(m))
                        for m in methods(fn))
-     for fn in DECLARATION_LAYER]
+     for fn in fns]
 
 # `build` of a model whose type the caller cannot infer. A call the enclosing
 # function could infer would compile `build` for the model's type when that
 # function compiles, ahead of the first count.
-build_opaque(model) = build(Base.inferencebarrier(model))
+build_opaque(model; kw...) = build(Base.inferencebarrier(model); kw...)
+
+# An activation scalar no other test uses, so its activation compiles first here.
+struct FreshTag end
+const FreshDual = ForwardDiff.Dual{FreshTag,Float64,1}
 
 function build_specializations()
     @testset "a new component type compiles none of the declaration layer (§9.7, D-289)" begin
@@ -1755,6 +1767,16 @@ function build_specializations()
         build_opaque(Group((; a = SampledLoop(), b = SampledLoop(), c = SampledLoop());
                            input_wires = "ref" => ("a/ref", "b/ref", "c/ref")))
         @test specialization_counts() == counts
+    end
+
+    @testset "nor does a new activation scalar, for the functions that take none (§9.7, D-289, D-315)" begin
+        # The second build repeats the first and activates at a scalar new to the
+        # process. Its layout, root-input meet and probe resolve faces through
+        # `terminal_producer` at that scalar, and the call compiles nothing again.
+        build_opaque(Vehicle())
+        counts = specialization_counts(SCALAR_FREE_LAYER)
+        build_opaque(Vehicle(); activations = (Float64, FreshDual))
+        @test specialization_counts(SCALAR_FREE_LAYER) == counts
     end
 end
 

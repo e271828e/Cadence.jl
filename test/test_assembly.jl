@@ -411,9 +411,8 @@ function assembly_paths()
         init!(generic_sim, fragment(u = (ref = 1.0,)))
         @test paths(generic_sim.deployment.build.structure) ==
               paths(sim.deployment.build.structure)
-        @test [entry.conns
-               for entry in generic_sim.deployment.build.structure.components] ==
-              [entry.conns for entry in sim.deployment.build.structure.components]
+        @test [level.wires for level in generic_sim.deployment.build.structure.levels] ==
+              [level.wires for level in sim.deployment.build.structure.levels]
         run!(sim; t_end = 0.2)                       # equal wiring, and equal trajectories:
         run!(generic_sim; t_end = 0.2)  # the t₀ table alone would prove nothing
         @test state(generic_sim, "inner/plant").q === state(sim, "inner/plant").q
@@ -602,30 +601,23 @@ function assembly_two_level()
         @test port(dual_sim, "", :cmd) isa Float64
     end
 
-    @testset "each face records its routes down to the terminal, at every level (§9.1, §9.2, §13.7, D-257)" begin
+    @testset "each face routes down to the terminal, at every level (§9.1, §9.2, §13.7, D-257, D-315)" begin
         structure = build(routed_pair()).structure
         # An output face's route: one hop per level, each through the next level's
         # own face, ending at the producing port.
-        @test structure.out_routes == [("pair", :y) => [("pair/a", :out)],
-                                       ("", :y) => [("pair", :y), ("pair/a", :out)]]
+        @test face_routes(structure, ("pair", :y)) == [[("pair/a", :out)]]
+        @test face_routes(structure, ("", :y)) == [[("pair", :y), ("pair/a", :out)]]
         # An input face fanning out through a sub-assembly: one route per consumer,
-        # the sub-assembly's face its first hop. Children record theirs first.
-        @test structure.in_routes == [("pair", :u) => [("pair/a", :e)],
-                                      ("pair", :u) => [("pair/b", :e)],
-                                      ("", :u) => [("pair", :u), ("pair/a", :e)],
-                                      ("", :u) => [("pair", :u), ("pair/b", :e)]]
-        # The tables are the routes' ends: an output face's entry is its route's
-        # last hop, and an input route ends at a consumer of the face's producer,
-        # inside the face's assembly.
-        for ((path, face), route) in structure.out_routes
-            @test ((path, face) => last(route)) in structure.out_faces
-        end
-        for ((path, face), route) in structure.in_routes
-            producer = last(only(filter(p -> first(p) == (path, face), structure.in_faces)))
-            (consumer_path, consumer_face) = last(route)
-            @test isempty(path) || startswith(consumer_path, path * "/")
-            conns = structure.components[index_of(structure, consumer_path)].conns
-            @test (consumer_face => producer) in conns
+        # the sub-assembly's face its first hop.
+        @test face_routes(structure, ("pair", :u)) == [[("pair/a", :e)], [("pair/b", :e)]]
+        @test face_routes(structure, ("", :u)) ==
+              [[("pair", :u), ("pair/a", :e)], [("pair", :u), ("pair/b", :e)]]
+        # The producers at the routes' ends: an output face's is its route's last
+        # hop, and every face an input route crosses lands on the one root input.
+        @test terminal_producer(structure, ("pair", :y)) == ("pair/a", :out)
+        @test terminal_producer(structure, ("", :y)) == ("pair/a", :out)
+        for face in (("", :u), ("pair", :u), ("pair/a", :e), ("pair/b", :e))
+            @test terminal_producer(structure, face) == ("", :u)
         end
     end
 end
@@ -679,9 +671,11 @@ function assembly_levels()
         # The wire as the author declared it, through the second of two faces
         # exporting one source.
         aliased = aliased_pair()
-        levels = build(aliased).structure.levels
+        structure = build(aliased).structure
+        levels = structure.levels
         @test levels[1].instance === aliased
         @test (("pair", :y_copy) => ("b", :e)) in levels[1].wires
+        @test terminal_producer(structure, ("b", :e)) == ("pair/a", :out)
 
         # The root always has a row: a primitive root's holds no child and no wire.
         plant = Plant()
@@ -707,23 +701,6 @@ function assembly_levels()
         @test unit_child.segment == "a"
         @test unit_child.field === :units
         @test membership(unit_child) === :transparent
-    end
-
-    @testset "the functions resolve every face at every level as the tables do (§9.2, §13.7, D-315)" begin
-        for model in (routed_pair(), Vehicle(), FannedLoops(2), twin_loops(), MultiRate(),
-                      aliased_pair())
-            structure = build(model).structure
-            for (face, producer) in vcat(structure.in_faces, structure.out_faces)
-                @test terminal_producer(structure, face) == producer
-            end
-            for face in unique(first.(structure.in_routes))
-                @test face_routes(structure, face) ==
-                      [route for (routed_face, route) in structure.in_routes if routed_face == face]
-            end
-            for (face, route) in structure.out_routes
-                @test face_routes(structure, face) == [route]
-            end
-        end
     end
 end
 
@@ -1095,7 +1072,9 @@ function assembly_primitives()
         passed_build, wired_build = build(passed), build(wired)
         @test passed_build.structure.root_inputs == wired_build.structure.root_inputs ==
               [:var"inner.b", :e]
-        @test passed_build.structure.out_faces == wired_build.structure.out_faces
+        exported(structure) = [face => terminal_producer(structure, face)
+                               for (_, face) in first(structure.levels).wires if isempty(first(face))]
+        @test exported(passed_build.structure) == exported(wired_build.structure)
         @test paths(passed_build.structure) == paths(wired_build.structure)
         passed_sim, wired_sim = Simulation(passed; h = 1//10), Simulation(wired; h = 1//10)
         authored = fragment(u = (var"inner.b" = 1.0, e = 2.0))
@@ -1252,12 +1231,14 @@ function assembly_primitives()
               [:var"aero.alpha", :var"ldg.right.brake", :cmd]
         # The four wires resolved: three actuator channels into `aero`, the fourth
         # into the gear's left brake, and the two unfed faces from the root.
-        conns(structure, path) = structure.components[index_of(structure, path)].conns
-        @test conns(one_build.structure, "aero") ==
+        producers(structure, path, faces) =
+            [face => terminal_producer(structure, (path, face)) for face in faces]
+        @test producers(one_build.structure, "aero", (:e, :a, :r, :alpha)) ==
               [:e => ("act", :e), :a => ("act", :a), :r => ("act", :r),
                :alpha => ("", :var"aero.alpha")]
-        @test conns(one_build.structure, "ldg/left") == [:e => ("act", :brake_left)]
-        @test conns(one_build.structure, "ldg/right") == [:e => ("", :var"ldg.right.brake")]
+        @test producers(one_build.structure, "ldg/left", (:e,)) == [:e => ("act", :brake_left)]
+        @test producers(one_build.structure, "ldg/right", (:e,)) ==
+              [:e => ("", :var"ldg.right.brake")]
 
         sim = Simulation(systems; h = 1//10)
         init!(sim, fragment(u = (var"aero.alpha" = 0.5, var"ldg.right.brake" = 1.0,
@@ -1279,7 +1260,7 @@ function assembly_primitives()
         d = only(warnings(two_build))
         @test d isa EmptyFaceSelection && d.path == "ldg" && d.selector === :except &&
               d.names == ["left.brake", "right.brake"]
-        @test conns(two_build.structure, "ldg/right") == [:e => ("act", :brake_right)]
+        @test producers(two_build.structure, "ldg/right", (:e,)) == [:e => ("act", :brake_right)]
 
         # A mistyped destination stays loud. The walk evaluates the boundary before
         # the wires, so the `except` entry meets it first, fail-fast, with the
@@ -1314,27 +1295,24 @@ function assembly_child_lists()
     @testset "value-equal assemblies share a cached child list and keep their own paths (§9.7)" begin
         # The list names no path, so each loop's output route still runs through
         # its own children.
-        twins = Group((a = SampledLoop(), b = SampledLoop());
-                      input_wires = "ref" => ("a/ref", "b/ref"),
-                      output_wires = ("a/y" => "a_y", "b/y" => "b_y"))
-        structure = build(twins).structure
+        structure = build(twin_loops()).structure
         for loop_path in ("a", "b")
-            @test ((loop_path, :y) => [(loop_path * "/plant", :y)]) in structure.out_routes
-            @test (("", Symbol(loop_path, "_y")) =>
-                   [(loop_path, :y), (loop_path * "/plant", :y)]) in structure.out_routes
+            @test face_routes(structure, (loop_path, :y)) == [[(loop_path * "/plant", :y)]]
+            @test face_routes(structure, ("", Symbol(loop_path, "_y"))) ==
+                  [[(loop_path, :y), (loop_path * "/plant", :y)]]
         end
     end
 
     @testset "the structure keeps each assembly's child list, and a service derives none (§9.7, §13.3)" begin
-        # One list per assembly path and none for a primitive, each with the
-        # field that contributed every child.
+        # One level row per assembly path and none for a primitive, each child
+        # with the field that contributed it.
         fanned_build = build(FannedLoops(4))
-        child_lists = fanned_build.structure.child_lists
+        levels = fanned_build.structure.levels
         loop_paths = ["loops/l$i" for i in 1:4]
-        @test Set(keys(child_lists)) == Set(["", loop_paths...])
-        @test first.(first(child_lists[""])) == loop_paths
-        @test last(child_lists[""]) == fill(:loops, 4)
-        @test first.(first(child_lists["loops/l1"])) == ["plant", "ctl", "sum"]
+        @test [level.path for level in levels] == ["", loop_paths...]
+        @test [child.segment for child in levels[1].children] == loop_paths
+        @test [child.field for child in levels[1].children] == fill(:loops, 4)
+        @test [child.segment for child in levels[2].children] == ["plant", "ctl", "sum"]
 
         # The service walk searches those lists, so a condition with a prefix per
         # loop and a mounted read set ask the root for its children no more.

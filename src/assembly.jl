@@ -650,8 +650,9 @@ end
 
 """
 One component of the structure (§9.1): its path, the instance, the tier the
-walk read, the `sample_times` links met on the way down and the timing the
-fold made of them, and each declared input face resolved to its producer.
+walk read, and the `sample_times` links met on the way down with the timing the
+fold made of them. Its inputs' producers are not held here: `terminal_producer`
+resolves them over the level rows (D-315).
 """
 struct ComponentEntry
     path::String
@@ -659,7 +660,6 @@ struct ComponentEntry
     tier::Tier
     rates::Vector{RateLink}
     timing::Timing
-    conns::Vector{Pair{Symbol,Tuple{String,Symbol}}}   # face => (producer path, port)
 end
 
 """
@@ -701,55 +701,43 @@ struct LevelEntry
 end
 
 """
-The structure step's product (§9.1, D-253): everything the root instance alone
-fixes, nothing in it depending on a scalar type, held as rows (D-261). One
-`ComponentEntry` per primitive in walk order — its absolute path, instance and
-tier, the `sample_times` links met on the way down and the timing the fold made
-of them, and one resolved producer per declared input — and one `Anchor` per
-`Absolute` entry, the exact `(T, τ)` with the declaring scope and key. One
-`LevelEntry` per assembly, in the walk's pre-order with the root first, holds
-its children and the wires it declares, and `terminal_producer` and
-`face_routes` resolve any face at any level over those wires (D-315). Beside
-them each keyed scope's own timing, the root's input faces (the
-[root inputs](§11.3)) with the types the wire pass fixed, and §9.2's two-sided
-face table — the assembly faces the periphery may read, aliased onto the cells
-they derive from, and beside them every input face at every level with the
-producer it routes to. The input side is total: one-level routing gives every
-signal crossing a boundary a declared face there (D-207), so a fragment's
-`u` payload resolves from any authoring level (§14.2). Beside the tables,
-each assembly face's routes at every level, root included (§9.1, §13.7): the
-hops `(path, face)` down to the terminal, one row per output face and one per
-consumer of an input face, the last hop being the face's table entry or one of
-its consumers. The root itself is retained, because the service walk resolves
-against the tree the paths index rather than against the compiled list (§13.3).
-Beside it, each assembly's child list as the walk derived it, which is what
-the service walk searches.
+The structure step's product (§9.1, D-253): the declared facts the root
+instance alone fixes, nothing in it depending on a scalar type, held as rows
+(D-261). One `ComponentEntry` per primitive in walk order, and one `Anchor` per
+`Absolute` entry, the exact `(T, τ)` with the declaring scope and key. Beside
+them each keyed scope's own timing and the root's input faces (the
+[root inputs](§11.3)) with the types the wire pass fixed. One `LevelEntry` per
+assembly, in the walk's pre-order with the root first, holds its children and
+the wires it declares. The first row's instance is the root, which the service
+walk resolves against (§13.3); a primitive root's row has no children and no
+wires.
+
+No resolved table lives here (D-315). `terminal_producer` and `face_routes`
+resolve any face at any level over the level rows' wires, where the face is
+read. The activation's cell layout is the one home for addresses (D-261): it
+aliases each assembly output face onto its terminal producer's cell, and a
+primitive input face's address is read through `terminal_producer`, nothing
+being stored under an input key (D-210).
+
 The component index `ci` is the position in `components`; nothing pushes into a
 `Structure`'s vectors after construction.
 """
 struct Structure
-    root::AbstractComponent                # the tree the paths index (§13.3's service walk)
     components::Vector{ComponentEntry}     # in walk order; the index is `ci` everywhere
     anchors::Vector{Anchor}                # anchors 1…K
     scopes::Vector{RateScope}              # one row per keyed assembly, in walk order
     root_inputs::Vector{Symbol}            # root input faces, in order
     root_types::Vector{Type}               # per root input: the type the wire pass fixed (D-236, D-261)
     levels::Vector{LevelEntry}             # one per assembly, in walk pre-order, the root first (D-315)
-    in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
-    out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
-    in_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}    # (path, face) => hops, one per consumer
-    out_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}   # (path, face) => hops to the producer
-    child_lists::Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}   # per assembly path: `_children`'s two lists
 end
 
 # The structure step's accumulator, disposable: the per-component columns and
 # the per-assembly paths and wires the `Structure`'s rows are built from at the
 # barrier, with the slack the dirty pass needs (a tier is `nothing` where a
-# store-form failure was recorded, and narrows on the clean walk `wire!` runs
-# on), plus the walk's scratch — the claims, the routes and the evaluated face
-# lists. `conns` and `in_faces` are not here — they are derived past the
-# barrier, by `wire!` itself — and neither are the root-input types, which the
-# wire pass fixes (D-236) and the `Structure` takes at construction (D-261).
+# store-form failure was recorded, and narrows on the clean walk the wire pass
+# runs on), plus the walk's scratch — the claims, the routes and the evaluated
+# face lists. The root-input types are not here: the wire pass fixes them
+# (D-236) and the `Structure` takes them at construction (D-261).
 # Violations are not held here either: the step's list is an argument of every
 # helper that can add to it.
 struct StructureDraft
@@ -990,40 +978,12 @@ function _last_level(draft::StructureDraft, path::String, face::Symbol)
     level
 end
 
-"""
-§9.2's input side, derived on a walk the barrier has already proved clean: every
-input is fed exactly once, so an assembly's face and the leaf entries behind it
-share the one producer above them and `(path, face) => producer` is well
-defined. A primitive's own entries complete the record, so the graph carries
-every input face at every level, whatever the level's class. Returns the
-per-component `conns` and the `in_faces` table; the `Structure` is built from
-them once the wire pass has fixed the root-input types.
-"""
-function wire!(draft::StructureDraft)
-    conns = Vector{Pair{Symbol,Tuple{String,Symbol}}}[]
-    in_faces = Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]
-    for (path, instance) in zip(draft.paths, draft.instances)
-        push!(conns, [face => draft.feeds[(path, face)]
-                      for face in keys(_contract(u_types, instance))])
-    end
-    for (path, face, routes) in draft.routes
-        push!(in_faces, (path, face) => draft.feeds[last(first(routes))])
-    end
-    for (path, comp_conns) in zip(draft.paths, conns), (face, producer) in comp_conns
-        push!(in_faces, (path, face) => producer)
-    end
-    conns, in_faces
-end
-
 # The structure step's last act (D-261): the artifact, complete at construction,
-# its rows built from the draft's columns, what `wire!` derived and the
-# root-input types the wire pass fixed. The routes are the draft's, and
-# `out_faces` is their last hops. The walk is clean, so no recorded
-# failure is left and the tiers and root types narrow (§13.1, D-229). No code
-# pushes into a `Structure`'s vector after this call.
-function Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
-                   in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}},
-                   root_types::Vector{Any})
+# its rows built from the draft's columns and level paths and the root-input
+# types the wire pass fixed. The walk is clean, so no recorded failure is left
+# and the tiers and root types narrow (§13.1, D-229). No code pushes into a
+# `Structure`'s vector after this call.
+function Structure(draft::StructureDraft, root_types::Vector{Any})
     # One row per level path, its instance off its parent's child list.
     instances_by_path = Dict{String,AbstractComponent}("" => draft.root)
     for (parent_path, (kids, _)) in draft.child_lists, (segment, kid) in kids
@@ -1042,18 +1002,12 @@ function Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple
     isempty(levels) &&
         push!(levels, LevelEntry("", draft.root, Child[],
                                  Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]))
-    Structure(draft.root,
-              [ComponentEntry(path, instance, tier, rates, timing, cs)
-               for (path, instance, tier, rates, timing, cs) in
+    Structure([ComponentEntry(path, instance, tier, rates, timing)
+               for (path, instance, tier, rates, timing) in
                    zip(draft.paths, draft.instances, Vector{Tier}(draft.tiers),
-                       draft.rates, draft.timings, conns)],
+                       draft.rates, draft.timings)],
               draft.anchors, draft.scopes, draft.root_inputs, Vector{Type}(root_types),
-              levels, in_faces,
-              Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[
-                  (path, face) => last(route) for ((path, face), route) in draft.out_faces],
-              Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}[
-                  (path, face) => route for (path, face, routes) in draft.routes for route in routes],
-              draft.out_faces, draft.child_lists)
+              levels)
 end
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the

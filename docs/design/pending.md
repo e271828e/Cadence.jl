@@ -13,17 +13,6 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **Increment 67, the `Structure` refactor** (D-315), one brief, its stages
-  and one review. The artifact keeps one row per assembly, its children and
-  its declared wires, and no resolved table: `child_lists`, `root`, the two
-  face tables, the two route tables and `ComponentEntry.conns` go;
-  `terminal_producer` and `face_routes` resolve over the wires, the layout's
-  alias pass compiles the input-side addresses, and `show` derives the
-  routes. The specialization test of `test_build.jl` gains the new functions
-  and a per-activation case over the scalar-free sublist. The compile-cost
-  harness's drift since its tip, the `Group` import and keywords, is noted
-  in the increment's bookkeeping. The inspector's first session follows at
-  this increment's tip.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment
@@ -84,7 +73,11 @@ what the spec says, the spec edit is part of the item.
 
 - **An example model**, large enough to measure on. It gives the
   compile-time and garbage measurements a model to run on, and the cockpit
-  one to drive.
+  one to drive. The compile-cost report's harness
+  (`docs/reports/20261001_compile_cost_reeval/probes`) drifted at D-313 and
+  D-314: `Group` lives in `Redstone.Blocks` and its keywords are the
+  declaration names; correct a copy before measuring, and leave the report as
+  it is.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
 - **The spec's readability rewrite.** Chapters 7, 8, 9 and 10 are done. The other
   chapters follow `docs/spec_rewrite/recipe.md`, and that directory's README

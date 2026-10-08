@@ -749,14 +749,13 @@ Base.@nospecializeinfer function build(@nospecialize(root::AbstractComponent);
             # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
             # dirty walk never produced, so it runs on a clean walk alone.
             isempty(diags) || throw(DiagnosticError(diags))
-            conns, in_faces = wire!(draft)  # the derivation, on a clean walk
-            root_types = _check_wires(draft, conns, diags)
+            root_types = _check_wires(draft, diags)
             # The structure step's barrier (§13.1, D-229): every pass that ran merges here, and
             # nothing derived from the wiring is computed before it. No cascade
             # suppression — a typo'd wire reports its unknown port *and* the input it
             # left unfed.
             isempty(diags) || throw(DiagnosticError(diags))
-            structure = Structure(draft, conns, in_faces, root_types)   # the artifact, complete at construction (D-261)
+            structure = Structure(draft, root_types)   # the artifact, complete at construction (D-261)
             outputs, events, nominal = _nominal(structure)
             built = Build(structure, outputs, events, Dict{DataType,Any}(Float64 => nominal),
                           ReentrantLock(), raised_warnings)
@@ -786,7 +785,7 @@ end
 # than as a `MethodError` at the first firing — an event firing only in a corner
 # of the envelope would otherwise hide the omission indefinitely.
 function _check_event_declarations(draft::StructureDraft, diags::Vector{Diagnostic})
-    # The pass runs before `wire!` derives the `Structure`, so it reads the draft's
+    # The pass runs before the `Structure` is built, so it reads the draft's
     # own columns. It collects (§13.1): every malformed entry in the model is
     # named, not the first one the walk reaches, and the list merges into the step's.
     # By index: a closure capturing the instance would be a type per component type.
@@ -824,13 +823,18 @@ Base.show(io::IO, ::Type{Marker}) = print(io, "T")   # a declaration at the mark
 # two refusals. Pure declaration reading — the contracts are retyped at
 # `Float64` for the bound clause and at the marker for the walk clause; no stage
 # runs. The pass collects (§13.1): every wire is checked, and the barrier throws
-# once. Runs on the clean draft and the `conns` `wire!` derived, ahead of the
-# `Structure`, and returns the root-input types the artifact takes at
-# construction (D-236, D-261). The list holds `nothing` only on the
-# abstract-at-root arm below, which records a diagnostic, so the barrier throws
-# before the `Structure` narrows it.
-function _check_wires(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
-                      diags::Vector{Diagnostic})
+# once. Runs on the clean draft, ahead of the `Structure`, and returns the
+# root-input types the artifact takes at construction (D-236, D-261). The list
+# holds `nothing` only on the abstract-at-root arm below, which records a
+# diagnostic, so the barrier throws before the `Structure` narrows it.
+function _check_wires(draft::StructureDraft, diags::Vector{Diagnostic})
+    # Each primitive's input faces with their producers, off the claims of a walk
+    # that fed every input once (§6.1). The pass's own list: the artifact holds
+    # none, and resolves through `terminal_producer` (D-315). By index: a closure
+    # taking the instance would compile once per component type (D-289).
+    conns = [[face => draft.feeds[(draft.paths[ci], face)]
+              for face in keys(_contract(u_types, draft.instances[ci]))]
+             for ci in eachindex(draft.paths)]
     contracts_at(fn, scalar) = [at_component(() -> declared_at(fn, draft.instances[ci],
                                                                draft.tiers[ci], scalar),
                                              draft.paths[ci])
