@@ -416,9 +416,11 @@ print `y_direct` and `x_deriv` of the continuous block and `y_direct` and
 - The law testset at 1282 gains a second pass over its seven rows with
   `Kp` and `u_min` scheduled and their values moved into `u`, every
   assertion unchanged, and the discrete testset at 1457 likewise with
-  `Ki` and `Tt` scheduled. Order matters: the scheduled values differ
-  from any default, so `merge(u, c.fixed)` in place of `merge(c.fixed, u)`
-  cannot pass.
+  `Ki` and `Tt` scheduled. The scheduled values differ from any default,
+  so a law that read a default in place of the port cannot pass. (The
+  order of the two `merge` arguments is immaterial: the selection picks
+  by name and no port name is a parameter name, so stage 0 probed both
+  orders `===`.)
 - The weights, law level, in the testset at 1282: `pid_controller`'s
   gains with `b = 0.5, c = 1.0`, `x = (q = 0.3, yf = 0.1)`, `u = (r =
   3.0, y = 0.5)`, `y = (u = 1.0, u_raw = 6.5)`: `u_raw ≈ 6.5`, `u == 1.0`,
@@ -531,8 +533,8 @@ for what they owe: open-mind stance, probe scripts in the scratchpad,
   three scalar blocks' to `1e-12`. The same with two parameters scheduled
   per draw, the scheduled set chosen at random from the nine.
 - **Mutants on a scratch copy**, each named test going red: a `*` for a
-  `.*` in `y_direct`; the gate's `.&&` as `.||`; `merge(u, c.fixed)`;
-  `b` applied inside the integral's error; `c` with its sign flipped;
+  `.*` in `y_direct`; the gate's `.&&` as `.||`; a scheduled `Kp` read
+  from a default instead of the port; `b` applied inside the integral's error; `c` with its sign flipped;
   `yf` filtering `y` with `c` dropped from the filter alone; `zero(V)`
   replaced by `0.0` in `x_init`; the scalar arm of `saturation_type`
   returning `V`; the ring publishing the slot after the cursor; the cursor
