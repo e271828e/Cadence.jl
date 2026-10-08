@@ -204,10 +204,10 @@ The delay line, the tier's `z⁻ᴷ`: `out` publishes `in` from `K` ticks ago, f
 stage 1, and `v0` at the first `K` publications. `K ≥ 1` counts ticks of the
 component's own period (§10.5), so the model picks it from the rate it declares,
 and `K = 1` is `UnitDelay` in keyword spelling. The store is a ring of `K`
-values and a cursor `k`: the slot under the cursor holds the value from `K`
-ticks ago, and each tick overwrites it with `in` and advances, so the work per
-tick is constant in `K`. `V` is `Float64` or a static array of `Float64`, taken
-from `float(v0)`, so an integer `v0` qualifies.
+values and a cursor: the slot under the cursor holds the value from `K` ticks
+ago, and each tick overwrites it with `in` and advances, with no shift of the
+other slots. `V` is `Float64` or a static array of `Float64`, taken from
+`float(v0)`, so an integer `v0` qualifies.
 
 It breaks an algebraic loop as `UnitDelay` does (§5.5), and that is a modelling
 decision: placed in a continuous loop it moves the signal onto the discrete tier
@@ -221,12 +221,12 @@ function Delay(; K::Int, v0 = 0.0)
     v0 = float(v0)
     Delay{typeof(v0), K}(v0)
 end
-s_init(c::Delay{V, K}) where {V, K} = (ring = SVector{K, V}(ntuple(_ -> c.v0, K)), k = 1)
+s_init(c::Delay{V, K}) where {V, K} = (ring = SVector{K, V}(ntuple(_ -> c.v0, K)), cursor = 1)
 u_types(::Delay{V}) where {V} = (in = V,)
 y_types(::Delay{V}) where {V} = (out = V,)
-y_state(::Delay, (; s)) = (out = s.ring[s.k],)
+y_state(::Delay, (; s)) = (out = s.ring[s.cursor],)
 s_update(::Delay{V, K}, (; s, u)) where {V, K} =
-    (ring = Base.setindex(s.ring, u.in, s.k), k = s.k == K ? 1 : s.k + 1)
+    (ring = Base.setindex(s.ring, u.in, s.cursor), cursor = s.cursor == K ? 1 : s.cursor + 1)
 
 """
     DiscreteIntegrator(; s0 = 0.0)
@@ -1133,7 +1133,8 @@ frozen at its nominal value routes the port through `Freeze`.
 the block's own `u` is refused as an `AlgebraicCycle` classified artificial
 (§5.4). That is why the limits live inside the block. `v` serves a value
 published from state, such as a stateful actuator's position. A scheduled
-parameter computed memorylessly from `u` closes a cycle likewise, and one read
+parameter computed memorylessly from `u` closes a cycle too, artificial for `Ki`
+and `Tt`, which only the derivative reads, and real for the others. One read
 from a state is fine. `pid_anti_windup.md` gives the reasoning.
 """
 struct PID{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, Hold, Track, Fixed} <: PIDBlock{V, Hold, Track, Fixed}

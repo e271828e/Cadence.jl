@@ -309,13 +309,14 @@ pid_clamp_loop(controller = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking
                          "controller/u" => "sat/in1", "sat/out" => "controller/v",
                          "sat/out" => "plant/in"))
 
-# A PID whose scheduled `Kp` is a memoryless function of its own `u`.
-scheduled_pid_cycle() =
+# A PID whose scheduled parameter `name`, `Kp` unless given, is a memoryless
+# function of its own `u`.
+scheduled_pid_cycle(name = :Kp) =
     Group((; reference = Step(t_step = 0.5, after = 5.0),
-             controller = PID(Kp = AsPort(), Ki = 0.5, Kd = 0.2, Tt = 1.0),
+             controller = PID(; merge((Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0), (; name => AsPort()))...),
              gain = Junction{Float64, Float64, 1}(abs), plant = Integrator());
           local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
-                         "controller/u" => "gain/in1", "gain/out" => "controller/Kp",
+                         "controller/u" => "gain/in1", "gain/out" => "controller/$name",
                          "controller/u" => "plant/in"))
 
 # The PID's first variant as library blocks, the inspector's example beside
@@ -1405,6 +1406,14 @@ function test_blocks()
             @test deriv.q ≈ q_deriv atol = 1e-12
             @test deriv.yf == 4.0
         end
+        # Every parameter scheduled reads its port: the second set and the
+        # weights, above `u_max` and below `u_min`, in both tiers.
+        weighted_gains = merge(last(pid_gain_sets()), (b = 0.5, c = 1.0))
+        scheduled = NamedTuple{keys(weighted_gains)}(map(_ -> AsPort(), values(weighted_gains)))
+        for block_type in (PID, DiscretePID), u in ((r = 3.0, y = 0.5), (r = -3.0, y = 0.5))
+            @test pid_law(block_type(; scheduled...), x, merge(u, weighted_gains), y) ===
+                  pid_law(block_type(; weighted_gains...), x, u, y)
+        end
         # The weights: `w = 0.5 - 3`, `u_raw = (1.5 - 0.5) + 0.3 + 0.2 · 2.6 / 0.1`,
         # `ẏf = -2.6 / 0.1`, `q̇ = 0.5 · 2.5 + (1 - 6.5)`; at `b = 1`, `c = 0` the
         # first row exactly.
@@ -1484,6 +1493,12 @@ function test_blocks()
         @test d isa AlgebraicCycle && d.classification === :real
         @test isempty(d.dead)
         @test d.wires == ["controller/u" => "gain/in1", "gain/out" => "controller/Kp"]
+        # Only `x_deriv` reads `Ki`, so the hop is dead and the cycle artificial.
+        err = failure(() -> build(scheduled_pid_cycle(:Ki)))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :artificial
+        @test d.dead == [("controller", :Ki, :u)]
         samples = loop_samples(sim -> port(sim, "", :y), scheduled_pid_loop(), 20)
         plain_samples = loop_samples(sim -> port(sim, "", :y), pid_single_loop(pid_controller(false, false)), 20)
         @test maximum(abs.(samples .- plain_samples)) <= 1e-12
@@ -1818,7 +1833,7 @@ function test_blocks()
                      Source(sin), Source{Bool}(t -> t >= 0.5),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(), StopRequest(reason = "x"),
                      Delay(K = 3, v0 = 0.0), Delay(K = 2, v0 = SVector(0.0, 0.0)),
-                     DiscreteIntegrator(),DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
+                     DiscreteIntegrator(), DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
                      DiscreteLimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
                      RateLimiter(rising = 1.0),
                      Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),
