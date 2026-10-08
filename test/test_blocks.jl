@@ -265,12 +265,36 @@ pid_law(c::DiscretePID, s, u, y) = (y_direct(c, (; s, u, Δt = 0.01)), s_update(
 
 # A PID as the root's one child: its ports are root inputs, and `u` and `u_raw`
 # leave the root.
-function pid_root_model(controller::PID{V, Hold, Track}) where {V, Hold, Track}
+function pid_root_model(controller::PID{V, Hold, Track, Fixed}) where {V, Hold, Track, Fixed}
     inputs = ["r" => "controller/r", "y" => "controller/y"]
     Hold && push!(inputs, "saturation" => "controller/saturation")
     Track && push!(inputs, "v" => "controller/v")
     Group((; controller = controller); input_wires = Tuple(inputs),
           output_wires = ("controller/u" => "u", "controller/u_raw" => "u_raw"))
+end
+
+# A PID as the root's one child with every port a root input, its scheduled
+# parameters included; with `frozen`, each scheduled parameter's input reaches
+# its port through a `Freeze`.
+function scheduled_pid_root(controller::PID{V}; frozen = false) where {V}
+    port_names = keys(u_types(controller))
+    scheduled = filter(∉((:r, :y, :saturation, :v)), port_names)
+    freezes = NamedTuple{map(name -> Symbol(:freeze_, name), scheduled)}(map(_ -> Freeze{V}(), scheduled))
+    port_entry(name) = frozen && name in scheduled ? "freeze_$name/in" : "controller/$name"
+    Group(merge((; controller), frozen ? freezes : (;));
+          input_wires = map(name -> String(name) => port_entry(name), port_names),
+          local_wires = frozen ? map(name -> "freeze_$name/out" => "controller/$name", scheduled) : (),
+          output_wires = ("controller/u" => "u", "controller/u_raw" => "u_raw"))
+end
+
+# A PID root model linearized at the root inputs `inputs`: the controller's two
+# states, every real input and the face `u`.
+function pid_linearization(model, inputs)
+    sim = Simulation(model; h = 1//100)
+    init!(sim, fragment(u = inputs))
+    real_names = filter(!=(:saturation), keys(inputs))
+    linearize(sim, taps(x = (q = get_state("controller", :q), yf = get_state("controller", :yf)),
+                        u = NamedTuple{real_names}(map(get_input, real_names)), y = (u = get_face(:u),)))
 end
 
 # A tracking PID whose `v` is a memoryless clamp of its own `u`, the clamp also
@@ -281,6 +305,15 @@ pid_clamp_loop(controller = PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, Tt = 1.0, tracking
           local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
                          "controller/u" => "sat/in1", "sat/out" => "controller/v",
                          "sat/out" => "plant/in"))
+
+# A PID whose scheduled `Kp` is a memoryless function of its own `u`.
+scheduled_pid_cycle() =
+    Group((; reference = Step(t_step = 0.5, after = 5.0),
+             controller = PID(Kp = AsPort(), Ki = 0.5, Kd = 0.2, Tt = 1.0),
+             gain = Junction{Float64, Float64, 1}(abs), plant = Integrator());
+          local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                         "controller/u" => "gain/in1", "gain/out" => "controller/Kp",
+                         "controller/u" => "plant/in"))
 
 # The PID's first variant as library blocks, the inspector's example beside
 # the block: the integrator is what splits the stages (§5.4).
@@ -313,6 +346,15 @@ pid_single_loop(controller; plant = Integrator(), level = 5.0) = Group((
 # above at `pid_controller`'s gains, channel 2 the second set's on a reference of 3.
 vector_pid_loop() = pid_single_loop(PID(; map(SVector, pid_gain_sets()...)...);
                                     plant = Integrator(x0 = SVector(0.0, 0.0)), level = SVector(5.0, 3.0))
+
+# The single loop at `pid_controller`'s gains with `Kp` a port, fed by a constant.
+scheduled_pid_loop() = Group((
+        reference = Step(t_step = 0.5, before = 0.0, after = 5.0),
+        controller = PID(Kp = AsPort(), Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0),
+        gain = Constant(1.0), plant = Integrator());
+      local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
+                     "gain/out" => "controller/Kp", "controller/u" => "plant/in"),
+      output_wires = ("plant/out" => "y",))
 
 # A servo loop: a first-order position servo limited at ±1 between the
 # controller and the plant, whose position the controller tracks.
@@ -1293,11 +1335,17 @@ function test_blocks()
               (r = Float64, y = Float64, saturation = Int8, v = Float64)
         @test y_types(PID(Kp = 1.0)) == (u = Float64, u_raw = Float64)
         @test PID(Kp = 1.0, hold = true, tracking = true) isa PID{Float64, true, true}
+        @test u_types(PID(Kp = AsPort(), Ki = 0.5)) == (r = Float64, y = Float64, Kp = Float64)
+        @test keys(u_types(PID(Kp = 1.0, Ki = AsPort(), u_min = AsPort(), hold = true, tracking = true))) ==
+              (:r, :y, :saturation, :v, :Ki, :u_min)
+        @test fieldnames(typeof(PID(Kp = AsPort()).fixed)) == (:Ki, :Kd, :τd, :Tt, :u_min, :u_max, :b, :c)
+        @test u_types(PID(Kp = AsPort(), Ki = SVector(1.0, 2.0))).Kp === SVector{2, Float64}
     end
 
     @testset "the PID's law gates the error on the code's sign and falls back to `u` on a free path (§13.7, D-313)" begin
         # `u_raw = 2.5 + 0.3 - 0.8`, clamped to `u = 1`; `Ki e = 1.25`, and the
         # correction reads `1 - 2` against `u` or `0.7 - 2` against `v`.
+        # The second pass schedules `Kp` and `u_min`, their values moved into `u`.
         x = (q = 0.3, yf = 0.1)
         y = (u = 1.0, u_raw = 2.0)
         for (hold, tracking, u, q_deriv) in
@@ -1307,15 +1355,32 @@ function test_blocks()
                  (true, false, (r = 3.0, y = 0.5, saturation = Int8(0)), 0.25),
                  (false, true, (r = 3.0, y = 0.5, v = 0.7), -0.05),
                  (true, true, (r = 3.0, y = 0.5, saturation = Int8(1), v = 0.7), -1.3),
-                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7), 0.25))    # the fallback
-            controller = pid_controller(hold, tracking)
-            outputs = y_direct(controller, (; x, u))
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7), 0.25)),    # the fallback
+                (controller, scheduled_values) in
+                ((pid_controller(hold, tracking), (;)),
+                 (PID(Kp = AsPort(), Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = AsPort(), u_max = 1.0;
+                      hold, tracking), (Kp = 1.0, u_min = -1.0)))
+            inputs = merge(u, scheduled_values)
+            outputs = y_direct(controller, (; x, u = inputs))
             @test outputs.u_raw ≈ 2.0 atol = 1e-12
             @test outputs.u == 1.0
-            deriv = x_deriv(controller, (; x, u, y))
+            deriv = x_deriv(controller, (; x, u = inputs, y))
             @test deriv.q ≈ q_deriv atol = 1e-12
             @test deriv.yf == 4.0
         end
+        # The weights: `w = 0.5 - 3`, `u_raw = (1.5 - 0.5) + 0.3 + 0.2 · 2.6 / 0.1`,
+        # `ẏf = -2.6 / 0.1`, `q̇ = 0.5 · 2.5 + (1 - 6.5)`; at `b = 1`, `c = 0` the
+        # first row exactly.
+        gains = first(pid_gain_sets())
+        weighted = PID(; gains..., b = 0.5, c = 1.0)
+        outputs = y_direct(weighted, (; x, u = (r = 3.0, y = 0.5)))
+        @test outputs.u_raw ≈ 6.5 atol = 1e-12
+        @test outputs.u == 1.0
+        deriv = x_deriv(weighted, (; x, u = (r = 3.0, y = 0.5), y = (u = 1.0, u_raw = 6.5)))
+        @test deriv.yf ≈ -26.0 atol = 1e-12
+        @test deriv.q ≈ -4.25 atol = 1e-12
+        @test pid_law(PID(; gains..., b = 1.0, c = 0.0), x, (r = 3.0, y = 0.5), y) ===
+              pid_law(pid_controller(false, false), x, (r = 3.0, y = 0.5), y)
     end
 
     @testset "the PID's four spellings linearize by the law and walk under `Dual` (§13.7, §7.2, D-313)" begin
@@ -1344,6 +1409,13 @@ function test_blocks()
             @test isapprox(linearization.C, expected.C; atol = 1e-12)
             @test isapprox(linearization.D, expected.D; atol = 1e-12)
         end
+        # The weights touch `B[2, 1] = -c / τd` and `D[1, 1] = Kp b + Kd c / τd`.
+        linearization = pid_linearization(pid_root_model(PID(; first(pid_gain_sets())..., b = 0.5, c = 1.0)),
+                                          (r = 0.0, y = 0.0))
+        @test isapprox(linearization.A, [0.0 0.0; 0.0 -10.0]; atol = 1e-12)
+        @test isapprox(linearization.B, [0.5 -0.5; -10.0 10.0]; atol = 1e-12)
+        @test isapprox(linearization.C, [1.0 2.0]; atol = 1e-12)
+        @test isapprox(linearization.D, [2.5 -3.0]; atol = 1e-12)
     end
 
     @testset "a tracking input wired from a clamp of the PID's own output closes an artificial cycle (§5.4)" begin
@@ -1355,6 +1427,29 @@ function test_blocks()
         @test d isa AlgebraicCycle && d.classification === :artificial
         @test d.dead == [("controller", :v, :u)]
         @test d.wires == ["controller/u" => "sat/in1", "sat/out" => "controller/v"]
+    end
+
+    @testset "a scheduled parameter is a port: it carries partials, freezes through `Freeze`, and closes a cycle from the own output (§13.7, §5.4, §14.10)" begin
+        # At `r = 1`, `y = 0.25`, `Kp = 1`, `u_raw = 0.75 - 0.2 · 0.25 / 0.1` is
+        # inside the limits, so `∂u/∂Kp = b r - y` and the correction is zero.
+        controller = PID(; first(pid_gain_sets())..., Kp = AsPort())
+        operating_point = (r = 1.0, y = 0.25, Kp = 1.0)
+        @test build(scheduled_pid_root(controller); activations = (Float64, LinearizeDual)) isa Build
+        linearization = pid_linearization(scheduled_pid_root(controller), operating_point)
+        @test linearization.D[1, 3] ≈ 0.75 atol = 1e-12
+        @test all(iszero, linearization.B[:, 3])
+        frozen_linearization = pid_linearization(scheduled_pid_root(controller; frozen = true), operating_point)
+        @test frozen_linearization.D[1, 3] == 0
+        # `y_direct` reads `Kp`, so the hop is live and the cycle real.
+        err = failure(() -> build(scheduled_pid_cycle()))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+        @test isempty(d.dead)
+        @test d.wires == ["controller/u" => "gain/in1", "gain/out" => "controller/Kp"]
+        samples = loop_samples(sim -> port(sim, "", :y), scheduled_pid_loop(), 20)
+        plain_samples = loop_samples(sim -> port(sim, "", :y), pid_single_loop(pid_controller(false, false)), 20)
+        @test maximum(abs.(samples .- plain_samples)) <= 1e-12
     end
 
     @testset "the vector PID is two scalar PIDs side by side, in both tiers (§13.7, D-313)" begin
@@ -1513,6 +1608,7 @@ function test_blocks()
         # The continuous law's rows at `Δt = 0.01`: `u_raw = 2.5 + 0.3 - 0.2 · 0.4 / 0.11`,
         # clamped to `u = 1`; `Δt Ki e = 0.0125`, and the correction reads
         # `β (1 - 2)` against `u` or `β (0.7 - 2)` against `v`, `β = 1 - e^{-0.01}`.
+        # The second pass schedules `Ki` and `Tt`, their values moved into `u`.
         gains = (Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0)
         s = (q = 0.3, yf = 0.1)
         y = (u = 1.0, u_raw = 2.0)
@@ -1524,15 +1620,27 @@ function test_blocks()
                  (true, false, (r = 3.0, y = 0.5, saturation = Int8(0)), 0.30254983374916805),
                  (false, true, (r = 3.0, y = 0.5, v = 0.7), 0.2995647838739185),
                  (true, true, (r = 3.0, y = 0.5, saturation = Int8(1), v = 0.7), 0.2870647838739185),
-                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7), 0.30254983374916805))    # the fallback
-            controller = DiscretePID(; gains..., hold = hold, tracking = tracking)
-            outputs = y_direct(controller, (; s, u, Δt))
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7), 0.30254983374916805)),    # the fallback
+                (controller, scheduled_values) in
+                ((DiscretePID(; gains..., hold = hold, tracking = tracking), (;)),
+                 (DiscretePID(; gains..., Ki = AsPort(), Tt = AsPort(), hold, tracking), (Ki = 0.5, Tt = 1.0)))
+            inputs = merge(u, scheduled_values)
+            outputs = y_direct(controller, (; s, u = inputs, Δt))
             @test outputs.u_raw ≈ 2.0727272727272723 atol = 1e-12
             @test outputs.u == 1.0
-            updated = s_update(controller, (; s, u, y, Δt))
+            updated = s_update(controller, (; s, u = inputs, y, Δt))
             @test updated.q ≈ q_next atol = 1e-12
             @test updated.yf ≈ 0.13636363636363635 atol = 1e-12
         end
+        # The weights: `deriv = -2.6 / 0.11`, `u_raw = 1.3 + 0.2 · 2.6 / 0.11`,
+        # `yf⁺ = 0.1 - 0.026 / 0.11` and `q⁺ = 0.3 + 0.0125 + β (1 - u_raw)`.
+        weighted = DiscretePID(; gains..., b = 0.5, c = 1.0)
+        outputs = y_direct(weighted, (; s, u = (r = 3.0, y = 0.5), Δt))
+        @test outputs.u_raw ≈ 6.027272727272727 atol = 1e-12
+        @test outputs.u == 1.0
+        updated = s_update(weighted, (; s, u = (r = 3.0, y = 0.5), y = (u = 1.0, u_raw = 6.027272727272727), Δt))
+        @test updated.q ≈ 0.262477800575363 atol = 1e-12
+        @test updated.yf ≈ -0.13636363636363638 atol = 1e-12
         # The correction's step alone, `-β` from `q = 0` with `Ki = 0`: exactly
         # zero at `Tt = Inf` and exactly one at `Tt = 0`.
         for (Tt, β) in ((1.0, 0.009950166250831947), (Inf, 0.0), (0.0, 1.0))
@@ -1608,10 +1716,16 @@ function test_blocks()
         @test DiscretePID(Kp = 1) isa DiscretePID{Float64, false, false}
         @test PID(Kp = 1, Ki = 1, Kd = 1, τd = 1, Tt = 1, u_min = -1, u_max = 1) isa PID{Float64, false, false}
         @test PID(Kp = SVector(1, 2)) isa PID{SVector{2, Float64}, false, false}
-        @test PID(Kp = SVector(1, 2)).Ki === SVector(0.0, 0.0)
+        @test PID(Kp = SVector(1, 2)).fixed.Ki === SVector(0.0, 0.0)
         @test DiscretePID(Kp = 1, u_max = SVector(1.0, 2.0)) isa DiscretePID{SVector{2, Float64}, false, false}
-        @test DiscretePID(Kp = 1, u_max = SVector(1.0, 2.0)).Kp === SVector(1.0, 1.0)
+        @test DiscretePID(Kp = 1, u_max = SVector(1.0, 2.0)).fixed.Kp === SVector(1.0, 1.0)
         @test u_types(PID(Kp = SVector(1.0, 2.0), hold = true)).saturation === SVector{2, Int8}
+        @test PID(Kp = 1, Ki = AsPort()) isa PID{Float64, false, false, <:NamedTuple}
+        @test PID(Kp = AsPort(), Ki = AsPort(), Kd = AsPort(), τd = AsPort(), Tt = AsPort(), u_min = AsPort(),
+                  u_max = AsPort(), b = AsPort(), c = AsPort()) isa PID{Float64}
+        @test PID(Kp = AsPort(), Ki = AsPort(), Kd = AsPort(), τd = AsPort(), Tt = AsPort(), u_min = AsPort(),
+                  u_max = AsPort(), b = AsPort(), c = AsPort()).fixed === (;)
+        @test u_types(PID(Kp = SVector(1.0, 2.0), Ki = AsPort())).Ki === SVector{2, Float64}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa StateSpace{1, 1, 1, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
         @test TransferFunction(num = (1,), den = (1, 2)) isa TransferFunction{1, false}
@@ -1620,8 +1734,8 @@ function test_blocks()
         @test DiscreteTransferFunction(num = (1,), den = (2, -1)) isa DiscreteTransferFunction{1, false}
         @test DiscretizedStateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa DiscretizedStateSpace{1, 1, 1, false}
         @test DiscretizedTransferFunction(num = (1,), den = (1, 2)) isa DiscretizedTransferFunction{1, false}
-        @test all(field -> getfield(PID(Kp = 1), field) isa Float64, fieldnames(PID))
-        @test all(field -> getfield(DiscretePID(Kp = 1), field) isa Float64, fieldnames(DiscretePID))
+        @test all(v -> v isa Float64, values(PID(Kp = 1).fixed))
+        @test all(v -> v isa Float64, values(DiscretePID(Kp = 1).fixed))
         @test_throws TypeError Step(t_step = 0.25, localized = 1)
         @test_throws TypeError LimitedIntegrator(lower = -1, upper = 1, localized = 1)
         @test_throws TypeError PID(Kp = 1, hold = 1)
@@ -1636,7 +1750,7 @@ function test_blocks()
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
         for model in (servo_loop(true), servo_loop(false), bang_bang_loop(),
                       vector_limited_model(true), vector_limited_model(false), vector_relay_model(),
-                      pid_single_loop(pid_controller(false, false)), vector_pid_loop(),
+                      pid_single_loop(pid_controller(false, false)), vector_pid_loop(), scheduled_pid_loop(),
                       pid_single_loop(pid_assembly(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0,
                                                    u_min = -1.0, u_max = 1.0)),
                       pid_servo_loop(PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, tracking = true)),
@@ -1689,6 +1803,7 @@ function test_blocks()
                      DiscretePID(Kp = 1.0, tracking = true), DiscretePID(Kp = 1.0, hold = true, tracking = true),
                      PID(Kp = SVector(1.0, 2.0), hold = true, tracking = true),
                      DiscretePID(Kp = SVector(1.0, 2.0), hold = true, tracking = true),
+                     PID(Kp = AsPort(), b = 0.5, c = 1.0), DiscretePID(Kp = 1.0, Ki = AsPort(), Tt = AsPort()),
                      GaussianWhiteNoise(seed = 1, σ = 1.0),
                      GaussianWhiteNoise(seed = 7, μ = SVector(1.0, -1.0), σ = SVector(1.0, 2.0)),
                      Group((; k = Constant(1.0))))

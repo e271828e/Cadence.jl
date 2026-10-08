@@ -134,9 +134,11 @@ The standard component library, the submodule `Redstone.Blocks`:
   `Int8` modes and the helper `saturation_type`, and, over a vector, events
   generated per component.
   `LimitedIntegrator` publishes its mode as the output `saturation`.
-- `PIDBlock{V, Hold, Track}` over `Real` and static vectors, carrying the
-  ports, `gated_error` and `correction_reference`, over `PID` and
-  `DiscretePID` (D-313).
+- `PIDBlock{V, Hold, Track, Fixed}` over `Real` and static vectors, carrying
+  `signal_ports`, `u_types`, `parameters`, `gated_error` and
+  `correction_reference`, over `PID` and `DiscretePID`, with the marker
+  `AsPort`, the roster `PID_PARAMETERS` and the helper `fixed_parameters`
+  (D-313).
 - `StateSpace` with the helper `static_system`, over scalar or `SVector` ports
   by its matrix shapes, its feedthrough class the type parameter `FT`, and
   `TransferFunction`, realized by `realize` into a held `StateSpace` (D-313).
