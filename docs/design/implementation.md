@@ -68,6 +68,9 @@ in.
   - as the step's last act, the artifact is built complete as rows at the
     barrier, with one `ComponentEntry` per primitive in walk order and one
     `Anchor` per `Absolute` entry.
+- `LevelEntry` and `Child`, one row per assembly in walk order with its
+  children and its declared wires, the accessor `membership` on a `Child`, and
+  `terminal_producer`/`face_routes` over them (D-315).
 - The sample-time fold.
 - The shadowing check ahead of `classify` in the walk (D-246).
 - The store-form gate ahead of the classifier in the walk (D-247).
@@ -97,7 +100,7 @@ in.
 
 Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §9.7, §13.3, §13.7, §14.2, Appendix C, D-061, D-130,
 D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261,
-D-263, D-289.
+D-263, D-289, D-315.
 
 ### `src/bindings.jl`
 

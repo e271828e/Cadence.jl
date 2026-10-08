@@ -663,12 +663,53 @@ struct ComponentEntry
 end
 
 """
+One child of an assembly (§8.5, D-315): its segment under the assembly, the
+field that contributed it, which is the key the rate sugar reads (§8.7), and the
+instance.
+"""
+struct Child
+    segment::String             # "trim", "loops/l1", or "l1" under a transparent container
+    field::Symbol
+    instance::AbstractComponent
+end
+
+"""
+    membership(child)
+
+How `child` joined its assembly, read off its segment against its field (§8.5,
+D-211): `:field` for a component field, `:container` for a container element
+keyed under the field's name, `:transparent` for an element of a
+name-transparent container, which goes by its bare key.
+"""
+membership(child::Child) =
+    child.segment == String(child.field) ? :field :
+    startswith(child.segment, String(child.field) * "/") ? :container : :transparent
+
+"""
+One assembly of the structure (§9.1, D-315): its path, the instance, its children
+in `_children`'s order, and the wires its three declarations make, as one-level
+`(path, face)` pairs, producer to consumer, in declaration order: the
+`local_wires` entries, then `input_wires`, then `output_wires`. An input or
+output wire carries the assembly's own face on its boundary side, and an input
+entry fanning out to several children is one pair per target.
+"""
+struct LevelEntry
+    path::String                # "" for the root
+    instance::AbstractComponent
+    children::Vector{Child}
+    wires::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # producer => consumer
+end
+
+"""
 The structure step's product (§9.1, D-253): everything the root instance alone
 fixes, nothing in it depending on a scalar type, held as rows (D-261). One
 `ComponentEntry` per primitive in walk order — its absolute path, instance and
 tier, the `sample_times` links met on the way down and the timing the fold made
 of them, and one resolved producer per declared input — and one `Anchor` per
-`Absolute` entry, the exact `(T, τ)` with the declaring scope and key. Beside
+`Absolute` entry, the exact `(T, τ)` with the declaring scope and key. One
+`LevelEntry` per assembly, in the walk's pre-order with the root first, holds
+its children and the wires it declares, and `terminal_producer` and
+`face_routes` resolve any face at any level over those wires (D-315). Beside
 them each keyed scope's own timing, the root's input faces (the
 [root inputs](§11.3)) with the types the wire pass fixed, and §9.2's two-sided
 face table — the assembly faces the periphery may read, aliased onto the cells
@@ -693,6 +734,7 @@ struct Structure
     scopes::Vector{RateScope}              # one row per keyed assembly, in walk order
     root_inputs::Vector{Symbol}            # root input faces, in order
     root_types::Vector{Type}               # per root input: the type the wire pass fixed (D-236, D-261)
+    levels::Vector{LevelEntry}             # one per assembly, in walk pre-order, the root first (D-315)
     in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
     in_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}    # (path, face) => hops, one per consumer
@@ -700,15 +742,16 @@ struct Structure
     child_lists::Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}   # per assembly path: `_children`'s two lists
 end
 
-# The structure step's accumulator, disposable: the per-component columns the
-# `Structure`'s rows are built from at the barrier, with the slack the dirty
-# pass needs (a tier is `nothing` where a store-form failure was recorded, and
-# narrows on the clean walk `wire!` runs on), plus the walk's scratch — the
-# claims, the routes and the evaluated face lists. `conns` and `in_faces` are
-# not here — they are derived past the barrier, by `wire!` itself — and neither
-# are the root-input types, which the wire pass fixes (D-236) and the
-# `Structure` takes at construction (D-261). Violations are not held here
-# either: the step's list is an argument of every helper that can add to it.
+# The structure step's accumulator, disposable: the per-component columns and
+# the per-assembly paths and wires the `Structure`'s rows are built from at the
+# barrier, with the slack the dirty pass needs (a tier is `nothing` where a
+# store-form failure was recorded, and narrows on the clean walk `wire!` runs
+# on), plus the walk's scratch — the claims, the routes and the evaluated face
+# lists. `conns` and `in_faces` are not here — they are derived past the
+# barrier, by `wire!` itself — and neither are the root-input types, which the
+# wire pass fixes (D-236) and the `Structure` takes at construction (D-261).
+# Violations are not held here either: the step's list is an argument of every
+# helper that can add to it.
 struct StructureDraft
     root::AbstractComponent
     paths::Vector{String}
@@ -725,6 +768,8 @@ struct StructureDraft
     routes::Vector{Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}}   # (path, face, one route per consumer)
     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
     child_lists::Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}   # per assembly path: `_children`'s two lists
+    level_paths::Vector{String}          # per assembly, in walk pre-order
+    wires::Dict{String,Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}}   # per assembly path: its declared wires
 end
 
 StructureDraft(@nospecialize(root::AbstractComponent)) =
@@ -738,7 +783,9 @@ StructureDraft(@nospecialize(root::AbstractComponent)) =
                    Dict{Tuple{String,Symbol},String}(),
                    Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}[],
                    IdDict{Any,Tuple{Vector{String},Vector{String}}}(),
-                   Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}())
+                   Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}(),
+                   String[],
+                   Dict{String,Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}}())
 
 function index_of(structure::Structure, path::String)
     ci = findfirst(entry -> entry.path == path, structure.components)
@@ -974,21 +1021,35 @@ end
 # `out_faces` is their last hops. The walk is clean, so no recorded
 # failure is left and the tiers and root types narrow (§13.1, D-229). No code
 # pushes into a `Structure`'s vector after this call.
-Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
-          in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}},
-          root_types::Vector{Any}) =
+function Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
+                   in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}},
+                   root_types::Vector{Any})
+    # One row per level path, its instance off its parent's child list.
+    instances_by_path = Dict{String,AbstractComponent}("" => draft.root)
+    for (parent_path, (kids, _)) in draft.child_lists, (segment, kid) in kids
+        instances_by_path[_join(parent_path, segment)] = kid
+    end
+    levels = LevelEntry[]
+    for path in draft.level_paths
+        kids, fields = draft.child_lists[path]
+        push!(levels, LevelEntry(path, instances_by_path[path],
+                                 [Child(segment, field, kid)
+                                  for ((segment, kid), field) in zip(kids, fields)],
+                                 draft.wires[path]))
+    end
     Structure(draft.root,
               [ComponentEntry(path, instance, tier, rates, timing, cs)
                for (path, instance, tier, rates, timing, cs) in
                    zip(draft.paths, draft.instances, Vector{Tier}(draft.tiers),
                        draft.rates, draft.timings, conns)],
               draft.anchors, draft.scopes, draft.root_inputs, Vector{Type}(root_types),
-              in_faces,
+              levels, in_faces,
               Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[
                   (path, face) => last(route) for ((path, face), route) in draft.out_faces],
               Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}[
                   (path, face) => route for (path, face, routes) in draft.routes for route in routes],
               draft.out_faces, draft.child_lists)
+end
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the
 # entry the enclosing assembly's `sample_times` named it under, or `nothing`.
@@ -1053,6 +1114,9 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
         below = _extend(chain, link)
         rate_decl = invoke_declaration(sample_times, comp)
         kids, fields = draft.child_lists[path] = _children(path, comp)
+        # The one place a level is entered, ahead of its children: pre-order.
+        push!(draft.level_paths, path)
+        level_wires = draft.wires[path] = Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]
         _check_sample_times(path, rate_decl, kids, fields, diags)
         for ((segment, kid), field) in zip(kids, fields)
             child_path = _join(path, segment)
@@ -1086,7 +1150,10 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
             route = resolve_source(draft, entry, path, comp, first(pair), diags)
             route === nothing && continue      # recorded; the destination stays unfed
             producer = last(route)
-            for consumer in last.(resolve_dest(draft, entry, path, comp, last(pair), diags))
+            routes = resolve_dest(draft, entry, path, comp, last(pair), diags)
+            # The routes' first hops are the immediate children's faces: the wire as declared.
+            isempty(routes) || push!(level_wires, first(route) => first(first(routes)))
+            for consumer in last.(routes)
                 _claim!(draft, consumer, producer, entry, diags)
             end
         end
@@ -1109,6 +1176,9 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
                                             path = path, port = Symbol(face)))
                 continue                       # a route with no consumer registers nothing
             end
+            for hop in unique(first.(routes))
+                push!(level_wires, (path, Symbol(face)) => hop)
+            end
             push!(draft.routes, (path, Symbol(face), routes))
             isempty(path) || continue
             push!(draft.root_inputs, Symbol(face))
@@ -1121,6 +1191,7 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
             route = resolve_source(draft, entry, path, comp, source, diags)
             route === nothing && continue      # recorded; the face registers no row
             push!(draft.out_faces, (path, Symbol(face)) => route)
+            push!(level_wires, first(route) => (path, Symbol(face)))
         end
     end
     nothing
@@ -1176,6 +1247,86 @@ function _check_root_faces(@nospecialize(comp), diags::Vector{Diagnostic})
         push!(diags, FaceNameCollision(path = "", faces = duplicates, site = :root))
     nothing
 end
+
+# --- the wiring's resolution (§9.2, §13.7, D-315) -------------------------------
+# Functions over the level rows' declared wires, computed where they are read.
+# They take plain data, so they compile once (D-289), and they find a level by
+# a linear search: the rows are few and nothing here runs in the loop.
+
+# The index of the level row at `path`, `nothing` at a primitive's path.
+_level_index(structure::Structure, path::String) =
+    findfirst(level -> level.path == path, structure.levels)
+
+# The index of the level row declaring the child at `path`, `nothing` at the root.
+_parent_index(structure::Structure, path::String) =
+    findfirst(level -> any(child -> _join(level.path, child.segment) == path, level.children),
+              structure.levels)
+
+# The producer of the wire `level` declares into `face`, or `nothing`.
+function _wire_into(level::LevelEntry, face::Tuple{String,Symbol})
+    row = findfirst(wire -> last(wire) == face, level.wires)
+    row === nothing ? nothing : first(level.wires[row])
+end
+
+"""
+    terminal_producer(structure, face)
+
+The producer `(path, port)` of `face`, a `(path, face)` at any level (§9.2,
+D-315): a primitive's port, or `("", face)` for a root input. An assembly's
+output face starts from its own level's output wire, any other face from its
+parent level's wire into it. From a sibling assembly's output face the walk
+continues into that level, and from the level's own input face into its parent.
+A face no wire feeds is its own producer.
+"""
+function terminal_producer(structure::Structure, face::Tuple{String,Symbol})
+    path = first(face)
+    k = _level_index(structure, path)
+    producer = k === nothing ? nothing : _wire_into(structure.levels[k], face)
+    if producer === nothing
+        k = _parent_index(structure, path)
+        k === nothing && return face
+        producer = _wire_into(structure.levels[k], face)
+        producer === nothing && return face
+    end
+    while true
+        producer_path = first(producer)
+        if producer_path == structure.levels[k].path
+            isempty(producer_path) && return producer       # a root input
+            k = _parent_index(structure, producer_path)
+        else
+            k = _level_index(structure, producer_path)
+            k === nothing && return producer                # a primitive's port
+        end
+        producer = _wire_into(structure.levels[k], producer)
+    end
+end
+
+"""
+    face_routes(structure, face)
+
+The routes of `face`, a `(path, face)` at any level (§13.7, D-315), each the hops
+`(path, face)` the resolution visits: for an assembly's output face one route
+down to its producer, for an assembly's input face one per consumer down to
+that consumer, in wire order. A primitive's face is its own one route.
+"""
+function face_routes(structure::Structure, face::Tuple{String,Symbol})
+    k = _level_index(structure, first(face))
+    k === nothing && return [[face]]
+    level = structure.levels[k]
+    producer = _wire_into(level, face)
+    producer === nothing || return _routes_behind(structure, producer)
+    routes = Vector{Tuple{String,Symbol}}[]
+    for (wire_producer, consumer) in level.wires
+        wire_producer == face && append!(routes, _routes_behind(structure, consumer))
+    end
+    routes
+end
+
+# The routes through `hop`, a child's face: the hop alone at a primitive, else
+# the hop ahead of each route of its own face.
+_routes_behind(structure::Structure, hop::Tuple{String,Symbol}) =
+    _level_index(structure, first(hop)) === nothing ? [[hop]] :
+        [pushfirst!(route, hop) for route in face_routes(structure, hop)]
 
 # --- the service walk (§13.3, D-130) --------------------------------------------
 

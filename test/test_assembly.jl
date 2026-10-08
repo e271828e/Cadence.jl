@@ -617,6 +617,96 @@ function assembly_two_level()
     end
 end
 
+# --- the level rows and the wiring's resolution (§9.1, §9.2, §13.7, D-315) -----
+
+"""
+    aliased_pair()
+
+One source exported under two faces, `pair`'s `"y"` and `"y_copy"`, and a
+sibling fed from the second. The one-level wire `("pair", :y_copy) => ("b", :e)`
+is a fact no resolved table holds: both faces resolve to `("pair/a", :out)`.
+"""
+aliased_pair() =
+    Group((; pair = Group((; a = Gain(2.0));
+                          input_wires = "u" => "a/e",
+                          output_wires = ("a/out" => "y", "a/out" => "y_copy")),
+             b = Gain(3.0));
+          local_wires = "pair/y_copy" => "b/e",
+          input_wires = "u" => "pair/u", output_wires = "b/out" => "out")
+
+# Two sampled loops under one fanned face, as the child-list testset builds them.
+twin_loops() = Group((a = SampledLoop(), b = SampledLoop());
+                     input_wires = "ref" => ("a/ref", "b/ref"),
+                     output_wires = ("a/y" => "a_y", "b/y" => "b_y"))
+
+function assembly_levels()
+    @testset "the structure holds one row per level, its children in order and its wires as declared (§9.1, §9.2, D-315)" begin
+        pair_model = routed_pair()
+        levels = build(pair_model).structure.levels
+        @test levels[1].instance === pair_model
+        @test [level.path for level in levels] == ["", "pair"]
+        # A `Group` contributes its children through its name-transparent field.
+        @test [(child.segment, child.field) for child in levels[1].children] ==
+              [("pair", :children)]
+        @test [(child.segment, child.field) for child in levels[2].children] ==
+              [("a", :children), ("b", :children)]
+        # The boundary face is the level's own; a fanned entry is one pair per target.
+        @test levels[1].wires == [("", :u) => ("pair", :u), ("pair", :y) => ("", :y)]
+        @test levels[2].wires == [("pair", :u) => ("pair/a", :e), ("pair", :u) => ("pair/b", :e),
+                                  ("pair/a", :out) => ("pair", :y)]
+
+        # Declaration order: the local wire, then the input entry, then the outputs.
+        vehicle = Vehicle()
+        levels = build(vehicle).structure.levels
+        @test levels[1].instance === vehicle
+        @test levels[1].wires == [("trim", :out) => ("loop", :ref), ("", :ref) => ("trim", :e),
+                                  ("loop", :y) => ("", :y), ("loop", :cmd) => ("", :cmd),
+                                  ("loop", :power) => ("", :power)]
+
+        # The wire as the author declared it, through the second of two faces
+        # exporting one source.
+        aliased = aliased_pair()
+        levels = build(aliased).structure.levels
+        @test levels[1].instance === aliased
+        @test (("pair", :y_copy) => ("b", :e)) in levels[1].wires
+    end
+
+    @testset "container membership is read off the segment and the field (§8.5, D-211, D-315)" begin
+        trim_child = only(child for child in build(Vehicle()).structure.levels[1].children
+                          if child.segment == "trim")
+        @test trim_child.field === :trim
+        @test membership(trim_child) === :field
+
+        loop_child = first(build(FannedLoops(2)).structure.levels[1].children)
+        @test loop_child.segment == "loops/l1"
+        @test loop_child.field === :loops
+        @test membership(loop_child) === :container
+
+        roster = TransparentRoster((a = Gain(2.0), b = Gain(3.0)))
+        unit_child = first(build(roster).structure.levels[1].children)
+        @test unit_child.segment == "a"
+        @test unit_child.field === :units
+        @test membership(unit_child) === :transparent
+    end
+
+    @testset "the functions resolve every face at every level as the tables do (§9.2, §13.7, D-315)" begin
+        for model in (routed_pair(), Vehicle(), FannedLoops(2), twin_loops(), MultiRate(),
+                      aliased_pair())
+            structure = build(model).structure
+            for (face, producer) in vcat(structure.in_faces, structure.out_faces)
+                @test terminal_producer(structure, face) == producer
+            end
+            for face in unique(first.(structure.in_routes))
+                @test face_routes(structure, face) ==
+                      [route for (routed_face, route) in structure.in_routes if routed_face == face]
+            end
+            for (face, route) in structure.out_routes
+                @test face_routes(structure, face) == [route]
+            end
+        end
+    end
+end
+
 # --- the structure's rate tables (§9.1, §9.2, D-253, D-261) --------------------
 # The sample-time fold's timings are exercised against the deployed divisors in
 # `test_discrete.jl`; what is read here is the rate chain the fold records beside
@@ -1243,6 +1333,7 @@ function test_assembly()
     assembly_paths()
     assembly_wires()
     assembly_two_level()
+    assembly_levels()
     assembly_rate_chains()
     assembly_obligations()
     assembly_primitives()
