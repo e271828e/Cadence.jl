@@ -1,12 +1,16 @@
 # Brief: increment 67, the `Structure` holds its declared wiring and resolves it by function
 
 Three code stages, one cold review and a fixer if the review needs one. The
-docs arc is landed in the commit before this brief's: D-315 and its
+docs arc is landed in d442223: D-315 and its
 annotations on D-207, D-257, D-261 and D-270 in `decisions.md`, the §9.1,
 §9.2, §13.7, Appendix B and glossary amendments in `spec.md`, and
-`pending.md`'s increment 67 bullet. The tip at launch is the commit adding
-this brief; line numbers below are that tree's. Find passages in
-`docs/design/implementation.md` by heading.
+`pending.md`'s increment 67 bullet. Written at 90bf71d and rebased at e98faf3
+once increments 65 and 66 had landed: neither touched a source file, the
+spec or the log this brief cites, `test/fixtures.jl` only renamed its
+`DiscreteIntegrator` to `DiscreteAccumulator` on the same lines, and
+`test/imports.jl`'s `Redstone.Blocks` list grew. The tip at launch is the
+commit rebasing this brief; line numbers below are that tree's. Find
+passages in `docs/design/implementation.md` by heading.
 
 Design and code are peers, neither subservient. If a shape below proves
 wrong at the keyboard, stop and report rather than deviate silently.
@@ -123,7 +127,7 @@ wrong at the keyboard, stop and report rather than deviate silently.
   specializes per activation, and anything else on the list whose
   signature carries `::Type{T}`; state the sublist as a second constant
   beside `DECLARATION_LAYER`.
-- **Measured at the tip's parent**, warm, on `FannedLoops(20)`: sixty
+- **Measured at 90bf71d's parent**, warm, on `FannedLoops(20)`: sixty
   primitives, twenty-one levels, 101 input faces; the structure step 7.3
   ms, one resolution of every input face by linear search 0.25 ms. Nothing
   here is on a hot path; the cold review re-measures only if a stage's
@@ -141,7 +145,7 @@ wrong at the keyboard, stop and report rather than deviate silently.
 
 ## Reading, in order
 
-- `docs/design/pending.md`, the increment 67 bullet, lines 36 to 46.
+- `docs/design/pending.md`, the increment 67 bullet, lines 16 to 26.
 - `docs/design/decisions.md` D-315 (line 13181), then D-261 (10121), D-207
   (7530), D-257 (9896), D-270 (11020) and D-289 (12125), each with its
   2026-10-07 annotation where one was added.
@@ -311,7 +315,7 @@ in the foreground, 600 s.
 - `docs/design/implementation.md`: `### src/build.jl`, the layout bullet
   says the alias pass enters assembly output faces and primitive input
   faces from `terminal_producer` and that `input_addr` is gone;
-  `### src/devices.jl` line 387 reads "off `terminal_producer` over every
+  `### src/devices.jl` line 398 reads "off `terminal_producer` over every
   input face at every level" in place of "off `Structure.in_faces`";
   `### src/show.jl`, the routes bullet says the lines are derived through
   `face_routes`; `### src/conditions.jl` and `### src/readers.jl`, one
