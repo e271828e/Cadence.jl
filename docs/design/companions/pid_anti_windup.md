@@ -434,7 +434,9 @@ parameters(c::PIDBlock, u) = NamedTuple{PID_PARAMETERS}(merge(c.fixed, u))
 `merge` resolves at compile time, and the selection lays the nine out in
 roster order however the merged keys are staggered. With `Ki` and `u_min`
 scheduled the merge reads `(:Kp, :Kd, :τd, :Tt, :u_max, :b, :c, :r, :y,
-:u_min, :Ki)`. Port and parameter names never collide, so merging the whole
+:Ki, :u_min)`, the bundle's order last; the selection reads the same nine
+whichever way the bundle lists them. Port and parameter names never
+collide, so merging the whole
 input bundle is safe. The ports are section 4's four arms, now
 `signal_ports`, merged by `u_types` with one `V` port per scheduled name.
 
@@ -447,8 +449,11 @@ their four arms read as section 4's table.
 **A scheduled port is an ordinary input.** `u` is a stage-2 output, so every
 input is a feedthrough edge (section 3, [§5.4][s5-4]). A schedule computed
 memorylessly from the block's own output closes an `AlgebraicCycle` as a
-clamped `v` does, classified real rather than artificial since the gain
-enters the direct law; one read from a state is fine. Under a `Dual`
+clamped `v` does. It is classified real when the parameter enters the
+direct law, as every one but `Ki` and `Tt` does; a scheduled `Ki` or `Tt`
+closes an artificial cycle on the continuous tier, as `v` does, and a real
+one on the discrete tier, where the whole law is direct. One read from a
+state is fine. Under a `Dual`
 activation a scheduled gain carries partials, so a linearization sees the
 coupling through the schedule. A model that wants the gain frozen at its
 nominal value routes the port through `Freeze` ([§14.10][s14-10]).
