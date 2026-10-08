@@ -891,9 +891,9 @@ Traps the code does not warn about, each hit more than once while building:
   what it owns or must retain across calls;
 - **an artifact holds declared facts; compile at the consumer, once.** A
   compiled form stored beside its declared one (the schedule's vectors
-  beside its rows, a policy's addresses beside its faces) is a second home
-  with no enforcer but the constructor. `Layout` is the one home for
-  address facts (§9.2, D-261);
+  beside its rows, an ignore mask stored on the policy beside its paths) is
+  a second home with no enforcer but the constructor. `Layout` is the one
+  home for address facts (§9.2, D-261);
 - **`checkpoint` is refused after a `t*` stop and after an abandoned
   frame.** A test that checkpoints a stopped run stops it at a frame top:
   `t_end`, a stop request read at a grid boundary, or `stop!` (§12.6, D-274);

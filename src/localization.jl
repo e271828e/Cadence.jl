@@ -18,7 +18,7 @@ clock write below converts it into the deployment's scalar (D-260)."""
 _grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.deployment.h
 
 """
-    frame!(sim, k, policy, ignore_mask, roster, pacer)
+    frame!(sim, k, ignore_mask, roster, pacer)
 
 Advance through the frame `[tₖ₋₁, tₖ]`, leaving the clock at the indexed frame
 top with the state and table at their arrival values — the frame-top boundary
@@ -28,17 +28,17 @@ the bare step: no arrival machinery, no extra sweep, today's exact path.
 The one exception is a §13.5 stop observed at a `t*` publication: the frame's
 remainder was abandoned, so the clock stays at `t*` — where the stores are —
 and the frame top is never stamped. Returns the holding request's `Requester`
-then, `nothing` otherwise (D-261). `policy` is the advance's stop policy and
-`ignore_mask` its compiled companion, one `Bool` per requester, carried here for
-exactly that sampling read (D-260, D-261, D-316).
+then, `nothing` otherwise (D-261). `ignore_mask` is the advance's stop policy
+compiled against the requester roster, one `Bool` per requester, carried here
+for exactly that sampling read (D-260, D-261, D-316).
 `roster` is the run's copy and `pacer` the run's pacer, `nothing` under
 `step!`, both carried to the `t*` publication for its status (§10.7, §11.3,
 D-269).
 """
-function frame!(sim::Simulation{T}, k::Int, policy::StopPolicy, ignore_mask::Vector{Bool},
+function frame!(sim::Simulation{T}, k::Int, ignore_mask::Vector{Bool},
                 roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer}) where {T}
     t_to = _grid_time(sim, k)
-    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, policy, ignore_mask, roster, pacer) :
+    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, ignore_mask, roster, pacer) :
                                    (integrate!(sim, T(sim.deployment.h)); nothing)
     hit === nothing && (sim.exec.clock.t = t_to)
     hit
@@ -51,8 +51,8 @@ end
 # are already structurally bounded (at most one per declared event), while the
 # segment count is the quantity chattering inflates without bound. Returns
 # `nothing` at the frame top and the holding requester at a `t*` stop (D-261).
-function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy,
-                           ignore_mask::Vector{Bool}, roster::Vector{RosterEntry},
+function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
+                           roster::Vector{RosterEntry},
                            pacer::Union{Nothing,Pacer}) where {T}
     events, cursor = sim.exec.events, sim.exec.cursor
     n_events = length(events.prior)
@@ -166,9 +166,9 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy,
         # Every publication is a stop-request sampling point (§13.5): an
         # honoured request holding in the t* snapshot makes it the final one —
         # the frame's remainder is abandoned, and the hit reaches the loop as the
-        # return value (D-261). The policy and its ignore mask are the advance's
-        # arguments, carried down from `_advance!` through `frame!` (D-260).
-        requester = _stop_hit(sim, policy, ignore_mask)
+        # return value (D-261). The ignore mask is the advance's argument,
+        # carried down from `_advance!` through `frame!` (D-260).
+        requester = _stop_hit(sim, ignore_mask)
         requester === nothing || return requester
         localizations += 1
     end

@@ -928,7 +928,7 @@ function diagnostics_kind_set()
               occursin("a port of its own", rendered)
         rendered = message(IllegalPortType(path = "", site = :root_input, name = :stop,
                                            declared = StopFlag, reason = :stop_flag_at_root))
-        @test startswith(rendered, "the root component: root input `stop` is a `StopFlag`") &&
+        @test startswith(rendered, "the root component: root input `stop` carries a `StopFlag`") &&
               occursin("never an operator's", rendered) && occursin("`stop!`", rendered)
 
         # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the

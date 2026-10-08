@@ -223,8 +223,8 @@ function test_localization()
         quiet_sim = Simulation(quiet_model; h = 1//10)
         init!(quiet_sim)
         run!(quiet_sim; t_end = 0.2)
-        no_policy, no_mask = StopPolicy(Inf, String[]), Bool[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($quiet_sim, 3, $no_policy, $no_mask, $(quiet_sim.plane.roster), nothing)) == 0
+        no_mask = Bool[]                    # the advance's argument (D-260, D-261)
+        @test @ballocated(frame!($quiet_sim, 3, $no_mask, $(quiet_sim.plane.roster), nothing)) == 0
 
         # A localizing frame: one crossing, θ = 0 validation, ẋₙ₊₁, the bracketing
         # trials, the t* boundary and the remainder — all against preallocated
@@ -234,6 +234,6 @@ function test_localization()
         localizing_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10)
         init!(localizing_sim; log = false)
         publish_bytes = @ballocated publish!($localizing_sim, $(localizing_sim.plane.roster))
-        @test @ballocated(frame!($localizing_sim, 1, $no_policy, $no_mask, $(localizing_sim.plane.roster), nothing), setup = (init!($localizing_sim; log = false)), evals = 1) == publish_bytes
+        @test @ballocated(frame!($localizing_sim, 1, $no_mask, $(localizing_sim.plane.roster), nothing), setup = (init!($localizing_sim; log = false)), evals = 1) == publish_bytes
     end
 end

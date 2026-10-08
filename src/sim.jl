@@ -384,8 +384,7 @@ _record(sim::Simulation{T}, policy::StopPolicy, source::TerminationSource,
 # holding wins and its requester is returned (D-316). `ignore_mask` is
 # index-aligned with the roster and so with the buffer, by `_bind_policy`
 # (D-261). The roster is read on a hit only.
-function _stop_hit(sim::Simulation{T}, policy::StopPolicy,
-                   ignore_mask::Vector{Bool}) where {T}
+function _stop_hit(sim::Simulation{T}, ignore_mask::Vector{Bool}) where {T}
     all(ignore_mask) && return nothing          # none honoured, the empty roster included
     # asserted, since the plane's type does not fix the snapshot's
     snapshot = latest(sim)::Snapshot{T,typeof(sim.exec.store)}
@@ -1274,8 +1273,8 @@ end
 # replay *is* this loop. `ignore_mask` is the policy compiled against the
 # requester roster, the loop's own argument (D-261, D-316); `upto` is the
 # frame budget, `t_end_frame` the `t_end` frame.
-# The pacer is created here, one per call, and handed to the loop as the policy
-# is (§10.7, §12.6, D-269). So is the roster, copied at the freeze and read by
+# The pacer is created here, one per call, and handed to the loop as the ignore
+# mask is (§10.7, §12.6, D-269). So is the roster, copied at the freeze and read by
 # the run alone, never off the plane (§11.3). The §12.2 thread-budget check runs
 # here too, after the freeze, so either door checks once per run against the
 # frozen roster. The doors that build a run publish with the plane's roster, as
@@ -1320,7 +1319,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, ignore_mask::Vector{Boo
         _register_tasks!(plane, live, tasks)
         Base.sigatomic_end()
         try
-            source = _advance!(sim, policy, ignore_mask, upto, t_end_frame, roster, pacer)[1]
+            source = _advance!(sim, ignore_mask, upto, t_end_frame, roster, pacer)[1]
             returned = true
         catch err
             # stored before the `finally`, whose wait an interrupt can cut
@@ -1508,13 +1507,13 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # the run ends `errored` (§12.4, §13.4). Every `try` exit, normal or not,
 # restores the sigatomic count its entry saw, so the mask's two ends sit
 # outside the frame's `try`.
-function _advance!(sim::Simulation, policy::StopPolicy, ignore_mask::Vector{Bool}, upto::Int,
+function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                    t_end_frame::Int, roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer})
     plane, control, clock = sim.plane, sim.control, sim.exec.clock
     N_base = sim.deployment.N_base
     h = sim.deployment.h
     advanced = 0
-    requester = _stop_hit(sim, policy, ignore_mask)
+    requester = _stop_hit(sim, ignore_mask)
     requester === nothing || return (ModelRequestedStop(requester), advanced)
     pacer === nothing || anchor!(pacer, _seconds(clock.t), @atomic control.pace)   # the run's first
     while true
@@ -1535,11 +1534,11 @@ function _advance!(sim::Simulation, policy::StopPolicy, ignore_mask::Vector{Bool
             try
                 drain!(sim, roster)
                 k = (sim.exec.clock.frame += 1)
-                hit = frame!(sim, k, policy, ignore_mask, roster, pacer)
+                hit = frame!(sim, k, ignore_mask, roster, pacer)
                 if hit === nothing
                     k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
                     publish!(sim, roster, pacer)
-                    requester = _stop_hit(sim, policy, ignore_mask)
+                    requester = _stop_hit(sim, ignore_mask)
                 else
                     requester = hit    # a t* publication hit (§13.5): that snapshot is final
                 end
@@ -1737,7 +1736,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
         upto = _replay_bound(sim, sim.exec.clock.frame + frame_count)
-        (source, advanced) = _advance!(sim, policy, ignore_mask, upto, t_end_frame, roster, nothing)
+        (source, advanced) = _advance!(sim, ignore_mask, upto, t_end_frame, roster, nothing)
         returned = true
     catch err
         if err isa InterruptException

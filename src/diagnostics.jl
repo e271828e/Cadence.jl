@@ -824,7 +824,7 @@ function message(d::IllegalPortType)
                "`StopFlag` — a stop request is a port of exactly `StopFlag`, rostered per port, " *
                "so publish the flag as a port of its own (§13.5, D-316)"
     d.reason === :stop_flag_at_root &&
-        return "$(_at_path(d.path)): root input `$(d.name)` is a `StopFlag`, and a stop request " *
+        return "$(_at_path(d.path)): root input `$(d.name)` carries a `StopFlag`, and a stop request " *
                "is the model's, never an operator's — feed its consumers from a component's " *
                "`StopFlag` port, and stop a run from outside with `stop!` (§12.1, §13.5, D-316)"
     "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which has no leaves"

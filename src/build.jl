@@ -577,8 +577,10 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
     end
     for (i, face) in enumerate(structure.root_inputs)
         cell_type = _root_input_cell(structure, decls, i, face, T)
-        # A request is the model's, never an operator's (§12.1, §13.5, D-316).
-        if cell_type === StopFlag
+        # A request is the model's, never an operator's (§12.1, §13.5, D-316),
+        # so a root input carrying a `StopFlag` anywhere is refused. A mutable
+        # `cell_type` is left to `place!`'s own arm, as in the check below.
+        if mutable_position(cell_type) === nothing && StopFlag in leaf_types(cell_type)
             push!(diags, IllegalPortType(path = "", site = :root_input, name = face,
                                          declared = cell_type, reason = :stop_flag_at_root))
             continue

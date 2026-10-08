@@ -17,6 +17,14 @@ two_ramps(level_a, level_b) =
 two_ramps_swapped(level_a, level_b) =
     Group((; b = ramp_request(level_b, "b at level"), a = ramp_request(level_a, "a at level")))
 
+# Two requests on one component, both holding from boundary zero: one path
+# owns two roster entries (§13.5, D-316).
+struct TwoFlags <: AbstractComponent end
+x_init(::TwoFlags) = (;)
+y_types(::TwoFlags) = (fa = StopFlag, fb = StopFlag)
+y_state(::TwoFlags, _) = (fa = STOP_REQUESTED, fb = STOP_REQUESTED)
+stop_reason(::TwoFlags) = "two"
+
 # A root-input-fed trigger feeding a stop request: the boundary-zero stop's model.
 armed() = Group((; c = Trigger(0.5), stop = StopRequest(reason = "input at level"));
                 input_wires = ("in" => "c/sig",), local_wires = ("c/on" => "stop/request",))
@@ -341,6 +349,25 @@ function test_lifecycle()
         @test [r.path for r in swapped.exec.act.layout.requesters] == ["b/stop", "a/stop"]
         @test termination(swapped).source === ModelRequestedStop("b/stop", :flag, "b at level")
         @test swapped.exec.clock.frame == 4
+    end
+
+    @testset "two requests on one component share its path, named once (§13.5, D-316)" begin
+        sim = Simulation(Group((; tf = TwoFlags())); h = 1//10)
+        init!(sim)
+        run!(sim; t_end = 0.5, ignore_stop_requests = :all)
+        @test termination(sim).source === EndTimeReached()
+        @test termination(sim).policy.ignored == ["tf"]                 # the path once, not per port
+        init!(sim)
+        run!(sim; t_end = 0.5, ignore_stop_requests = ("tf",))
+        @test termination(sim).source === EndTimeReached() && termination(sim).t == 0.5
+        @test port(latest(sim), "tf", :fa) === STOP_REQUESTED &&
+              port(latest(sim), "tf", :fb) === STOP_REQUESTED
+        init!(sim)
+        d = only(diagnostics(failure(() -> run!(sim; t_end = 0.5, ignore_stop_requests = ("nope",)))))
+        @test d isa StopRequestInvalid && d.candidates == ["tf"]
+        run!(sim; t_end = 0.5)                          # the first port in roster order names it
+        @test termination(sim).source === ModelRequestedStop("tf", :fa, "two")
+        @test termination(sim).t == 0.0
     end
 
     @testset "a tick-detected request stops at the tick's own boundary (§10.5, D-316)" begin

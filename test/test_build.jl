@@ -825,6 +825,13 @@ u_types(::FlagReader) = (flag = StopFlag,)
 y_types(::FlagReader) = (stopped = Bool,)
 y_direct(::FlagReader, (; u)) = (stopped = u.flag === STOP_REQUESTED,)
 
+# A consumer whose input nests a `StopFlag`, surfacing as a root input.
+struct NestedReader <: AbstractComponent end
+x_init(::NestedReader) = (;)
+u_types(::NestedReader) = (status = @NamedTuple{flag::StopFlag, x::Float64},)
+y_types(::NestedReader) = (stopped = Bool,)
+y_direct(::NestedReader, (; u)) = (stopped = u.status.flag === STOP_REQUESTED,)
+
 function build_port_type_refusals()
     @testset "a mutable port, a handle at root and a misplaced stop request are refused (§4.4, §13.5, D-237, D-316)" begin
         d = only(diagnostics(failure(() -> build(Group((; c = MutableSource()))))))
@@ -868,6 +875,13 @@ function build_port_type_refusals()
                                                        input_wires = ("stop" => "r/flag",))))))
         @test d isa IllegalPortType && d.reason === :stop_flag_at_root
         @test d.site === :root_input && path(d) == "" && d.name === :stop && d.declared === StopFlag
+        # A root input nesting the flag is the operator's request too, refused
+        # at the root rather than as a nested port.
+        d = only(diagnostics(failure(() -> build(Group((; r = NestedReader());
+                                                       input_wires = ("st" => "r/status",))))))
+        @test d isa IllegalPortType && d.reason === :stop_flag_at_root
+        @test d.site === :root_input && path(d) == "" && d.name === :st
+        @test d.declared === @NamedTuple{flag::StopFlag, x::Float64}
     end
 
     @testset "a root input the synthesis chain cannot value is `MissingProbeValue`, collected (§9.3, D-051)" begin

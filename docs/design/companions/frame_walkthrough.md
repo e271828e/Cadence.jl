@@ -32,15 +32,15 @@ boundary, publishes, and scans the stop requests:
 entry = sim.exec.clock.frame
 drain!(sim, roster)
 k = (sim.exec.clock.frame += 1)
-hit = frame!(sim, k, pol, ignore_mask, roster, pacer)
+hit = frame!(sim, k, ignore_mask, roster, pacer)
 if hit === nothing
     k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)
     publish!(sim, roster, pacer)
-    hit = _stop_hit(sim, pol, ignore_mask)
+    hit = _stop_hit(sim, ignore_mask)
 ```
 
 `roster` is the run's copy of the roster, bound once at `run!` ([§11.3][s11-3]),
-`pol` and `ignore_mask` the advance's stop policy with its mask of ignored requesters
+`ignore_mask` the advance's stop policy compiled into a mask of ignored requesters
 ([§13.5][s13-5]), and `pacer` the run's pacer ([§10.7][s10-7]), all threaded
 through the loop as arguments. Three things happen in order. `drain!`
 applies the device writes, `frame!`
@@ -68,8 +68,8 @@ never by accumulation, and picks the path:
 
 ```julia
 t_to = _grid_time(sim, k)                      # t₀ + k·h
-sim.has_localized ? _localized_frame!(sim, t_to, pol, addrs, roster, pacer) : step!(sim, T(sim.h))
-sim.policy.hit === nothing && (sim.exec.clock.t = t_to)
+hit = sim.has_localized ? _localized_frame!(sim, t_to, ignore_mask, roster, pacer) : step!(sim, T(sim.h))
+hit === nothing && (sim.exec.clock.t = t_to)
 ```
 
 A model with no localized events takes one bare `step!`. Ours enters
