@@ -537,7 +537,11 @@ field name with dotted and bracketed steps below it), `"pose.q_eb"`
 returns are rejected ([D-036][d-036]).
 
 A port value's leaves are what the leaf walk reaches through `Real`s, static
-arrays and isbits structs. An enum is one leaf, pinned ([§8.2][s8-2]). The walk
+arrays and isbits structs. An enum is one leaf, pinned ([§8.2][s8-2]).
+`StopFlag` is the one enum with a framework meaning. An output port of that
+type is a [stop request](#g-stop-request) (a port that ends the run when it
+reads `STOP_REQUESTED`), and a `StopFlag` nested in a port of another type or
+declared as a root input is refused (`IllegalPortType`, [§13.5][s13-5], [D-316][d-316]). The walk
 stops at an immutable type that is not isbits and treats it as one opaque leaf
 (a leaf the table stores whole, references included). That leaf is the
 [field handle](#g-field-handle) ([§4.4][s4-4]). A `Symbol` is an opaque leaf too. Julia classifies
@@ -2095,7 +2099,7 @@ extension-only periphery surface. A component module therefore opens with
 import Redstone: x_init, s_init, m_init, ws_init, u_types,
     y_types, state_events, y_state, y_direct, x_deriv,
     s_update, x_projection, local_wires, input_wires,
-    output_wires, sample_times, transparent_container
+    output_wires, sample_times, transparent_container, stop_reason
 ```
 
 The explicit list is needed because `using Redstone` alone is a silent trap.
@@ -2134,8 +2138,8 @@ check throws alone because nothing the module declares can be trusted. Every
 declaration it holds may have gone to a foreign function, and a walk past it
 would only report cascades of the one cause. It runs on every component rather
 than only where an absence is noticed, because an optional declaration such as
-`state_events` or `sample_times` has no absence to notice. Shadowed, it would
-drop its feature silently.
+`state_events`, `sample_times` or `stop_reason` has no absence to notice.
+Shadowed, it would drop its feature silently.
 
 A convenience macro expanding to the import list remains addable a posteriori
 as sugar, per this section's macro doctrine. A re-export submodule is not an
@@ -2352,10 +2356,11 @@ which must have contents before the first sweep can run.
 #### Input contracts: `u_types`
 
 A `u_types` declaration is a bare `NamedTuple` of types, written at nominal
-`Float64` and taking the component alone on both tiers ([D-263][d-263]). The one
-piece of framework vocabulary it admits is the `Pinned{P}` marker (above). It
-wraps the whole entry, and **a marker below the top of an entry is
-`IllegalPortType`** ([D-265][d-265]).
+`Float64` and taking the component alone on both tiers ([D-263][d-263]). It
+admits two pieces of framework vocabulary. One is the `Pinned{P}` marker
+(above). It wraps the whole entry, and **a marker below the top of an entry
+is `IllegalPortType`** ([D-265][d-265]). The other is a `StopFlag` entry, which
+places nothing and is left alone ([§13.5][s13-5]).
 
 On a continuous consumer the declaration is [walked](#g-walked), which means
 that every `Float64` position follows the scalar and a `Pinned` leaf stays
@@ -2691,6 +2696,15 @@ show.
 - "`s_init` field `label::String` is not a store value — store fields are
   isbits or `Symbol`s; text and bulk data belong on the component instance
   ([§7.3][s7-3])".
+
+A `StopFlag` output entry is a [stop request](#g-stop-request) (a port that
+ends the run when it reads `STOP_REQUESTED`, [§13.5][s13-5]). Its companion
+declaration is optional. **`stop_reason(c)` returns the `String` a
+component's stop requests report, and it defaults to `""`** ([D-316][d-316]). The
+build reads it for every component that publishes a `StopFlag` port, and all
+of a component's requests share it. The reason is instance data, never a
+port value, so the isbits rule never meets it. It is a family name, in the
+import list of [§8.1][s8-1], so the shadowing check covers it.
 
 #### Events: `state_events`
 
@@ -4332,10 +4346,11 @@ Exceptions from model code are always abnormal ([§13.5][s13-5],
 
 Three habits of shipped landing-gear code have sanctioned spellings:
 
-- A *plausibility* check meaning "stop the run" is a published `Bool` output
-  face plus `stop_on` ([§13.5][s13-5], [D-060][d-060], [D-285][d-285]).
-  A landing-gear strut model that throws on a touchdown overload is one such check. The face and
-  `stop_on` are machinery already there.
+- A *plausibility* check meaning "stop the run" is a
+  [stop request](#g-stop-request), a published `StopFlag` port, which
+  `StopRequest` spells ([§13.5][s13-5], [D-060][d-060], [D-285][d-285], [D-316][d-316]).
+  A landing-gear strut model that throws on a touchdown overload is one such
+  check. The request is machinery already there.
 - A *self-consistency* assert, such as an author checking that their own
   contact algebra cancels a velocity component to a hard tolerance, is a
   regression test about that algebra. Its home is the test suite
@@ -5463,8 +5478,9 @@ accounting is scoped to this boundary ([D-181][d-181]). The budget is fresh
 again at tₙ₊₁, and again at a second `t*` on the remainder.
 
 The settled state is then published. That means a snapshot, the
-boundary-counter increment of [§12.3][s12-3] and the [`stop_on`](#g-stop_on)
-check (the read of the termination faces `stop_on` names, [§13.5][s13-5]). A
+boundary-counter increment of [§12.3][s12-3] and the
+[stop request](#g-stop-request) scan (the read of the `StopFlag` cells the
+advance honours, [§13.5][s13-5]). A
 crash localized at `t*` ends the run from that snapshot.
 
 Two things do not happen at `t*`. Ticks are never due there
@@ -7167,8 +7183,8 @@ rather than restores ([§12.7][s12-7]).
   address with its type, and the event list in the order of the priors. Both
   are taken at the same instant
   as the state. The deployment holds no policy
-  ([D-255][d-255]). `t_end` and `stop_on` are keywords of each advance
-  ([§13.5][s13-5]), and only the terminating advance's policy explains the
+  ([D-255][d-255]). `t_end` and `ignore_stop_requests` are keywords of each
+  advance ([§13.5][s13-5]), and only the terminating advance's policy explains the
   stop, so the [termination record](#g-termination-record) carries that one.
 
 **`Trace{T}` is that fixed header plus two append-only lists**, `schemas` and
@@ -8150,8 +8166,9 @@ whatever initiated it. Steps (6) and (7) specify what happens when a device
 task or the loop itself ends first.
 
 1. **Initiation.** Three events start a shutdown: `t_end` is reached, a
-   control-plane stop is issued, or a `stop_on` [face](#g-face) reads `true`
-   in the just-published [snapshot](#g-snapshot). The stop's issuers are the
+   control-plane stop is issued, or a [stop request](#g-stop-request) the
+   advance honours reads `STOP_REQUESTED` in the just-published
+   [snapshot](#g-snapshot). The stop's issuers are the
    GUI, a [device](#g-device) handle, code, or an
    [operator interrupt](#g-operator-interrupt) (Ctrl-C, treated below). The
    third event is model-detected termination ([§13.5][s13-5]). The loop
@@ -8232,8 +8249,8 @@ the run's own clock. The run takes whole frames until the boundary time
 first covers the duration.
 
 **The two termination sources differ in kind.** `t_end` is a grid fact,
-checked against boundary times on the grid. `stop_on` is checked at *every*
-published boundary, `t*` included ([§13.5][s13-5]).
+checked against boundary times on the grid. Stop requests are checked at
+*every* published boundary, `t*` included ([§13.5][s13-5]).
 
 **Why the default is five seconds.** It is generous for GUI window teardown
 and socket closes. It is short enough that an abandoned join reads as a
@@ -8386,7 +8403,7 @@ services and resumable by the next `run!` ([§12.6][s12-6]).
 
 The interrupt is the escape from a run nothing else can end. Such a run is
 deviceless, and it declares no stop of its own. A run with no finite `t_end`
-and no `stop_on` faces is the configuration `UnboundedRun` names
+and no honoured stop request is the configuration `UnboundedRun` names
 ([Appendix C][sC]). The interrupt needs no entry point of its own. The stop
 already rides on the [control plane](#g-control-plane), the separate atomic
 surface carrying pause, pace and stop ([§12.1][s12-1]). The
@@ -8412,11 +8429,12 @@ wait and pause blocks. All of those points are boundary-consistent. Caught
 at one of them, the interrupt sets the control-plane stop and enters this
 tail. The catch site ([§13.4][s13-4]) therefore never sees it.
 
-**A deferred interrupt yields to the frame's own stop face** ([D-268][d-268]).
-The stop faces are consulted at each publication and the stop word at the
+**A deferred interrupt yields to the frame's own stop request** ([D-268][d-268]).
+Stop requests are consulted at each publication and the stop word at the
 next frame top ([§13.5][s13-5]), and the deferred raise lands between the
-two. Where the frame's publication found a face holding, that face is the
-recorded source and the interrupt is satisfied by the run ending. Where none
+two. Where the frame's publication found an honoured request holding, that
+request is the recorded source and the interrupt is satisfied by the run
+ending. Where none
 held, the interrupt sets the stop word and the source is
 `ControlRequestedStop(:interrupt)`.
 
@@ -8468,7 +8486,7 @@ interrupt repair (5)'s honest asymmetry, since nothing can abandon the task
 default (`exit_on_sigint(true)`) kills the process on SIGINT before any of
 this machinery runs. The framework flips nothing process-global.
 [Unattended runs](#g-unattended-run), those with empty staging and no
-snapshot readers, rely on `t_end` and `stop_on`, as they already must.
+snapshot readers, rely on `t_end` and stop requests, as they already must.
 
 ### 12.5 Scripts and the mid-run mutation doctrine
 
@@ -8537,9 +8555,9 @@ else. Anything that wants to poke the model mid-run is one of three things.
 It is an *input* in disguise, so wire a root input and a guard. It is *model
 behavior* in disguise, so add a scenario component. Or it is a *wall-clock
 interaction*, so attach a device. Graceful termination follows the same
-shape ([§13.5][s13-5]): a declared stop [face](#g-face) in the model, plus
-the `stop_on` keyword on the advance. Never a callback, and never a thrown
-exception.
+shape ([§13.5][s13-5]): a [stop request](#g-stop-request) declared in the
+model, honoured unless the advance ignores it. Never a callback, and never a
+thrown exception.
 
 ### 12.6 Run lifecycle and partial advance
 
@@ -8579,7 +8597,7 @@ deployment's ([§9.2][s9-2]). `chunk_size`, the stepper and the arrival buffers
 are the executor's. `join_timeout` is `Control`'s ([§12.1][s12-1]). The loop's
 [diagnostic cell](#g-diagnostic-cell), its account and the published holder
 are the plane's ([§11.8][s11-8]). The log and the trace are the run's. The
-stop policy, with its `t_end` and stop faces, is the advance's argument, and
+stop policy, with its `t_end` and ignored requesters, is the advance's argument, and
 the [termination record](#g-termination-record) keeps the terminating one
 ([D-260][d-260]). The pacer's schedule and counters are `run!`'s own, created
 per call and passed to the loop and its publications as the policy is, and
@@ -8670,7 +8688,7 @@ boundary zero". `run!` may therefore follow `step!`, continuing from the
 current boundary, and so may another `step!`.
 
 Termination policy is honored throughout, as bit-identity requires. `t_end`
-reached, or a `stop_on` [face](#g-face) [holding](#g-edge-semantics) at
+reached, or a [stop request](#g-stop-request) [holding](#g-edge-semantics) at
 frame 3 of `step!(sim; frames = 10)`, ends the run there through the
 ordinary [§12.4][s12-4] tail and leaves the simulation `stopped`. `step!`
 therefore returns the number of frames **actually advanced**. That is the
@@ -8726,14 +8744,15 @@ appears at the next `run!`.
 end attached by hand is still rostered, so the next `run!` spawns its task
 again.
 
-**The stop policy is declared per advance.** `t_end` and `stop_on` are
-keywords of `run!`, `replay!` and `step!`, and each call builds and validates
-the [`StopPolicy`](#g-stop-policy) (the immutable `t_end`-plus-stop-faces
-value an advance declares) it passes to the loop ([§13.5][s13-5],
-[D-255][d-255]). The value lives as long as the call, and afterwards only on
-the termination record of the advance that ended the run ([D-260][d-260]). A
-second run, or a `step!` sequence between two runs, can therefore stop on a
-different clock or a different face set without a rebuild.
+**The stop policy is declared per advance.** `t_end` and
+`ignore_stop_requests` are keywords of `run!`, `replay!` and `step!`, and each
+call builds and validates the [`StopPolicy`](#g-stop-policy) (the immutable
+value of `t_end` plus the ignored requester paths) it passes to the loop
+([§13.5][s13-5], [D-255][d-255], [D-316][d-316]). The value lives as long as the call,
+and afterwards only on the termination record of the advance that ended the
+run ([D-260][d-260]). A second run, or a `step!` sequence between two runs,
+can therefore stop on a different clock or honour a different set of stop
+requests without a rebuild.
 
 **`errored` is terminal** ([D-059][d-059]). Reproduction is trace replay
 ([§12.7][s12-7]), not resurrection.
@@ -8827,10 +8846,12 @@ Everything else is the loop as already specified:
   root-finding over trial sweeps) is reproduced but not stoppable-at.
   [§10.4][s10-4] separates the two indices. The trace stays frame-indexed,
   and boundaries are the reporting index. Replay may also end earlier still
-  under the ordinary policies, since `t_end` and `stop_on` are keywords of
-  `replay!` exactly as of `run!` ([§12.6][s12-6]). A termination the
-  recorded session hit through `stop_on` reproduces itself anyway,
-  deterministically.
+  under the ordinary policies, since `t_end` and `ignore_stop_requests` are
+  keywords of `replay!` exactly as of `run!` ([§12.6][s12-6]). A termination
+  the recorded session hit through a stop request reproduces itself anyway,
+  deterministically. A replay honours requests by default too, and the trace
+  header records no policy, so a live run that ignored some is replayed
+  under the same `ignore_stop_requests`.
 - **`to_time` addresses the same halt by time.** The keyword is mutually
   exclusive with `to_boundary`, and it halts at the **last frame top at or
   before** the time given: `k = ⌊(to_time − t₀)/h⌋` against the header's
@@ -8968,8 +8989,8 @@ Everything else is the loop as already specified:
 
   The clock is *restored*, not compared. Replay restores `t₀` with the rest
   of the clock, so `replay!` takes no `t0` argument. The checkpoint holds no
-  policy ([D-255][d-255]). `t_end` and `stop_on` are keywords of this
-  `replay!` call, validated per call as at `run!`.
+  policy ([D-255][d-255]). `t_end` and `ignore_stop_requests` are keywords of
+  this `replay!` call, validated per call as at `run!`.
 
 The dispositions, by trace content:
 
@@ -8980,7 +9001,7 @@ The dispositions, by trace content:
 | each writer's face-name → position schema (on the trace's `schemas` list) | validated against the target model's root-input faces: disagreement is a replay error |
 | the checkpoint's state | restored; no boundary zero |
 | the clock | restored, `replay!` takes no `t0` |
-| `t_end`, `stop_on` | absent from the checkpoint; each `replay!` call declares its own ([§13.5][s13-5]) |
+| `t_end`, `ignore_stop_requests` | absent from the checkpoint; each `replay!` call declares its own ([§13.5][s13-5]) |
 
 Rejected shapes, for the record ([D-101][d-101]): a `run!(sim; replay = trc)`
 flag, a synthetic playback device staging the recorded batches, and replay
@@ -9253,7 +9274,7 @@ runtime warnings, in one place, are these.
   catches a device task's failure, and the sim continues with the device
   absent.
 - **Unbounded run** ([§13.5][s13-5]). `run!` is called in `:live` with
-  `t_end = Inf` and no `stop_on` faces. A `run!` in `:replay` is bounded by
+  `t_end = Inf` and no honoured stop request. A `run!` in `:replay` is bounded by
   the recording and raises nothing. `UnboundedRun` lands in the loop's own
   cell, because `run!` mutates state ([D-255][d-255]).
 
@@ -9536,56 +9557,109 @@ loop through declared machinery.
   precisely a zero-crossing. The boundary is localized to the crossing, the
   handler sets `m.crashed`, and the [snapshot](#g-snapshot) at the crossing
   instant carries the touchdown state.
-- **Publication** is an ordinary `Bool` output [face](#g-face), exported to
-  the root. The condition is gathered at its owning boundary in one visible
-  block. `Ldg` ORs its three legs through a junction (the ownership idiom,
-  [§6.2][s6-2]; the library, [§13.7][s13-7]) and exports one `damaged` face.
-  Each [assembly](#g-assembly) above it re-exports that single face. That
-  takes one `output_wires` entry per level ([§6.1][s6-1]), or
-  `output_passthrough` where a level re-exports a child's surface wholesale
-  ([§8.8][s8-8]). That hop is the substitutability [contract](#g-contract)
-  doing its job, not plumbing (the imposed derived contract, [§8.8][s8-8]).
-- **Policy** is declared per advance. `t_end` and `stop_on` are keywords of
-  `run!` and `replay!`, with `Inf` and no faces as defaults, and `step!`
-  states the same defaults itself ([D-255][d-255]). `stop_on` names
-  root-exported `Bool` output faces. They are OR-combined and validated
-  against the `Build` on every call. Each advance builds a
+- **Publication** is a [stop request](#g-stop-request) (an output port of
+  the framework enum `StopFlag`), declared where the condition is detected.
+  **A port whose type is exactly `StopFlag` is a stop request, whoever
+  publishes it** ([D-316][d-316]). The enum is `@enum StopFlag NO_STOP STOP_REQUESTED`.
+  An enum is one leaf, pinned at every activation ([§4.3][s4-3]), and cells are
+  stored per element type ([§9.7][s9-7]), so every request in the model lands in one
+  `StopFlag` block. The condition is gathered at its owning boundary in one
+  visible block. `Ldg` ORs its three legs through a junction (the ownership
+  idiom, [§6.2][s6-2]; the library, [§13.7][s13-7]) and wires the result into a `StopRequest`
+  child, the library's spelling of a request (below). No level above it
+  re-exports anything, because the loop reads the request where it is.
+- **Placement** is checked at build. **A `StopFlag` leaf nested inside a
+  port of another type is `IllegalPortType`, and so is a root input declared
+  `StopFlag`** ([D-316][d-316]). The first is refused because the build rosters
+  requests per port, so a request inside a struct field or a static array
+  would have no entry of its own. The second is refused because a request is
+  the model's, never an operator's. The operator's path is the
+  [control plane](#g-control-plane) ([§12.1][s12-1]). A `StopFlag` input port places
+  nothing and is left alone.
+- **The roster** names every request. **The build records one
+  `Requester(path, port, reason)` per `StopFlag` output port, as the
+  `requesters` of the activation's cell layout, index-aligned with the
+  `StopFlag` block** ([D-316][d-316]). Entry `i` owns the block's offset `i - 1`, and
+  roster order is build order. The reason is the publishing component's
+  `stop_reason`, an optional declaration with default `""` ([§8.2][s8-2]). One
+  reason serves all of a component's requests. It is instance data on the
+  component, never a port value.
+- **Policy** is declared per advance. `t_end` and `ignore_stop_requests` are
+  keywords of `run!` and `replay!`, with `Inf` and `()` as defaults, and
+  `step!` states the same defaults itself ([D-255][d-255]). **Every request is
+  honoured unless the advance ignores it** ([D-316][d-316]).
+  `ignore_stop_requests = :all` ignores every requester. An iterable of
+  strings names requesters by component path. Each path is validated against
+  the roster on every call, and duplicates collapse, in the order given. A
+  path naming no requester is `StopRequestInvalid`, collected over the given
+  paths ([Appendix C][sC]). Each advance builds a
   **[`StopPolicy`](#g-stop-policy)**,
-  the immutable value of `t_end` plus the stop faces, and passes it to the
-  loop with the faces' compiled addresses as a second argument
-  ([D-261][d-261]). The value lives as long as the
+  the immutable value of `t_end` plus the ignored requester paths, and passes
+  it to the loop with an ignore mask, one `Bool` per requester, as a second
+  argument ([D-261][d-261]). The value lives as long as the
   call, and afterwards only on the termination record of the advance that
   ended the run ([§12.6][s12-6], [D-260][d-260]). A `t*` hit reaches the
   loop as `frame!`'s return value, never as a field of the policy or of the
   [execution cursor](#g-execution-cursor) ([D-261][d-261]).
-  After *every* published boundary the loop reads the named faces in the
-  snapshot it just published. Grid boundaries, `t*` ([§10.4][s10-4]) and
-  [boundary zero](#g-boundary-zero) ([§14.5][s14-5]) all count. The first
-  `true` initiates [§12.4][s12-4] shutdown with *this* snapshot as the final
-  one. The terminal snapshot is the terminal state. There is no roll-back, and
-  nothing [§12.4][s12-4] does not already do. That terminal snapshot's status
-  carries the run's final cumulative diagnostic counters ([§11.8][s11-8]).
+  After *every* published boundary the loop scans the `StopFlag` block of
+  the snapshot it just published, in roster order. Grid boundaries, `t*`
+  ([§10.4][s10-4]) and [boundary zero](#g-boundary-zero) ([§14.5][s14-5]) all count. The first
+  honoured request reading `STOP_REQUESTED` initiates [§12.4][s12-4] shutdown with
+  *this* snapshot as the final one. The terminal snapshot is the terminal
+  state. There is no roll-back, and nothing [§12.4][s12-4] does not already do. That
+  terminal snapshot's status carries the run's final cumulative diagnostic
+  counters ([§11.8][s11-8]).
   `run!` therefore checks the boundary-zero snapshot before the first step. An
   authored [condition](#g-condition) (the path-addressed sparse overlay that
   sets a build's state) that is already terminal ends the run at `t₀` with
-  that snapshot final, integrating nothing. `stop_on` is `t_end`'s
-  model-declared sibling at the same declaration site.
+  that snapshot final, integrating nothing. The request is the author's and
+  the override the integrator's, and the override sits beside `t_end` at the
+  same declaration site.
 
-**An unbounded run is allowed.** `run!(sim)` with `t_end = Inf` and no stop
-faces is the interactive session's ordinary shape, and the
-[operator interrupt](#g-operator-interrupt) is its escape ([§12.4][s12-4]).
+**The library spelling is `StopRequest`.** It is a stateless continuous
+leaf in the mould of `Constant` ([§13.7][s13-7]). Its one input is the `Bool`
+condition, its one output the flag, and its reason is instance data.
+
+```julia
+# StopRequest — a stateless continuous leaf; its reason is instance data
+struct StopRequest <: AbstractComponent
+    reason::String
+end
+StopRequest(; reason = "") = StopRequest(reason)
+x_init(::StopRequest) = (;)
+u_types(::StopRequest) = (request = Bool,)
+y_types(::StopRequest) = (flag = StopFlag,)
+y_direct(::StopRequest, (; u)) = (flag = u.request ? STOP_REQUESTED : NO_STOP,)
+stop_reason(c::StopRequest) = c.reason
+```
+
+Its output is consumed by nobody, which [§6.1][s6-1] allows silently ([D-084][d-084]).
+`StopRequest` is continuous, so it refreshes at every boundary, `t*`
+included. Assemblies are virtual for execution and rate scopes touch
+discrete children only, so one leaf sits anywhere in the tree ([§10.5][s10-5],
+[D-019][d-019]). Fed by a discrete detector, it sees the tick at the tick's own
+boundary, because the boundary sweep walks the full execution order in
+topological order ([§10.5][s10-5], [D-147][d-147]). The block holds no privilege. Any
+component may publish a `StopFlag` port directly.
+
+**An unbounded run is allowed.** `run!(sim)` with `t_end = Inf` and no
+honoured request is the interactive session's ordinary shape, and the
+[operator interrupt](#g-operator-interrupt) is its escape ([§12.4][s12-4]). The model
+may have no requester, or the advance may ignore them all.
 The loop raises `UnboundedRun` into its own [diagnostic cell](#g-diagnostic-cell),
-and the status record carries it ([§11.8][s11-8], [D-255][d-255]). The
+and the status record carries it ([§11.8][s11-8], [D-255][d-255], [D-316][d-316]). Its message says
+which of the two cases holds. The
 advisory fires in `:live` only. A `run!` in `:replay` is bounded by the
 recording, whatever its policy says ([§12.7][s12-7], [D-218][d-218]).
 
 ```julia
 sim = Simulation(world; h = 0.02)          # no policy here: the deployment has none
 
-init!(sim, cond); run!(sim; t_end = 60, stop_on = (…))  # this advance's policy
-init!(sim, cond); run!(sim; t_end = 10)                 # a different one, no rebuild
-init!(sim, cond); step!(sim; frames = 100)              # Inf and no faces, the defaults
-init!(sim, cond); run!(sim)                             # unbounded: UnboundedRun, then fly
+init!(sim, cond); run!(sim; t_end = 60)                     # every request honoured
+init!(sim, cond); run!(sim; t_end = 60,
+                        ignore_stop_requests = ("ldg/stop",))  # one requester ignored, by path
+init!(sim, cond); step!(sim; frames = 100)                  # Inf and (), the defaults
+init!(sim, cond); run!(sim; ignore_stop_requests = :all)    # unbounded: UnboundedRun, then fly
 ```
 
 **Why one binding site.** A `StopPolicy` is what the caller declares for one
@@ -9614,8 +9688,10 @@ kinds.
 - `EndTimeReached` means `t_end`'s frame completed. It has no payload. The
   record's own `t` is the fact, and the bound that was configured is in the
   record's own policy.
-- `ModelRequestedStop` means a named `stop_on` face read `true`. The payload
-  is the holding face.
+- `ModelRequestedStop` means an honoured stop request read `STOP_REQUESTED`.
+  The payload is the requester's component path, its port and its reason.
+  When two requests hold at one boundary, the record names the first in
+  roster order ([D-316][d-316]).
 - `ControlRequestedStop` means a control-plane stop. The payload is its issuer
   ([§12.1][s12-1]): the requesting device, `:code`, or `:interrupt`.
 - `LoopError` means the abnormal entry of [§13.6][s13-6]. The payload is the
@@ -9630,45 +9706,58 @@ a [kind](#g-kind) of its own, because nothing failed. [Appendix C][sC] gains
 nothing from it.
 
 **Rule.** The sources are consulted in a fixed order. The loop checks a pending
-control stop at frame top, then `t_end`, then the stop faces at each
+control stop at frame top, then `t_end`, then the stop requests at each
 publication. When two sources hold at one boundary, the recorded source is the
 first in that order ([D-203][d-203]).
 
-The taught contract is this. **Stop faces are sampled at completed boundaries;
-declare a sign-form event if you need the stop localized.** Both stop-flag
-shapes work without framework latching. A handler-set `m` flag is sticky by
-nature. A transient stage-2 Bool is caught because the loop reacts to the
-first `true`. Compound stop logic composes in-model, as a monitor
-[component](#g-component) reading the relevant signals and outputting one
-Bool. That is the same move [§12.5][s12-5] made for scripts.
+The taught contract is this. **Stop requests are sampled at completed
+boundaries; declare a sign-form event if you need the stop localized.** Both
+shapes of the condition feeding a request work without framework latching. A
+handler-set `m` flag is sticky by nature. A transient stage-2 Bool is caught
+because the loop reacts to the first request it reads holding. Compound stop
+logic composes in-model, as a monitor [component](#g-component) reading the
+relevant signals and feeding one request. That is the same move [§12.5][s12-5] made
+for scripts.
+
+An ignored request is still a cell in every snapshot, so the log records when
+validity broke even on a run that continued. Two uses share the mechanism,
+validity breakdown and scenario completion. The reason string is what tells a
+reader which, and the framework never will.
 
 Post-terminal dynamics are the model's job, and that is a feature. Today
 `robot2d` *throws* when it falls, because it has no other way to say "my
 dynamics are no longer meaningful". Here it declares the fall as an event,
-switches to a frozen mode, and exports `fallen`. The frozen mode is a
-mode-dependent `x_deriv`, machinery the model already has. Wired, the
-sim ends at the fall. Unwired, it integrates a frozen robot, which is
-well-defined, unlike an uncaught throw. The discipline forces models to have
-well-defined terminal states, which is better modeling.
+switches to a frozen mode, and feeds `fallen` to a stop request. The frozen
+mode is a mode-dependent `x_deriv`, machinery the model already has.
+Honoured, the request ends the sim at the fall. Ignored, the sim integrates a
+frozen robot, which is well-defined, unlike an uncaught throw. The discipline
+forces models to have well-defined terminal states, which is better modeling.
 
-The rejected mechanisms are litigated in [D-060][d-060]. They are predicate
+The rejected mechanisms are litigated in [D-060][d-060] and [D-316][d-316]. They are predicate
 closures (`stop_when = snap -> …`), root-type-declared stop policy,
-[blessed](#g-blessed) terminal types and `terminal` event flags, a
-[control-plane](#g-control-plane) capability for [components](#g-component),
-and observation-by-path (`stop_on` naming a deep path into any public output).
-An advance that names no face while the model publishes one is the
-silent omission; it is met by diagnosis, not by policy (stop candidates,
-`pending.md`).
+`terminal` event flags, a [control-plane](#g-control-plane) capability for
+[components](#g-component), and observation-by-path (an advance naming a deep
+path into any public output). The `Bool` face re-exported level by level to
+the root and named by the advance fell to stop requests ([D-316][d-316]). [D-060][d-060] also
+rejected [blessed](#g-blessed) terminal types scanned from the tree. The stop
+request supersedes that arm on its own terms. The requester is loud at
+inspection, since the roster and the termination record name it.
+Substitution is answered by the override, and disabling is one keyword. The
+trigger is the author's knowledge and the override the integrator's.
 
-The observation-by-path line leaves doctrine behind it. **Inspection** is
-human-facing, has no effect on run semantics, and legitimately sees every
-public [cell](#g-cell). The log retaining the full table, GUI panels
-rendering a component's [ports](#g-port), and [replay](#g-replay) inspection
-are all inspection. **A read the run acts on** changes what the run *does*,
-and it must speak the [contract](#g-contract). `stop_on` is the one read that
-changes what the run does, which is why it alone names root-exported faces.
-Output devices are the other half of the same doctrine. Their reads are
-inspection bindings on snapshot paths ([§11.2][s11-2]).
+The observation-by-path line leaves doctrine behind it, narrowed by [D-316][d-316].
+**Inspection** is human-facing, has no effect on run semantics, and
+legitimately sees every public [cell](#g-cell). The log retaining the full
+table, GUI panels rendering a component's [ports](#g-port), and
+[replay](#g-replay) inspection are all inspection. **A read the run acts on**
+changes what the run *does*, and it reads only what the model declared for
+it, never an arbitrary cell. The stop scan is the one such read. It reads the
+`StopFlag` block, which holds nothing but the requests their authors declared
+by type. The ignore list addresses the `Build`'s requester roster, a build
+product like the root-input list. It binds at an advance, a stopped-sim point
+where conditions already address state by path ([§14.1][s14-1]). Output devices are
+the other half of the same doctrine. Their reads are inspection bindings on
+snapshot paths ([§11.2][s11-2]).
 
 The wall-clock channel (GUI stop button, device handle, code) is orthogonal
 and untouched. That is the [control plane](#g-control-plane)'s operator path.
@@ -9778,9 +9867,13 @@ promise ([§6.2][s6-2]).** That promise rests on explicit junctions being
 
 The starting inventory holds the
 `Junction`, with `SumJunction{V, N}`, `Or{N}` and `And{N}` as its named
-forms, `UnitDelay{V}`, `Constant{V}` and `Freeze{V}`. `UnitDelay` is the spelling the second
+forms, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}` and `StopRequest`. `UnitDelay` is the spelling the second
 loop-breaking remedy ([§5.5][s5-5]) needs. `Constant{V}` is the source block.
-`Freeze{V}` is the declared stop-gradient ([D-266][d-266]).
+`Freeze{V}` is the declared stop-gradient ([D-266][d-266]). `StopRequest` is
+the library spelling of a [stop request](#g-stop-request) (a port that ends
+the run when it reads `STOP_REQUESTED`, [§13.5][s13-5], [D-316][d-316]). The request
+is its port's `StopFlag` type, which any component may publish, so the block
+holds no privilege.
 **A block joins the library's inventory by judgement against three
 guidelines** ([D-313][d-313]). The guidelines ask whether a block is
 domain-agnostic and generally useful, whether it has didactic value, and
@@ -10365,9 +10458,10 @@ sides restated as a resolver property.
   inspection clients that actually hold stores (`checkpoint`, post-run
   inspection). A snapshot-bound reader is barred from them by source, not by
   client.
-- **`stop_on` is not a family client.** It names root-exported `Bool` output
-  faces, period ([§13.5][s13-5], [D-060][d-060]). Termination is run policy
-  against the root contract, and no path selector reaches `stop_on`.
+- **`ignore_stop_requests` is not a family client.** It names requesters
+  from the `Build`'s requester roster, period ([§13.5][s13-5], [D-060][d-060],
+  [D-316][d-316]). Termination is run policy over the requests the model declares, and
+  no path selector reaches `ignore_stop_requests`.
 
 The five selectors, their sources, and their clients:
 
@@ -10439,9 +10533,10 @@ follow one by one.
   [boundary](#g-boundary) zero, so whatever fired at `t₀` comes back as
   part of the restored state and never fires twice ([§12.7][s12-7]). The
   checkpoint records the post-firing state faithfully and suppresses
-  nothing. A `stop_on` [face](#g-face) already `true` is a
-  different category. Nothing *fires*. The face simply reads `true` in the
-  published `t₀` snapshot and the loop reacts ([§13.5][s13-5]).
+  nothing. A [stop request](#g-stop-request) already reading
+  `STOP_REQUESTED` is a different category. Nothing *fires*. The request
+  simply holds in the published `t₀` snapshot and the loop reacts
+  ([§13.5][s13-5]).
 - **Due `s_update` calls run.** This follows from an interval-alignment
   fact that is easy to mis-picture. It is hereby a taught contract, sibling to
   the boundary-sampling line ([§8.6][s8-6]). **A boundary's `s_update`
@@ -11477,12 +11572,13 @@ For component authors:
   code is total over type-valid inputs. The probe evaluates every user
   function against values chosen for their types alone. A value-level throw
   is a build failure there and a `StepError` at runtime. Physical plausibility
-  is a published `Bool` and `stop_on`. Self-consistency asserts belong in
+  is a published stop request. Self-consistency asserts belong in
   tests. Parameter validation belongs at instance construction, not inside a
   stage.
-- **Stop-face sampling** ([§13.5][s13-5]). Stop faces are read in
+- **Stop-request sampling** ([§13.5][s13-5]). Stop requests are read in
   completed-boundary snapshots. Declare a sign-form (localized) event if the
-  stop needs localizing.
+  stop needs localizing. Every request stops the run unless the advance
+  ignores it.
 
 For periphery authors and consumers:
 
@@ -11562,6 +11658,8 @@ lifecycle.
 - Assembly. `local_wires` (mandatory, the class marker),
   `input_wires`, `output_wires`, `sample_times` and
   `transparent_container` (optional, default `nothing`).
+- Any component. `stop_reason` (optional, default `""`), the reason its stop
+  requests report ([§13.5][s13-5]).
 - Shipped conditions. `condition(::C; kw)` fragment functions, methods of
   the framework's `condition` generic ([§14.2][s14-2]).
 
@@ -11648,7 +11746,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   drivers ([§9.2][s9-2]).
 
   The [deployment](#g-deployment) (the scalar-free artifact the grid parameters
-  fix) binds no stop policy. `t_end` and `stop_on` are keywords of each advance
+  fix) binds no stop policy. `t_end` and `ignore_stop_requests` are keywords of each advance
   ([§13.5][s13-5]). A run ends at the first grid boundary
   reaching or exceeding `t_end`, whole frames only ([§12.4][s12-4]). An
   unbounded run stays bounded in memory, since `log_max` keeps such a session
@@ -11826,7 +11924,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Running.**
 
-- `run!(sim; pace = Inf, margin = 0.002, t_end = Inf, stop_on = ())`. `run!` blocks until the run ends. Deviceless, it
+- `run!(sim; pace = Inf, margin = 0.002, t_end = Inf, ignore_stop_requests = ())`. `run!` blocks until the run ends. Deviceless, it
   is fully synchronous on the calling task. `init!` is required first
   ([§12.6][s12-6]). Paced and unpaced runs are bit-identical ([§10.7][s10-7]).
 
@@ -11835,27 +11933,27 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   | `pace` | `Inf` | the run's pacing rate; `Inf` is pacer-off, `1` real time | [§10.7][s10-7] |
   | `margin` | `0.002` | the single pacing knob, in seconds | [§10.7][s10-7] |
   | `t_end` | `Inf` | the run's end time, declared for **this advance**, validated per call | [§13.5][s13-5] |
-  | `stop_on` | `()` | root-exported `Bool` output faces, OR-combined, declared for **this advance** and validated against the `Build` per call | [§13.5][s13-5] |
+  | `ignore_stop_requests` | `()` | the stop requesters **this advance** does not honour: `:all`, or their component paths, validated against the `Build`'s requester roster per call | [§13.5][s13-5] |
 
   `pace` defaults to `Inf`, pacer-off. A deviceless run is the harness and
   CI mode, and real time is `pace = 1` away ([D-269][d-269]). `margin` defaults to 2
   ms, the sleep primitive's granularity plus its measured overshoot. The
   values `0`, 2 ms and `∞` span the design space ([§10.7][s10-7]). Each
   advance builds a [`StopPolicy`](#g-stop-policy) (the
-  immutable `t_end`-plus-stop-faces value an advance declares) from its
-  `t_end` and `stop_on`. It passes that policy to the loop, and the value
+  immutable `t_end`-plus-ignored-requesters value an advance declares) from its
+  `t_end` and `ignore_stop_requests`. It passes that policy to the loop, and the value
   lives as long as the call. The termination record carries the policy that
-  ended the run, and nothing else keeps one ([§13.5][s13-5], [D-260][d-260]). `t_end = Inf` with no `stop_on`
-  faces is an unbounded run, allowed, with `UnboundedRun` raised into the
+  ended the run, and nothing else keeps one ([§13.5][s13-5], [D-260][d-260]). `t_end = Inf` with no honoured
+  stop request is an unbounded run, allowed, with `UnboundedRun` raised into the
   loop's diagnostic cell ([§11.8][s11-8]).
-- `step!(sim; frames = 1, t_end = Inf, stop_on = ()) → frames_advanced`. A
+- `step!(sim; frames = 1, t_end = Inf, ignore_stop_requests = ()) → frames_advanced`. A
   synchronous partial advance through the ordinary frame sequence,
   bit-identical to the same frames under `run!`. It never waits ([D-269][d-269]).
   `t_plus = <duration>` is the
   mutually exclusive duration spelling
   (whole frames until the boundary time covers that duration). It returns the
   frames *actually* advanced, fewer than requested when `t_end` or a
-  `stop_on` face ended the run inside the call. Between calls the simulation
+  stop request ended the run inside the call. Between calls the simulation
   reports `initialized`. `run!` may follow, and it continues from the current
   boundary. A stepping session is deviceless. Write via `stage!` and read via
   `latest` ([§12.6][s12-6]).
@@ -11885,13 +11983,14 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `margin!(sim, m)` set the two knobs and `pace(sim)` and `margin(sim)` read
   them ([D-269][d-269]); a device stops through `stop!(handle)` ([§11.6][s11-6]). The
   tail clears the pause, never a run's start ([D-268][d-268]).
-- Termination. Model state ends a run via `stop_on` faces read at every
-  published boundary ([§13.5][s13-5]). Shutdown completes a boundary,
+- Termination. Model state ends a run via stop requests, `StopFlag` ports
+  read at every published boundary unless the advance ignores them
+  ([§13.5][s13-5]). Shutdown completes a boundary,
   publishes the final snapshot, then joins ([§12.4][s12-4]).
 - Post-run. The log is the retained snapshots. `trace(sim) → trc` retrieves
   the always-on input trace.
   `replay!(sim2, trc; to_boundary = k, pace = Inf, margin = 0.002,
-  t_end = Inf, stop_on = (), restore = true)`, taking `init!`'s four
+  t_end = Inf, ignore_stop_requests = (), restore = true)`, taking `init!`'s four
   recording keywords as well ([D-261][d-261]), re-drives
   a fresh `Simulation(world)` bit-identically through the ordinary loop. It
   restores the trace's checkpoint and feeds the drain by frame ordinal from
@@ -12108,7 +12207,10 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   (`u_types`/`y_types`, or a root input), port name, the offending
   type (one with no leaves, a mutable one, an opaque leaf at a root input,
   or a `Pinned` marker below the top of the entry, [D-265][d-265]), the leaf
-  vocabulary ([§4.3][s4-3]).
+  vocabulary ([§4.3][s4-3]). Two reasons concern stop requests
+  ([§13.5][s13-5], [D-316][d-316]): `:stop_flag_nested`, a `StopFlag` leaf inside a
+  port whose type is not `StopFlag` itself, and `:stop_flag_at_root`, a root
+  input declared `StopFlag`.
 - **`IllegalStoreField`** ([§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1]). Error ·
   build · collected. Component path, the store at fault (`s_init`/`m_init`),
   field name, the offending type (one neither isbits nor `Symbol`), the fix
@@ -12168,10 +12270,10 @@ activation):
   fail-fast. The operation
   (`attach!`/`detach!`/`init!`/`restore!`/`trim!`/`checkpoint`/`linearize`),
   the current status, the legal statuses.
-- **`StopFaceInvalid`** ([§13.5][s13-5]). Error · service · collected, over
-  the given faces. Face name, reason (unknown / not root-exported / not
-  `Bool`), the root output-face list, the binding site (`run!`, `replay!` or
-  `step!`).
+- **`StopRequestInvalid`** ([§13.5][s13-5]). Error · service · collected,
+  over the given paths. The path naming no requester, the binding site
+  (`run!`, `replay!` or `step!`), and the roster's requester paths as
+  candidates, in roster order.
 - **`DeploymentInvalid`** ([§9.2][s9-2]). Error · service · collected. The
   deployment parameter, the value in hand, the violated constraint. The
   parameter is one of `h`, `N_base`, `Δt_base`, algorithm,
@@ -12347,10 +12449,12 @@ activation):
   Face name, the offending value's type, the root input's declared type, the
   discarded value.
 - **`UnboundedRun`** ([§11.8][s11-8], [§13.5][s13-5]). Warning · runtime,
-  raised at `run!` in `:live` when `t_end` is `Inf` and no stop faces are
-  given (a `run!` in `:replay` is bounded by the recording) · rate-limited,
-  in the loop's diagnostic cell ([D-255][d-255]). The effective
-  `t_end` and the `stop_on` set. The remedy names both, and interactively
+  raised at `run!` in `:live` when `t_end` is `Inf` and no stop request is
+  honoured, the model having no requester or the advance ignoring them all
+  (a `run!` in `:replay` is bounded by the recording) · rate-limited, in the
+  loop's diagnostic cell ([D-255][d-255], [D-316][d-316]). The effective `t_end` and
+  the ignored requester paths. The message says which of the two cases
+  holds. The remedy names both, and interactively
   it names the operator interrupt as the sanctioned escape from the
   configuration warned about ([§12.4][s12-4]).
 
@@ -12424,7 +12528,8 @@ or assembly defines, each declared in a stated source of authority: by
 value, by type, by allocation ([§8.2][s8-2]). The set is
 `x_init`/`s_init`/`m_init`, `ws_init`, `u_types`/`y_types`,
 `state_events`, the stages, `x_deriv`/`s_update`/
-`x_projection`, and `local_wires`/`input_wires`/`output_wires`/`sample_times`/`transparent_container`.
+`x_projection`, `local_wires`/`input_wires`/`output_wires`/`sample_times`/`transparent_container`,
+and `stop_reason`.
 
 <a id="g-derived-contract"></a>**derived contract** — the checkable surface an assembly or the `Build`
 derives from its children's declarations and its own wiring instead of
@@ -12862,7 +12967,7 @@ instruction ([§9.5][s9-5], [D-235][d-235]).
 <a id="g-build"></a>**`Build`** — the artifact `build(world)` produces, bundling the three steps'
 products: `Structure`, `Outputs`, `Events`, the activations keyed by scalar
 type, and `warnings`. It is the inspectable contract of the instantiation, and
-what `attach!`, `stop_on`, replay and condition resolution all validate
+what `attach!`, `ignore_stop_requests`, replay and condition resolution all validate
 against ([§9.2][s9-2]).
 
 <a id="g-chunking"></a>**chunking** — splitting a large phase body's entry tuple into statically
@@ -13149,13 +13254,13 @@ from the peek. Held buttons do not re-stage, and no widget stages per render
 pass ([§11.7][s11-7]).
 
 <a id="g-stop-policy"></a>**`StopPolicy`** — the immutable value one advance declares: `t_end` plus the
-stop faces. `run!`, `replay!` and `step!` build
-and validate it per call and pass it to the loop, the faces' compiled
-addresses beside it as the loop's own argument; afterwards only the
-termination record keeps one. A `t*` hit is `frame!`'s return value.
+requester paths it ignores. `run!`, `replay!` and `step!` build
+and validate it per call and pass it to the loop, an ignore mask (one
+`Bool` per requester) beside it as the loop's own argument; afterwards only
+the termination record keeps one. A `t*` hit is `frame!`'s return value.
 `ControlRequestedStop` is outside it, since the policy is what the caller
 declares and the stop word is what anyone can issue ([§13.5][s13-5],
-[D-255][d-255], [D-260][d-260]).
+[D-255][d-255], [D-260][d-260], [D-316][d-316]).
 
 <a id="g-unattended-run"></a>**unattended run** — a run with empty staging and no snapshot readers. It is
 the same loop, fully synchronous on the calling task, rethrowing after the
@@ -13376,15 +13481,18 @@ by type. It is what the catch site makes of a single-diagnostic
 `DiagnosticError` thrown inside the frame, under the species rule
 ([§13.4][s13-4], [D-225][d-225]).
 
-<a id="g-stop_on"></a>**`stop_on` / termination is a state** — graceful termination is model
-state, never an exception. Detection is ordinary event machinery,
-publication an ordinary root-exported `Bool` output face, and `stop_on` the
-per-advance keyword naming the faces the loop reads after every published
-boundary ([§13.5][s13-5]).
+<a id="g-stop-request"></a>**stop request / termination is a state** — graceful termination is model
+state, never an exception. Detection is ordinary event machinery, and
+publication a stop request, an output port of the framework enum `StopFlag`
+anywhere in the tree. The loop scans every request after every published
+boundary, and one reading `STOP_REQUESTED` ends the run unless the advance
+names its component in `ignore_stop_requests`. The build rosters the
+requests, and `StopRequest` is the library spelling ([§13.5][s13-5], [D-316][d-316]).
 
 <a id="g-termination-record"></a>**termination record** — the stopped-sim value naming how the run ended. It
 holds the final boundary time, the `StopPolicy` of the terminating advance, a
-typed source with its payload, and the tail residue. It lives on the `Run`,
+typed source with its payload, and the tail residue. A model-requested stop's
+payload is the requester's path, port and reason. It lives on the `Run`,
 never on the control plane ([§12.6][s12-6], [§13.5][s13-5]).
 
 ### D.10 Meta-vocabulary
@@ -13706,6 +13814,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-313]: decisions.md#d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [d-314]: decisions.md#d-314--rename-inner_wires-to-local_wires
 [d-315]: decisions.md#d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
+[d-316]: decisions.md#d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

@@ -26,21 +26,21 @@ where frame `k = 7`, an off-tick frame top, differs.
 
 **The frame top.** One iteration of `_advance!` in `sim.jl` is one frame. It
 checks the stop word and the frame bound, drains, integrates, runs the
-boundary, publishes, and samples the stop faces:
+boundary, publishes, and scans the stop requests:
 
 ```julia
 entry = sim.exec.clock.frame
 drain!(sim, roster)
 k = (sim.exec.clock.frame += 1)
-frame!(sim, k, pol, addrs, roster, pacer)
+frame!(sim, k, pol, ignore_mask, roster, pacer)
 if pol.hit === nothing
     k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)
     publish!(sim, roster, pacer)
-    face = _stop_hit(sim, pol)
+    hit = _stop_hit(sim, pol, ignore_mask)
 ```
 
 `roster` is the run's copy of the roster, bound once at `run!` ([§11.3][s11-3]),
-`pol` and `addrs` the advance's stop policy with its compiled face addresses
+`pol` and `ignore_mask` the advance's stop policy with its mask of ignored requesters
 ([§13.5][s13-5]), and `pacer` the run's pacer ([§10.7][s10-7]), all threaded
 through the loop as arguments. Three things happen in order. `drain!`
 applies the device writes, `frame!`
@@ -211,7 +211,7 @@ due set is empty by construction.
 
 `publish!` then captures a snapshot, appends it to the log, and bumps the wait
 counter ([§11.2][s11-2], [D-230][d-230]). The `t*` snapshot is a published consistency point
-like any other, and `_stop_hit` samples the stop faces on it ([§13.5][s13-5]). If none
+like any other, and `_stop_hit` scans the stop requests on it ([§13.5][s13-5]). If none
 holds, the localization count increments and the loop turns again.
 
 **The remainder.** The next turn sets `t_seg = t*` and `h′ = t₈ − t*`, and
@@ -265,8 +265,8 @@ controller's cells still hold the values it published at `t = 0.04`, and its
 
 **Publication.** `publish!` builds the snapshot from the clock, the boundary
 ordinal and a capture of the store, then releases it and wakes device waiters
-([§11.2][s11-2]). `_stop_hit` samples the stop faces on that snapshot. If one holds,
-the loop returns `ModelRequestedStop(face)` ([§13.5][s13-5]). Otherwise the loop
+([§11.2][s11-2]). `_stop_hit` scans the stop requests on that snapshot. If an honoured one
+holds, the loop returns `ModelRequestedStop(path, port, reason)` ([§13.5][s13-5]). Otherwise the loop
 proceeds to the next frame top, and the cursor's trail restarts: `:drain`,
 `:integrate`, `:arrival`, `:validation`, `:trial`, `:project`, `:round`,
 `:ticks`, the sequence a `StepError`'s frame is read from ([§13.4][s13-4]).

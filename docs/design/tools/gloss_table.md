@@ -11,7 +11,8 @@ count of `](#g-…)` links to the anchor in chapters 1–16. The `checkpoint` an
 `trace header` rows were counted on 2026-09-30, after increment 55 added the
 first, rewrote the second and retired `capture` (D-273, D-274). No other row
 was recounted then. The `local wire` row was counted on 2026-10-02, when
-D-303 added the entry.
+D-303 added the entry, and the `stop request` row on 2026-10-08, when D-316
+replaced `stop_on`'s.
 
 ## D.1 Component model and declaration layer
 
@@ -159,7 +160,7 @@ D-303 added the entry.
 | `should_abort` | g-should_abort | 1 | B | whether a device's departure also requests a stop |
 | snapshot | g-snapshot | 30 | B | the immutable per-boundary publication of the signal table |
 | stage-on-interaction | g-stage-on-interaction | 2 | A | widgets stage on edit or activation, never per render pass |
-| `StopPolicy` | g-stop-policy | 1 | A | the immutable `t_end`-plus-stop-faces value one advance declares |
+| `StopPolicy` | g-stop-policy | 1 | A | the immutable `t_end`-plus-ignored-requesters value one advance declares |
 | unattended run | g-unattended-run | 6 | A | a run with empty staging and no snapshot readers |
 | write surface | g-write-surface | 2 | A | the set of faces a writer's batch entries may reach |
 
@@ -211,7 +212,7 @@ D-303 added the entry.
 | feedthrough tracer | g-feedthrough-tracer | 1 | A | the set-propagation instrument classifying a rejected cycle |
 | kind | g-kind | 3 | B | a diagnostic's identity in the closed Appendix C set |
 | payload | g-payload | 6 | B | the structured data a diagnostic carries beside its kind |
-| `stop_on` / termination is a state | g-stop_on | 1 | B | the per-advance keyword naming the faces the loop reads |
+| stop request / termination is a state | g-stop-request | 10 | B | a `StopFlag` port, which ends the run unless the advance ignores it |
 
 ## D.10 Meta-vocabulary
 

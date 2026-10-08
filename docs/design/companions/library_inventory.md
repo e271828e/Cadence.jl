@@ -26,7 +26,8 @@ A second group disappears for structural reasons:
 - Sinks (Scope, Display, To Workspace) are the snapshot table, the log and
   the inspector.
 - Terminator is unnecessary, because only inputs must be wired.
-- Stop Simulation is a stop face ([§13.5][s13-5]).
+- Stop Simulation is a stop request, any `StopFlag` port ([§13.5][s13-5]).
+  `StopRequest` below spells one and holds no privilege.
 - Goto/From are forbidden by the hierarchy rules ([§6.1][s6-1]).
 - Bus Creator and Bus Selector are a struct or a named tuple port.
 - Zero-Order Hold and Rate Transition are what the tiers and
@@ -100,6 +101,7 @@ docstring shows the keyword form, and its tests call it.
 | `Junction{In, Out, N, F}`, with `SumJunction{V, N}`, `Or{N}`, `And{N}` | shipped | one wire per input; the consumer's consolidated input |
 | `Group` | shipped | the on-the-fly assembly ([§8.5][s8-5], [D-184][d-184]) |
 | `Pack{V, N}`, a junction alias at a named fold, and `Unpack{V, N}` between scalar ports and an `SVector{N, V}` port | shipped | wires name whole ports |
+| `StopRequest`, reason as instance data | shipped | a `Bool` in, a `StopFlag` out, consumed by nobody; the request is the port's type, so any component may publish one, and `stop_reason` names it in the termination record ([§13.5][s13-5], [D-316][d-316]) |
 | `Switch{V}` selecting between two inputs on a `Bool` | shipped | the `Bool` a junction's one `In` cannot type; the jump lands where the selector flips, so the event is the selector's producer's |
 
 ### Sources
@@ -185,6 +187,7 @@ qualifies the two they share, `StateSpace` and `TransferFunction`.
 [d-311]: ../decisions.md#d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
 [d-312]: ../decisions.md#d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
 [d-313]: ../decisions.md#d-313--admit-a-library-block-by-judgement-against-three-guidelines
+[d-316]: ../decisions.md#d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
 [s10-5]: ../spec.md#105-multi-rate-tick-scheduling
 [s10-6]: ../spec.md#106-event-iteration-at-boundaries-to-quiescence-budgeted
 [s13-5]: ../spec.md#135-termination-is-a-state-not-an-exception

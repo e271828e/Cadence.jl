@@ -340,6 +340,7 @@ were derived.
 | [D-313][d-313] | Admit a library block by judgement against three guidelines | ratified |
 | [D-314][d-314] | Rename `inner_wires` to `local_wires` | ratified |
 | [D-315][d-315] | Hold the declared wiring on `Structure` and resolve it by function | ratified |
+| [D-316][d-316] | Stop requests are structural: a `StopFlag` port ends the run unless the advance ignores it | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -1779,6 +1780,14 @@ always abnormal; no `SimulationTermination` exception type.
 **Spec.** [§9.3][s9-3], [§13.5][s13-5], [§14.4][s14-4]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-08): superseded in part by [D-316][d-316]. Publication is a
+`StopFlag` output port anywhere in the tree, and the policy is
+`ignore_stop_requests` on each advance, every request honoured by default.
+The scanned-terminal-type rejection is superseded on its own terms, and the
+observation-by-path rejection is narrowed: the ignore list reads no cell and
+addresses the `Build`'s requester roster. The rule that termination is
+state, never an exception, stands.
 
 **Rejected.**
 - *Termination-by-exception:* aborts a boundary [§12.4][s12-4] is built on completing;
@@ -7389,6 +7398,11 @@ Annotation (2026-10-02): [§7.2][s7-2] never stated the clock's seed, and no spe
 sentence states it today, so the fourth rejection's citation has no referent.
 The rejection's other grounds stand.
 
+Annotation (2026-10-08): amended by [D-316][d-316]. Stop requests replace the stop
+faces. `ModelRequestedStop` carries the requester's path, port and reason,
+and the source order reads the requests at each publication where it read
+the faces. Two requests at one boundary resolve to the first in roster order.
+
 **Rejected.**
 - *Superseded position — presentation-only disposal ([D-201][d-201]):* honest but
   ephemeral; the tail's facts evaporated from the program at the moment it
@@ -9845,6 +9859,11 @@ run is allowed because it is the interactive session's ordinary shape, with
 - *Refusing an unbounded run:* the interactive session's ordinary shape
   would need a sentinel `t_end`.
 
+Annotation (2026-10-08): amended by [D-316][d-316]. `stop_on` is
+`ignore_stop_requests`, with `()` as its default, and `StopPolicy` is
+`t_end` plus the ignored requester paths. `UnboundedRun` fires when no
+requester is honoured.
+
 
 ### D-256 — Regroup the `Simulation`'s fields by owner
 
@@ -10231,6 +10250,11 @@ resolving against the structure instead would cost four signatures and a
 parallel-vector invariant across two structs. A thunk compiled before the
 first door closes over a trace that door discards, and the constructor's
 compile was the one reason the run had to be built ahead of the plane.
+
+Annotation (2026-10-08): amended by [D-316][d-316]. `StopPolicy` is `t_end` and the
+ignored requester paths. The loop's argument beside it is an ignore mask,
+one entry per requester, in place of the faces' compiled addresses, and a
+`t*` stop hit is a requester or `nothing`.
 
 **Rejected.**
 - *The recording flags as a sixth `Simulation` field:* a parameter nothing
@@ -11969,6 +11993,10 @@ three, since a near-degenerate synthesized geometry keeps the cancellation
 algebraically exact while missing an absolute tolerance in floating point.
 The third, defensive exhaustiveness, is [D-142][d-142]'s Position.
 
+Annotation (2026-10-08): under [D-316][d-316] a plausibility check meaning "stop
+the run" publishes a `StopFlag` port, which `StopRequest` spells, and no
+keyword names it.
+
 **Rejected.**
 - *Doing nothing beyond [§13.5][s13-5]'s termination mapping:* it covers the
   termination half and covers it well, but leaves the non-terminating assert
@@ -13103,6 +13131,9 @@ and its siblings by import, so the library exercises the surface a user
 extends instead of the package's internals, and the audit scopes its names
 as one group.
 
+Annotation (2026-10-08): stop is a stop request since [D-316][d-316], a `StopFlag`
+port, which the library spells `StopRequest`.
+
 **Rejected.**
 - *A Simulink-sized library:* most of it is one-line expressions, and the
   cost model of [§9.7][s9-7] charges per component.
@@ -13285,6 +13316,137 @@ contracts, and the address table is keyed by `(path, name)`, so entering a
 primitive's input face would overwrite its output port's cell. A primitive
 input face's address is read as the table's entry for its terminal producer,
 at the one site that compiles an input group, and is stored nowhere.
+
+### D-316 — Stop requests are structural: a `StopFlag` port ends the run unless the advance ignores it
+
+**Status.** ratified
+
+**Position.** A model requests a stop by publishing a port of the framework
+enum `StopFlag`, and every request ends the run at the first publication
+where it holds, unless the advance ignores it.
+
+- `StopFlag` is `@enum StopFlag NO_STOP STOP_REQUESTED`, defined beside
+  `Pinned`. An enum is one leaf of its own eltype, pinned at every
+  activation, so every `StopFlag` port lands in one per-eltype cell block
+  ([§4.3][s4-3], [§9.7][s9-7]). An output port whose type is exactly `StopFlag` is a stop
+  request, whoever publishes it.
+- Two placements are `IllegalPortType`. `:stop_flag_nested` is a `StopFlag`
+  leaf inside a port whose type is not `StopFlag` itself, a struct field or
+  a static array of them, since the roster is per port. `:stop_flag_at_root`
+  is a root input declared `StopFlag`, since a request is the model's, never
+  an operator's ([§12.1][s12-1]). A `StopFlag` input port places nothing and is left
+  alone.
+- `stop_reason(c)` is an optional declaration with default `""`, which the
+  build consults for every component that publishes a `StopFlag` port. One
+  reason serves all of a component's `StopFlag` ports. The `String` is
+  instance data on the component, never a port value. `stop_reason` is a
+  family name: [§8.1][s8-1]'s import list carries it and [D-246][d-246]'s shadowing check
+  covers it.
+- The activation's cell layout carries the requester roster,
+  `requesters::Vector{Requester}`, one `Requester(path, port, reason)` per
+  `StopFlag` output port. It is index-aligned with the `StopFlag` cell block,
+  entry `i` owning offset `i - 1`, and it is written by address after
+  placement, never by walk order. Roster order is build order.
+- `StopRequest(; reason = "")` in `Redstone.Blocks` is the library spelling,
+  a stateless continuous leaf in the mould of `Constant`: a `Bool` input
+  `request`, a `StopFlag` output `flag`, and its reason as its
+  `stop_reason`. Continuous, it refreshes at every boundary, `t*` included,
+  and one leaf sits anywhere in the tree ([§10.5][s10-5], [D-019][d-019]). Fed by a discrete
+  detector, it sees the tick at the tick's own boundary ([§10.5][s10-5], [D-147][d-147]).
+- `StopPolicy` is `t_end` plus `ignored`, the requester paths the advance
+  does not honour. `run!`, `replay!` and `step!` take
+  `ignore_stop_requests = ()` in place of `stop_on`. `()` ignores none,
+  `:all` every roster path, and an iterable of strings names requesters by
+  component path, validated path by path against the roster, duplicates
+  collapsed, in the order given. A path naming no requester is
+  `StopRequestInvalid(path, site, candidates)`, collected over the given
+  paths, `candidates` the roster's paths in roster order.
+- The binder returns the policy and an ignore mask, one `Bool` per
+  requester, `true` where ignored. The mask replaces the faces' compiled
+  addresses as the loop's argument. The policy is the advance's value and
+  the mask its compiled companion ([D-261][d-261]).
+- After every publication the loop scans the `StopFlag` cell block of the
+  just-published snapshot. It stops on the first entry in roster order that
+  is honoured and reads `STOP_REQUESTED`, with
+  `ModelRequestedStop(path, port, reason)` as the source. [D-203][d-203]'s source
+  order is unchanged, the requests read where the faces were: a control stop
+  at frame top, then `t_end`, then the requests at each publication.
+- `UnboundedRun` fires at `run!` in `:live` when `t_end` is `Inf` and no
+  requester is honoured, the model having none or the advance ignoring them
+  all. Its payload is `t_end` and `ignored`, and its message says which case
+  holds.
+- The `stop_on` keyword and `StopFaceInvalid` retire. A root-exported `Bool`
+  face stays legal and inspectable, and it stops nothing.
+
+Supersedes [D-060][d-060]'s publication and policy clauses, the root-exported `Bool`
+face and `stop_on`, and its rejection of scanned terminal types, and narrows
+its observation-by-path rejection; [D-255][d-255]'s `stop_on` keyword with its
+no-faces default; and [D-261][d-261]'s bullet making `StopPolicy` `t_end` and the stop
+faces with the faces' compiled addresses as the loop's argument. [D-060][d-060]'s rule
+that termination is state, never an exception, stands.
+
+**Spec.** [§4.3][s4-3], [§8.1][s8-1], [§8.2][s8-2], [§10.4][s10-4], [§12.4][s12-4], [§12.6][s12-6], [§12.7][s12-7], [§13.5][s13-5], [§13.7][s13-7], [§14.4][s14-4], [Appendix B][sB], [Appendix C][sC]
+
+**Rationale.** A model-detected stop was a `Bool` face re-exported level by
+level to the root and named by the advance's `stop_on`, and the hop per
+level was the pain: one `output_wires` entry at every assembly between the
+detector and the root, for every stop. A component author who wires a stop
+is saying that the component's validity assumptions broke down and that
+continuing is at the integrator's own risk. Stopping is therefore the rule
+and continuing the exception. The request becomes structural by default and
+overridable per advance, and the per-level plumbing goes.
+
+The vocabulary is an eltype rather than a block because cells are stored per
+eltype ([§9.7][s9-7], [D-162][d-162]). Every `StopFlag` port lands in one buffer, and the
+loop's check is a scan of that buffer on the snapshot it just published,
+allocating nothing; the roster is touched on a hit only. [§13.7][s13-7]'s doctrine
+that library blocks have no framework privileges stands. The privilege is
+the eltype's, as `Pinned` is a framework marker, and `StopRequest` is a
+spelling of a port any component may declare. The nested refusal keeps the
+roster per port. The root-input refusal keeps a request the model's, the
+control plane being the operator's path.
+
+The reason is a declaration because it is text, and the build reads it once.
+`stop_reason` joins the declaration family because an optional declaration
+has no absence to notice: a foreign `stop_reason` would silently read `""`,
+which is the case [D-246][d-246]'s check exists for. `condition` stays outside the
+family because a foreign `condition` fails loudly, as a `MethodError` at the
+owner's pull.
+
+[§13.5][s13-5]'s observation-by-path rejection stands narrowed. The ignore list reads
+no arbitrary cell. It addresses the `Build`'s requester roster, a build
+product like the root-input list, and it binds at an advance, a stopped-sim
+point where conditions already address state by path ([§14.1][s14-1]). [D-060][d-060]'s
+scanned-terminal-type rejection is superseded on its own terms. The
+requester is loud at inspection, since the roster and the termination record
+name it. Substitution is answered by the override, and disabling is one
+keyword. The trigger is the author's knowledge and the override the
+integrator's, which is where each belongs. An ignored request is still a
+cell in every snapshot, so the log records when validity broke even on a run
+that continued. Two uses share the mechanism, validity breakdown and
+scenario completion, and the reason string is what tells a reader which; the
+framework never will.
+
+**Rejected.**
+- *Superseded position — a `Bool` face re-exported to the root and named by
+  `stop_on` ([D-060][d-060], [D-255][d-255]):* one wiring entry per level for every stop, and
+  an advance naming no face integrated a terminal state to `t_end` with
+  nothing complaining. Flagging faces as stop candidates and diagnosing the
+  dropped re-export, the remedy `pending.md` held, treated the symptom and
+  kept the plumbing.
+- *Honouring requests by an opt-in token, default off:* halves the gain,
+  since the integrator must still name every stop, and inverts the author's
+  meaning, which is that continuing is the exception.
+- *A global-only override:* the per-requester mask costs a name lookup the
+  binder already does, and a scenario that wants one stop and not another
+  would have no spelling.
+- *A `terminal` event flag, and stop faces addressed by deep path:* [D-060][d-060]'s
+  grounds stand for those. The localization a terminal flag promises is the
+  event idiom feeding a request anyway, and a path-addressed face makes any
+  output a trigger, which is observation-by-path in full.
+- *Reading the reason off the block by type:* the build cannot know
+  `Blocks`, which is included last, and a reason confined to one block type
+  would leave every direct publisher without one.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -13602,6 +13764,7 @@ at the one site that compiles an input group, and is stored nowhere.
 [d-313]: #d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [d-314]: #d-314--rename-inner_wires-to-local_wires
 [d-315]: #d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
+[d-316]: #d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
