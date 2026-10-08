@@ -23,6 +23,16 @@ both add names.
   `i`.f and fed by nothing there"; the roster line in the spec's diagnostics
   appendix, the rendering testset and the two hand-built constructions in
   `test_assembly.jl` and `test_diagnostics.jl` follow.
+- **The §6.1 double declaration is refused at build**, one commit beside
+  the `UnconnectedInput` one, over the same per-level wires. An `input_wires`
+  entry at a non-root level whose route ends at a port a sibling wire already
+  feeds is the two-producers error §6.1 names, whether or not a parent wires
+  the face. Today claims are made at the root only, so the model builds, and
+  at increment 67's tip `port_views` throws a `KeyError` on the unwired face
+  where it used to return a view. The check sits in the walk's `input_wires`
+  loop, reports `TwoProducers` with the sibling wire as the incumbent, and
+  gains a build test on an inner `Group` with `local_wires "a/out" => "b/e"`
+  and `input_wires "u" => "b/e"` whose parent wires nothing into `u`.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment
