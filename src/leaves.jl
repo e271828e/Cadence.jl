@@ -251,7 +251,7 @@ _holds_marker(::Type{P}) where {P} =
 The stop-request vocabulary (§13.5, D-316): `NO_STOP` or `STOP_REQUESTED`. An
 output port declared exactly `StopFlag` is a stop request, whoever publishes
 it, and the build rosters it per port. A `StopFlag` nested in a port of another
-type, and a root input of this type, are refused as `IllegalPortType`. An input
+type, and a root input carrying one, are refused as `IllegalPortType`. An input
 port of this type is an ordinary input.
 """
 @enum StopFlag NO_STOP STOP_REQUESTED
