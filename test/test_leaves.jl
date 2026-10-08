@@ -150,6 +150,13 @@ function leaves_shape()
         @test mutable_position(Gear) === nothing
         @test probe_value(Gear) === up
 
+        # `StopFlag` is an enum like any other to the walk: one leaf of its own
+        # eltype, and a struct field holding one is that leaf, which is what the
+        # nested refusal rests on (§13.5, D-316).
+        @test leaf_types(StopFlag) == [StopFlag]
+        @test nleaves(StopFlag) == 1
+        @test leaf_types(@NamedTuple{flag::StopFlag, x::Float64}) == Type[StopFlag, Float64]
+
         # A `Symbol` is an opaque leaf by ruling (D-243), Julia's classification
         # notwithstanding; a struct nesting one is opaque as a whole, by D-237's
         # outermost-type rule.

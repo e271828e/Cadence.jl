@@ -355,6 +355,10 @@ function diagnostics_kind_set()
                             reason = :handle_at_root),
             IllegalPortType(path = "a/b", site = :face, name = :v, declared = SVector{2,Pinned{Float64}},
                             reason = :nested_marker),
+            IllegalPortType(path = "a/b", site = :port, name = :status,
+                            declared = @NamedTuple{flag::StopFlag, x::Float64}, reason = :stop_flag_nested),
+            IllegalPortType(path = "", site = :root_input, name = :stop, declared = StopFlag,
+                            reason = :stop_flag_at_root),
             StoreNotNamedTuple(path = "a/b", store = :x_init, declared = Float64),
             IllegalStoreField(path = "a/b", store = :s_init, name = :label, declared = String),
             IllegalStateLeaf(path = "a/b", name = :gear_count, declared = Int, reason = :mode_value),
@@ -915,6 +919,20 @@ function diagnostics_kind_set()
                                                      producer_port = :val, leaf = "",
                                                      declared = Float64, observed = Marker))
         @test occursin("remove the entry's `Pinned`", rendered)
+
+        # A stop request out of place (§13.5, D-316) says what a request is and
+        # where it belongs: a port of its own, and the control plane for an
+        # operator's stop.
+        rendered = message(IllegalPortType(path = "a/b", site = :port, name = :status,
+                                           declared = @NamedTuple{flag::StopFlag, x::Float64},
+                                           reason = :stop_flag_nested))
+        @test startswith(rendered, "`a/b`: port `status` declares") &&
+              occursin("nests a `StopFlag`", rendered) &&
+              occursin("a port of its own", rendered)
+        rendered = message(IllegalPortType(path = "", site = :root_input, name = :stop,
+                                           declared = StopFlag, reason = :stop_flag_at_root))
+        @test startswith(rendered, "the root component: root input `stop` is a `StopFlag`") &&
+              occursin("never an operator's", rendered) && occursin("`stop!`", rendered)
 
         # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the
         # cluster's wires read as one loop, and the classification, where there is

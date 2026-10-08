@@ -125,6 +125,9 @@ function assembly_class()
         # today with its events silently dropped.
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(single(ForgottenImport.Events.Leaf())))
         @test d.path == "c" && d.names == [:state_events]
+        # A shadowed `stop_reason` would read the empty reason (§13.5, D-316).
+        d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(single(ForgottenImport.Reason.Leaf())))
+        @test d.path == "c" && d.names == [:stop_reason]
 
         # The same on the assembly side, and at the root path: the throw names the
         # first component the walk reaches, ahead of the child below it.

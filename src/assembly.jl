@@ -15,13 +15,14 @@ const LEAF_FAMILY = (:x_init, :s_init, :m_init, :ws_init, :u_types,
                      :y_types, :state_events, :y_state, :y_direct,
                      :x_deriv, :s_update, :x_projection)
 
-# The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
-# marker, the two boundary declarations and the two sugars.
+# The six `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
+# marker, the two boundary declarations, the two sugars and the stop reason.
 const _OTHER_FAMILY = ((:local_wires, local_wires),
                        (:input_wires, input_wires),
                        (:output_wires, output_wires),
                        (:sample_times, sample_times),
-                       (:transparent_container, transparent_container))
+                       (:transparent_container, transparent_container),
+                       (:stop_reason, stop_reason))
 
 """The leaf declarations `comp` defines, in inventory order (§8.2, §8.5)."""
 function leaf_declarations(@nospecialize(comp))

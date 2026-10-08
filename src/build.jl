@@ -517,11 +517,22 @@ end
 # address — which is what makes a face's type and tier derived rather than
 # declared.
 
+"""
+One stop request (§13.5, D-316): the publishing component, its `StopFlag`
+port, and the component's `stop_reason`.
+"""
+struct Requester
+    path::String
+    port::Symbol
+    reason::String
+end
+
 struct Layout
     addr::Dict{Tuple{String,Symbol},Any}     # (path, port|face) => CellAddr
     root_inputs::Vector{Tuple{Symbol,Any}}   # root inputs, with their probe values
     sizes::Vector{Pair{DataType,Int}}        # leaf eltype => buffer length, name-sorted
     xblocks::Vector{UnitRange{Int}}          # per component: its range in the flat `x` buffer, empty where it owns none
+    requesters::Vector{Requester}            # entry `i` owns offset `i - 1` of the `StopFlag` buffer (§13.5, D-316)
 end
 
 function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) where {T}
@@ -545,6 +556,13 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
             push!(diags, IllegalPortType(path = path, site = site, name = name, declared = P))
             return false
         end
+        # The roster is per port, so a request nested in another port type
+        # would have no entry of its own (§13.5, D-316).
+        if P !== StopFlag && StopFlag in leaves
+            push!(diags, IllegalPortType(path = path, site = site, name = name, declared = P,
+                                         reason = :stop_flag_nested))
+            return false
+        end
         eltypes = leaf_eltypes(P)
         addr[(path, name)] = CellAddr{P,length(eltypes)}(Tuple(get(offsets, L, 0) for L in eltypes))
         for L in eltypes
@@ -559,6 +577,12 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
     end
     for (i, face) in enumerate(structure.root_inputs)
         cell_type = _root_input_cell(structure, decls, i, face, T)
+        # A request is the model's, never an operator's (§12.1, §13.5, D-316).
+        if cell_type === StopFlag
+            push!(diags, IllegalPortType(path = "", site = :root_input, name = face,
+                                         declared = cell_type, reason = :stop_flag_at_root))
+            continue
+        end
         # An opaque leaf at a root input, a handle or a `Symbol`, has no
         # synthesis and no producer (D-237, D-243), so it is refused here, ahead
         # of `probe_value`. A real or an enum leaf has a synthesis (§9.3). A
@@ -599,7 +623,22 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
         push!(xblocks, (n_x+1):(n_x+width))
         n_x += width
     end
-    Layout(addr, root_inputs, sizes, xblocks)
+    # The stop-request roster (§13.5, D-316): one entry per `StopFlag` port,
+    # each written at the slot its cell's offset names rather than assumed from
+    # the walk, so entry `i` owns offset `i - 1` of the buffer.
+    requesters = Vector{Requester}(undef, get(offsets, StopFlag, 0))
+    for (entry, decl) in zip(structure.components, decls)
+        flag_ports = Symbol[port_name for (port_name, P) in pairs(decl.outs) if P === StopFlag]
+        isempty(flag_ports) && continue
+        reason = at_component(() -> invoke_declaration(stop_reason, entry.instance), entry.path)
+        for port_name in flag_ports
+            requesters[addr[(entry.path, port_name)].offsets[1] + 1] =
+                Requester(entry.path, port_name, reason)
+        end
+    end
+    all(i -> isassigned(requesters, i), eachindex(requesters)) ||
+        throw(InternalInvariant("a `StopFlag` offset with no requester"))
+    Layout(addr, root_inputs, sizes, xblocks, requesters)
 end
 
 # A root input's cells at an activation: D-168's meet, at the level of the whole

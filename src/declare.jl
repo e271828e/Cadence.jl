@@ -127,6 +127,14 @@ keeping their key segment — is the default.
 """
 transparent_container(::Any) = nothing
 
+"""
+The reason a component's stop requests report (§8.2, §13.5, D-316), optional,
+default `""`. The build reads it for every component that publishes a
+`StopFlag` port, and all of a component's requests share it. It is instance
+data, never a port value.
+"""
+stop_reason(::Any) = ""
+
 # --- rate scopes (§8.7, §10.5) --------------------------------------------------
 # The two forms of the sample-time declaration, and the wrappers are the
 # whole value vocabulary — a bare integer or bare quantity in a `sample_times`
@@ -255,7 +263,7 @@ const DECLARATION_FAMILY = (:x_init, :s_init, :m_init, :ws_init,
     :u_types, :y_types, :state_events, :y_state, :y_direct,
     :x_deriv, :s_update, :x_projection, :local_wires,
     :input_wires, :output_wires, :sample_times,
-    :transparent_container)
+    :transparent_container, :stop_reason)
 
 """
 The family names `comp`'s parent module binds to something other than the

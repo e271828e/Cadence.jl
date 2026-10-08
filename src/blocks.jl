@@ -1,8 +1,9 @@
 module Blocks
 
-import ..Redstone: AbstractComponent, Pinned, StateEvent,
+import ..Redstone: AbstractComponent, Pinned, StateEvent, StopFlag, NO_STOP, STOP_REQUESTED,
     x_init, s_init, m_init, u_types, y_types, y_direct, y_state, x_deriv, s_update,
-    state_events, local_wires, input_wires, output_wires, sample_times, transparent_container
+    state_events, local_wires, input_wires, output_wires, sample_times, transparent_container,
+    stop_reason
 using StaticArrays: StaticArray, SMatrix, SVector, SOneTo, SUnitRange, similar_type
 using LinearAlgebra: I
 import ForwardDiff
@@ -171,6 +172,28 @@ x_init(::Freeze) = (;)
 u_types(::Freeze{V}) where {V} = (in = V,)
 y_types(::Freeze{V}) where {V} = (out = Pinned{V},)
 y_direct(::Freeze, (; u)) = (out = ForwardDiff.value.(u.in),)
+
+# --- the stop request (§13.5, §13.7, D-316) -------------------------------------
+
+"""
+    StopRequest(; reason = "")
+
+The library's spelling of a stop request (§13.5, D-316): `flag` publishes
+`STOP_REQUESTED` while the `Bool` input `request` holds and `NO_STOP`
+otherwise. A stateless continuous leaf, so it refreshes at every boundary and
+sits anywhere in the tree. `reason` is instance data, which `stop_reason`
+reports. The block holds no privilege: the request is the port's type, and any
+component may publish one.
+"""
+struct StopRequest <: AbstractComponent
+    reason::String
+end
+StopRequest(; reason = "") = StopRequest(reason)
+x_init(::StopRequest) = (;)
+u_types(::StopRequest) = (request = Bool,)
+y_types(::StopRequest) = (flag = StopFlag,)
+y_direct(::StopRequest, (; u)) = (flag = u.request ? STOP_REQUESTED : NO_STOP,)
+stop_reason(c::StopRequest) = c.reason
 
 # --- the discrete tier (§7.3, §10.5, D-313) -------------------------------------
 

@@ -64,6 +64,7 @@ function test_declare()
         @test foreign_declarations(ForgottenImport.Events.Leaf()) == [:state_events]
         @test foreign_declarations(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())) ==
               [:sample_times]
+        @test foreign_declarations(ForgottenImport.Reason.Leaf()) == [:stop_reason]
 
         # The evidence is a fact about the *module*, not the component: the sound
         # leaf of a module whose assembly forgot one import reads the same list.

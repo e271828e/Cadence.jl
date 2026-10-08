@@ -246,6 +246,17 @@ _holds_marker(::Type{P}) where {P} =
     P isa DataType && any(p isa Type && (_is_marker(p) || _holds_marker(p)) for p in P.parameters)
 
 """
+    StopFlag
+
+The stop-request vocabulary (§13.5, D-316): `NO_STOP` or `STOP_REQUESTED`. An
+output port declared exactly `StopFlag` is a stop request, whoever publishes
+it, and the build rosters it per port. A `StopFlag` nested in a port of another
+type, and a root input of this type, are refused as `IllegalPortType`. An input
+port of this type is an ordinary input.
+"""
+@enum StopFlag NO_STOP STOP_REQUESTED
+
+"""
     retype(T, P)
 
 `P` with every `Float64` position replaced by `T`; a position already at `T`

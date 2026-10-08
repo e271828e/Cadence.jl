@@ -794,13 +794,14 @@ message(d::StatelessWithoutOutputs) =
     "fields and the update law that drives them. Its leaf declarations are " *
     "$(_namelist(d.declarations)) (§8.2)"
 
-"§4.3, §7.1, §8.2, D-215, D-237, D-243, D-265: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, an opaque leaf at a root input, or the `Pinned` marker below the top of an entry."
+"§4.3, §7.1, §8.2, §13.5, D-215, D-237, D-243, D-265, D-316: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, an opaque leaf at a root input, or the `Pinned` marker below the top of an entry; or a `StopFlag` nested in another port type or at a root input."
 Base.@kwdef struct IllegalPortType <: Diagnostic
     path::String
     site::Symbol                             # :port | :face | :root_input
     name::Symbol
     declared::Any                            # the offending type
-    reason::Symbol = :no_leaves              # :no_leaves | :mutable | :handle_at_root | :nested_marker
+    reason::Symbol = :no_leaves              # :no_leaves | :mutable | :handle_at_root | :nested_marker |
+                                             # :stop_flag_nested | :stop_flag_at_root
     position::Any = nothing                  # :mutable — the dotted position of the mutable type, "" for the port itself
 end
 path(d::IllegalPortType) = d.path
@@ -818,6 +819,14 @@ function message(d::IllegalPortType)
         return "$(_at_path(d.path)): root input `$(d.name)` declares $(d.declared), an opaque " *
                "leaf, which has no synthesis and no producer here — wire a component that " *
                "emits it, or a stub child in a rig (§4.3, §9.3, D-237)"
+    d.reason === :stop_flag_nested &&
+        return "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which nests a " *
+               "`StopFlag` — a stop request is a port of exactly `StopFlag`, rostered per port, " *
+               "so publish the flag as a port of its own (§13.5, D-316)"
+    d.reason === :stop_flag_at_root &&
+        return "$(_at_path(d.path)): root input `$(d.name)` is a `StopFlag`, and a stop request " *
+               "is the model's, never an operator's — feed its consumers from a component's " *
+               "`StopFlag` port, and stop a run from outside with `stop!` (§12.1, §13.5, D-316)"
     "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which has no leaves"
 end
 

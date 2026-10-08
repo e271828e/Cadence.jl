@@ -2,12 +2,12 @@
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the pack, the unpack and the
 # switch, the source, the delay, the discrete integrators and the rate limiter,
-# the noise, the time source, the stop-gradient, the integrator, the lag, the
-# state space, the transfer function, their discrete twins, the step, the
-# limited integrator, the relay, the PID and its discrete twin, the PID
-# assembled from blocks, and the loops built from them alone. The models are
-# built at top level, like the fixtures they reuse: `RealEntry` and
-# `PinnedEntry` are test_build.jl's.
+# the noise, the time source, the stop-gradient, the stop request, the
+# integrator, the lag, the state space, the transfer function, their discrete
+# twins, the step, the limited integrator, the relay, the PID and its discrete
+# twin, the PID assembled from blocks, and the loops built from them alone. The
+# models are built at top level, like the fixtures they reuse: `RealEntry`,
+# `PinnedEntry` and `requested` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -491,7 +491,8 @@ function test_blocks()
     @testset "the structure blocks' and the time source's phase bodies allocate nothing (§7.5)" begin
         for model in (pack_model(Pack{Float64, 2}()), unpack_model(), round_trip_model(),
                       switch_root(), vector_switch_model(), fed_by(Source(sin), Integrator()),
-                      fed_by(Source(t -> 2 * sin(t)), Integrator()), vector_source_model(), flip_model())
+                      fed_by(Source(t -> 2 * sin(t)), Integrator()), vector_source_model(), flip_model(),
+                      requested(true, "x"))
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
             for name in (:sweep_1, :sweep_2, :rhs, :ticks)
@@ -719,6 +720,22 @@ function test_blocks()
             @test build(model) isa Build
             @test build(model; activations = (Float64, LinearizeDual)) isa Build
         end
+    end
+
+    @testset "the stop request publishes its flag off its input, pinned, with its reason (§13.7, D-316)" begin
+        for (value, flag) in ((true, STOP_REQUESTED), (false, NO_STOP))
+            sim = Simulation(requested(value, "x"); h = 1//100)
+            init!(sim, fragment())
+            @test port(sim, "stop", :flag) === flag
+            step!(sim; t_plus = 1//100)
+            @test port(sim, "stop", :flag) === flag
+        end
+        @test stop_reason(StopRequest(reason = "x")) == "x"
+        @test stop_reason(StopRequest()) == ""
+        # Pinned: under `Dual` the cell is still a `StopFlag`, in its own buffer.
+        linearize_build = build(requested(true, "x"); activations = (Float64, LinearizeDual))
+        @test linearize_build isa Build
+        @test (StopFlag => 1) in activation(linearize_build, LinearizeDual).layout.sizes
     end
 
     @testset "the sum model's phase bodies allocate nothing (§7.5)" begin
@@ -1586,7 +1603,7 @@ function test_blocks()
         for comp in (Or{3}(), And{2}(), SumJunction{Float64,2}(), Junction{Float64,Float64,2}(max),
                      Pack{Float64, 2}(), Unpack{Float64, 2}(), Switch{Float64}(),
                      Source(sin), Source{Bool}(t -> t >= 0.5),
-                     Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
+                     Constant(1.0), UnitDelay(0.0), Freeze{Float64}(), StopRequest(reason = "x"),
                      DiscreteIntegrator(), DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
                      DiscreteLimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
                      RateLimiter(rising = 1.0),

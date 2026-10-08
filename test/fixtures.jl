@@ -1656,6 +1656,16 @@ Redstone.local_wires(::Assembly) = ()
 sample_times(::Assembly) = (kid = Redstone.Relative(2),)
 end
 
+"A sound requester whose reason alone is bare: builds today with the empty reason."
+module Reason
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.x_init(::Leaf) = (;)
+Redstone.y_types(::Leaf) = (flag = Redstone.StopFlag,)
+Redstone.y_state(::Leaf, _) = (flag = Redstone.NO_STOP,)
+stop_reason(::Leaf) = "overload"
+end
+
 end
 
 """

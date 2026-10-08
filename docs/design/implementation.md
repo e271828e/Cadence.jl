@@ -122,6 +122,7 @@ The standard component library, the submodule `Redstone.Blocks`:
   (D-313).
 - `Source`, pinned, its `f` fed the nominal time (D-312, D-313).
 - `Constant`, `UnitDelay` and `Freeze` (D-312).
+- `StopRequest` (D-316).
 - `DiscreteIntegrator`, `DiscreteLimitedIntegrator` with the helper
   `saturation_code`, and `RateLimiter` (D-313).
 - `GaussianWhiteNoise`, with the helpers `splitmix` and `gaussian` (D-231,
@@ -146,7 +147,7 @@ It reaches the parent through its import list alone, as a user's component
 file does (D-313). Nothing in the package depends on it, so `src/Redstone.jl`
 includes it last.
 
-Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-211, D-231, D-311, D-312, D-313.
+Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.5, §13.7, D-179, D-184, D-211, D-231, D-311, D-312, D-313, D-316.
 
 ### `src/build.jl`
 
@@ -187,10 +188,12 @@ Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-
 - At a stall, the SCC decomposition into one `AlgebraicCycle` per cluster
   (§5.6, D-012).
 - The layout, with the root-input meet (D-168, D-236), `IllegalPortType`'s
-  three layout arms (D-237) and the flat `x` ranges every offset is read from
-  (D-261). Its alias pass enters assembly output faces alone, from
-  `terminal_producer`; `compile`'s input group reads a primitive input face's
-  address as its terminal producer's (D-210, D-315).
+  three layout arms (D-237) and its two stop-request arms (D-316), and the flat
+  `x` ranges every offset is read from (D-261). `Requester` is one entry of the
+  layout's `requesters`, the roster of the `StopFlag` buffer (D-316). Its alias
+  pass enters assembly output faces alone, from `terminal_producer`;
+  `compile`'s input group reads a primitive input face's address as its
+  terminal producer's (D-210, D-315).
 - The nominal evaluation `_nominal`. It returns the `Outputs`, the `Events` and
   the nominal activation. The `Events` hold one `ComponentEvents` row per
   component, with its path, policies and bundle.
@@ -209,9 +212,9 @@ Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-
   - The event set takes the phase bodies' chunk size (D-289).
 
 Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2,
-D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236,
-D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265, D-289,
-D-315.
+§13.5, D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235,
+D-236, D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265,
+D-289, D-315, D-316.
 
 ### `src/checkpoint.jl`
 
@@ -334,6 +337,7 @@ The declaration layer:
 - `probe_value`, with its enum arm (D-051).
 - The connection declarations `local_wires`, `input_wires` and
   `output_wires`, beside `transparent_container`.
+- The optional declaration `stop_reason` (D-316).
 - The rate forms `Period`, `Relative` and `Absolute`, with `sample_times`.
 - The event surface `StateEvent`, `state_events` and `x_projection`.
 - The declaration family `DECLARATION_FAMILY` and `foreign_declarations`.
@@ -341,8 +345,8 @@ The declaration layer:
   bundle-name functions and `foreign_declarations`, take it unspecialized, so a
   new component type compiles none of them again (§9.7, D-289).
 
-Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, §9.7, Appendix B, D-051, D-179,
-D-185, D-195, D-211, D-246, D-248, D-263, D-289.
+Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, §9.7, §13.5, Appendix B, D-051,
+D-179, D-185, D-195, D-211, D-246, D-248, D-263, D-289, D-316.
 
 ### `src/deployment.jl`
 
@@ -498,6 +502,7 @@ D-249, D-255, D-261, D-289.
     sits over `retype`, which replaces each `Float64` position by the scalar
     and pins a mutable type's parameters (D-263).
   - `_holds_marker` finds a marker below the top.
+- `StopFlag`, the stop-request enum, beside `Pinned` (D-316).
 - `leaf_names`' dotted spelling of a flat position, a matrix leaf by its
   indices.
 - Embed-accept's relation `_accepts` (D-166). The relation is decided on the
@@ -506,8 +511,8 @@ D-249, D-255, D-261, D-289.
 - The wire relation `_accepts_wire`, with its abstract arm (D-236).
 - The checked state write `flatten_state!` (D-235).
 
-Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235,
-D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
+Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, §13.5, D-166,
+D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276, D-316.
 
 ### `src/linearize.jl`
 
@@ -707,13 +712,13 @@ Spec: §10.2, D-017.
 - Gather `gather_cell`/`gather_group` and the checked scatter
   `scatter_cell!`/`scatter_group!`. The scatter's check is §9.5's always-on
   check, decided at generation (D-235).
-- `_cell_key`.
+- `_cell_key`, and `STOP_FLAG_KEY`, the `StopFlag` buffer's key (D-316).
 - The `Clock` (D-260):
   - its `t` is in the deployment's scalar;
   - its origin `t₀` is a `Float64`;
   - the constructor takes `t₀` and converts it into `t`.
 
-Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
+Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316.
 
 ### `src/trace.jl`
 
@@ -782,7 +787,7 @@ The suite's fixtures:
   generic. The generic lives in `src/conditions.jl`.
 - `Pendulum`.
 - The `ForgottenImport` module and the forgotten-import fixtures `Inventory`,
-  `Update`, `Events` and `Rates`, which import nothing, and
+  `Update`, `Events`, `Rates` and `Reason`, which import nothing, and
   `PassthroughOverForgotten`.
 
 All of them are user material, and no name here is known to `src/`.

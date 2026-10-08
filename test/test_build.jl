@@ -812,8 +812,21 @@ u_types(::Misprobed) = (q = BrokenProbe{Float64},)
 y_types(::Misprobed) = (s = Float64,)
 y_direct(::Misprobed, (; u)) = (s = u.q.a,)
 
+# A stop request out of place (§13.5, D-316): a `StopFlag` nested in a port of
+# another type, and a consumer whose `StopFlag` input surfaces as a root input.
+struct NestedRequest <: AbstractComponent end
+x_init(::NestedRequest) = (;)
+y_types(::NestedRequest) = (status = @NamedTuple{flag::StopFlag, x::Float64},)
+y_state(::NestedRequest, _) = (status = (flag = NO_STOP, x = 0.0),)
+
+struct FlagReader <: AbstractComponent end
+x_init(::FlagReader) = (;)
+u_types(::FlagReader) = (flag = StopFlag,)
+y_types(::FlagReader) = (stopped = Bool,)
+y_direct(::FlagReader, (; u)) = (stopped = u.flag === STOP_REQUESTED,)
+
 function build_port_type_refusals()
-    @testset "a mutable port and a handle at root are refused (§4.4, D-237)" begin
+    @testset "a mutable port, a handle at root and a misplaced stop request are refused (§4.4, §13.5, D-237, D-316)" begin
         d = only(diagnostics(failure(() -> build(Group((; c = MutableSource()))))))
         @test d isa IllegalPortType
         @test d.site === :port && d.reason === :mutable && d.name === :c
@@ -844,6 +857,17 @@ function build_port_type_refusals()
         diags = diagnostics(err)
         @test length(diags) == 2 && all(d -> d isa IllegalPortType, diags)
         @test Set(d.reason for d in diags) == Set([:mutable, :handle_at_root])
+
+        # The roster is per port, so a `StopFlag` inside another port type is
+        # refused, and a request at a root input would be an operator's.
+        d = only(diagnostics(failure(() -> build(Group((; c = NestedRequest()))))))
+        @test d isa IllegalPortType && d.reason === :stop_flag_nested
+        @test d.site === :port && path(d) == "c" && d.name === :status
+        @test d.declared === @NamedTuple{flag::StopFlag, x::Float64}
+        d = only(diagnostics(failure(() -> build(Group((; r = FlagReader());
+                                                       input_wires = ("stop" => "r/flag",))))))
+        @test d isa IllegalPortType && d.reason === :stop_flag_at_root
+        @test d.site === :root_input && path(d) == "" && d.name === :stop && d.declared === StopFlag
     end
 
     @testset "a root input the synthesis chain cannot value is `MissingProbeValue`, collected (§9.3, D-051)" begin
@@ -891,6 +915,40 @@ function build_port_type_refusals()
         d = only(diagnostics(failure(() -> Simulation(model, D8; h = 1//10))))
         @test d isa ConformanceFailure && d.reason === :field_type && d.field === :terrain
         @test d.observed === OffsetField{Float64} && d.declared === OffsetField{D8}
+    end
+end
+
+# --- the stop-request roster (§9.7, §13.5, D-316) -------------------------------
+
+# A component publishing a request directly, with no `stop_reason`.
+struct DirectRequester <: AbstractComponent end
+x_init(::DirectRequester) = (;)
+y_types(::DirectRequester) = (halt = StopFlag,)
+y_state(::DirectRequester, _) = (halt = NO_STOP,)
+
+# A `StopRequest` fed by a constant, as one subtree.
+requested(value, reason) = Group((; src = Constant(value), stop = StopRequest(reason = reason));
+                                 local_wires = ("src/out" => "stop/request",))
+
+function build_stop_roster()
+    @testset "the layout rosters every `StopFlag` port, aligned with its buffer, with its reason (§9.7, §13.5, D-316)" begin
+        # Two blocks in two subtrees and a direct publisher: build order, each
+        # entry at its own offset, the blocks' reasons and the default `""`.
+        model = Group((; a = requested(true, "a fell"), b = requested(false, "b done"),
+                         d = DirectRequester()))
+        layout = activation(build(model), Float64).layout
+        @test [(r.path, r.port, r.reason) for r in layout.requesters] ==
+              [("a/stop", :flag, "a fell"), ("b/stop", :flag, "b done"), ("d", :halt, "")]
+        for (i, r) in enumerate(layout.requesters)
+            @test layout.addr[(r.path, r.port)].offsets == (i - 1,)
+        end
+        @test (StopFlag => 3) in layout.sizes
+
+        # The same type at two paths: one entry each, alike but for the path.
+        layout = activation(build(Group((; p = DirectRequester(), q = DirectRequester()))), Float64).layout
+        @test [r.path for r in layout.requesters] == ["p", "q"]
+        @test all(r -> r.port === :halt && r.reason == "", layout.requesters)
+        @test [layout.addr[(r.path, r.port)].offsets for r in layout.requesters] == [(0,), (1,)]
     end
 end
 
@@ -2065,6 +2123,7 @@ function test_build()
     build_root_input_type()
     build_wire_clauses()
     build_port_type_refusals()
+    build_stop_roster()
     build_layout_aliases()
     build_label_ports()
     build_tier()

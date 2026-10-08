@@ -39,6 +39,10 @@ end
 # fixes one fully-qualified spelling for every site.
 _cell_key(::Type{L}) where {L} = Symbol(sprint(show, L; context = :module => nothing))
 
+# The stop-request buffer's key, fixed once: `_cell_key` prints and allocates
+# (§13.5, D-316).
+const STOP_FLAG_KEY = _cell_key(StopFlag)
+
 @generated function gather_cell(bundle::StoreBundle, addr::CellAddr{P,K}) where {P,K}
     eltypes = leaf_eltypes(P)
     binds = [:($(Symbol(:buffer, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buffer)
