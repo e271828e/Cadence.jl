@@ -938,13 +938,15 @@ rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
   prefixed twin appends its target like any helper (`report_cell!`, never
   `_report!` beside `report!`), the one exception being a keyword-to-positional
   shim (`reads`/`_reads`), one function in two calling conventions;
-- **no local shares a name with a function** defined in the package, or with
-  a Base function the package calls anywhere in `src/` (`pairs`, `count`,
-  `max`, `values`, `only`, `bind`; a Base name the package never calls, such
-  as `run` or `schedule`, is free). Where the natural noun is taken, the
-  local takes a qualifier or a role name. Two exceptions, `path` and
-  `build`: a spec noun whose function produces the thing the local holds,
-  where no scope holding one calls the function;
+- **no local shares a name with a function** its module sees, defined there
+  or imported, or with a Base function the package calls anywhere in `src/`
+  (`pairs`, `count`, `max`, `values`, `only`, `bind`; a Base name the package
+  never calls, such as `run` or `schedule`, is free). A package function is
+  free likewise in a module that never imports it: `Redstone.Blocks.held`
+  binds no name in `Redstone`, as a user's component file would not. Where
+  the natural noun is taken, the local takes a qualifier or a role name. Two
+  exceptions, `path` and `build`: a spec noun whose function produces the
+  thing the local holds, where no scope holding one calls the function;
 - **out of the rules' reach**: a parameter of a public signature keeps the
   spec's spelling (`trace`, `log`, `condition`, `reads`, `sep`, `maxiter`,
   the selectors' `leaf`); a name the code generators emit and read back

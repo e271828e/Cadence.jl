@@ -158,13 +158,10 @@ survived, and one extra mutant the reviewer added survived. Rulings:
 ## Open points for the user
 
 - **`held` is now a package function while locals named `held` remain** in
-  `src/dataplane.jl` (lines 594 to 607), `src/devices.jl` (163 to 165) and
-  `test/test_blocks.jl`'s cascade testset. "Naming" says no local shares a
-  name with a package function. The brief called the name free knowing the
-  locals; nothing shadows in practice (the tests call it qualified, and
-  `blocks.jl` has no `held` local). Not touched: renaming locals in two
-  untouched source files is a sweep, and the alternative is renaming the
-  accessor the brief fixed. Your call.
+  `src/dataplane.jl`, `src/devices.jl` and `test/test_blocks.jl`'s cascade
+  testset. Resolved after the run with the user: no rename. "Naming" now
+  scopes the rule to the functions a module sees, so a function of
+  `Redstone.Blocks` binds no name in `Redstone`, which never imports it.
 - The brief says "nine shared methods" at two places (lines 430 and 555);
   briefs stay untouched until the first release, so it is left as is.
 - Low reviewer nits not acted on: `u1`, `u2` as the uniforms in a file where
