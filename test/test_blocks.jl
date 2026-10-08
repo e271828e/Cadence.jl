@@ -389,6 +389,7 @@ function test_blocks()
         @test y_types(Pack{Float64, 3}()) == (out = SVector{3, Float64},)
         @test typeof(Pack{Float64, 2}()) === Junction{Float64, SVector{2, Float64}, 2, typeof(Redstone.Blocks.pack)}
         @test Pack{Float64, 2}().f === Redstone.Blocks.pack
+        @test Redstone.has_stage(y_direct, Pack{Float64, 2}()) && !Redstone.has_stage(y_state, Pack{Float64, 2}())
         sim = Simulation(pack_model(Pack{Float64, 2}()); h = 1//10)
         init!(sim, fragment())
         step!(sim; t_plus = 0.3)
@@ -407,6 +408,7 @@ function test_blocks()
         @test (port(sim, "c", :out1), port(sim, "c", :out2), port(sim, "c", :out3)) == (1.0, -2.0, 3.5)
         @test y_types(Unpack{Float64, 3}()) == (out1 = Float64, out2 = Float64, out3 = Float64)
         @test y_types(Unpack{Float64, 1}()) == (out1 = Float64,)
+        @test Redstone.has_stage(y_direct, Unpack{Float64, 3}()) && !Redstone.has_stage(y_state, Unpack{Float64, 3}())
         @test build(unpack_model(); activations = (Float64, LinearizeDual)) isa Build
         root_sim = Simulation(unpack_root_model(); h = 1//100)
         init!(root_sim, fragment(u = (v = SVector(1.0, 2.0),)))

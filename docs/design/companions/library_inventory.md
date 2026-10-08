@@ -80,7 +80,7 @@ proves standard). A block is generic over its port type `V`, in the
 [D-263][d-263] spelling, unless its ports are fixed by what it is: the `Bool`
 gates, the PID and the linear blocks, whose ports follow their matrix
 shapes. The port names are `in`, `in1…inN` and `out`, and `out1…outN` where a
-block splits one port into `N` alike.
+block splits one port into `N` ports alike.
 
 ### Structure
 
