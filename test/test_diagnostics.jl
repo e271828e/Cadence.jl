@@ -268,8 +268,8 @@ function diagnostics_kind_set()
                         candidates = [:throttle, :mixture]),
             UnknownPort(entry = "input_wires at `a`, entry `:u => ()`", endpoint = :connection,
                         path = "a", port = :u),
-            UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a/b"),
-            UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a"),
+            UnconnectedInput(path = "a/b", face = :u, declared = Float64),
+            UnconnectedInput(path = "a/b", face = :u, declared = Float64, handed = [("a", :v)]),
             TwoProducers(path = "a/b", port = :u, incumbent = "a sibling wire",
                          entry = "an interface connection",
                          incumbent_producer = "`a/c`.y", producer = "root input `u`"),
@@ -746,9 +746,9 @@ function diagnostics_kind_set()
     @testset "rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)" begin
         # Two kinds × two paths: groups in first-appearance order, paths sorted
         # within a group, the kind name leading each line, the count line above.
-        carrier = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u, declared = Float64, level = "b"),
+        carrier = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u, declared = Float64),
                                         FaceNameIllegal(path = "b", face = "p/q", invariant = :contains_slash),
-                                        UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a"),
+                                        UnconnectedInput(path = "a", face = :v, declared = Float64),
                                         FaceNameIllegal(path = "a", face = "r/s",
                                                         invariant = :contains_slash)])
         @test kinds(carrier) == [UnconnectedInput, FaceNameIllegal]
@@ -772,8 +772,15 @@ function diagnostics_kind_set()
         @test kinds(with_warning) == kinds(carrier) &&
               diagnostics(with_warning) == diagnostics(carrier)
 
+        # The obligation chain renders innermost first, the last face being the one
+        # nobody wired.
+        @test startswith(message(UnconnectedInput(path = "i/j/a", face = :e, declared = Float64,
+                                                  handed = [("i/j", :f), ("i", :g)])),
+                         "`i/j/a`.e declared Float64 is fed by nothing, handed up through " *
+                         "`i/j`.f, `i`.g and fed by nothing there — ")
+
         # A fail-fast site's single diagnostic renders on one line, no count.
-        d = UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a")
+        d = UnconnectedInput(path = "a", face = :v, declared = Float64)
         @test sprint(showerror, DiagnosticError(d)) ==
               "DiagnosticError: UnconnectedInput: " * message(d)
 

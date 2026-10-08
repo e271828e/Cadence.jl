@@ -2052,7 +2052,7 @@ function build_warnings()
     @testset "the helper refuses an error-severity kind (D-250)" begin
         # An error-severity kind is collected or thrown, never warned.
         @test_throws InternalInvariant _warn!(UnconnectedInput(path = "a", face = :v,
-                                                               declared = Float64, level = "a"))
+                                                               declared = Float64))
     end
 end
 

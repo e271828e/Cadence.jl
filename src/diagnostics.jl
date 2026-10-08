@@ -332,13 +332,16 @@ Base.@kwdef struct UnconnectedInput <: Diagnostic
     path::String
     face::Symbol
     declared::Any                            # the declared entry type, at nominal
-    level::String                            # the obligation chain's last level; the leaf's own path when no route names it
+    # the faces `input_wires` entries handed it up through, innermost first; the
+    # last is the outermost face nobody wired, and none when nothing handed it up
+    handed::Vector{Tuple{String,Symbol}} = Tuple{String,Symbol}[]
 end
 path(d::UnconnectedInput) = d.path
 message(d::UnconnectedInput) =
     "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
-    (d.level == d.path ? "" :
-     ", handed up to $(_at_path(d.level)) and fed by nothing there") *
+    (isempty(d.handed) ? "" :
+     ", handed up through " * join(("`$p`.$f" for (p, f) in d.handed), ", ") *
+     " and fed by nothing there") *
     " — every input is fed exactly once, by a local wire or by an `input_wires` chain " *
     "ending at a root input face (§6.1)"
 

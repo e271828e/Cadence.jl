@@ -575,12 +575,11 @@ function resolve_dest(draft, entry::String, base::String, @nospecialize(assembly
     if classify(comp_path, comp) === PRIMITIVE
         haskey(_contract(u_types, comp), name) && return [Tuple{String,Symbol}[(comp_path, name)]]
     else
-        # Children are walked before wires, so the child's faces are already
-        # resolved: a face's routes are its recorded ones behind this hop, and a
+        # Children are walked before wires, so the child's level wires are already
+        # recorded: a face's routes are derived from them behind this hop, and a
         # face whose route was refused was refused there, once (D-229).
-        row = findfirst(rt -> rt[1] == comp_path && rt[2] === name, draft.routes)
-        row === nothing ||
-            return [pushfirst!(copy(route), (comp_path, name)) for route in draft.routes[row][3]]
+        routes = _draft_routes(draft, (comp_path, name))
+        isempty(routes) || return [pushfirst!(route, (comp_path, name)) for route in routes]
         String(name) in input_faces(comp) && return Vector{Tuple{String,Symbol}}[]   # refused at the child
     end
     # the parent's own typo
@@ -588,11 +587,26 @@ function resolve_dest(draft, entry::String, base::String, @nospecialize(assembly
     Vector{Tuple{String,Symbol}}[]
 end
 
+# The routes of a walked assembly's input face, one per consumer in wire order,
+# derived from the level wires the walk recorded: a primitive's face ends a route,
+# and an assembly's continues through its own level.
+function _draft_routes(draft, face::Tuple{String,Symbol})
+    routes = Vector{Tuple{String,Symbol}}[]
+    for (producer, hop) in draft.wires[first(face)]
+        producer == face || continue
+        haskey(draft.wires, first(hop)) || (push!(routes, [hop]); continue)
+        for route in _draft_routes(draft, hop)
+            push!(routes, pushfirst!(route, hop))
+        end
+    end
+    routes
+end
+
 _endpoints(inner::AbstractString) = (inner,)
 _endpoints(inner::Tuple) = inner
 
 # Called by the declaring level alone, on its own children's endpoints: a parent
-# reading the face reads the routes this built.
+# reading the face reads the level wires this recorded.
 # A loop, because a generator's closure would capture `comp` (see `_walk!`).
 function _fanout(draft, entry, base, @nospecialize(comp), inner, diags)
     routes = Vector{Tuple{String,Symbol}}[]
@@ -735,8 +749,7 @@ end
 # the per-assembly paths and wires the `Structure`'s rows are built from at the
 # barrier, with the slack the dirty pass needs (a tier is `nothing` where a
 # store-form failure was recorded, and narrows on the clean walk the wire pass
-# runs on), plus the walk's scratch — the claims, the routes and the evaluated
-# face lists. The root-input types are not here: the wire pass fixes them
+# runs on), plus the walk's scratch — the claims and the evaluated face lists. The root-input types are not here: the wire pass fixes them
 # (D-236) and the `Structure` takes them at construction (D-261).
 # Violations are not held here either: the step's list is an argument of every
 # helper that can add to it.
@@ -753,7 +766,6 @@ struct StructureDraft
     out_faces::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}   # (path, face) => route
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
-    routes::Vector{Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}}   # (path, face, one route per consumer)
     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
     child_lists::Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}   # per assembly path: `_children`'s two lists
     level_paths::Vector{String}          # per assembly, in walk pre-order
@@ -769,7 +781,6 @@ StructureDraft(@nospecialize(root::AbstractComponent)) =
                    Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}[],
                    Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
                    Dict{Tuple{String,Symbol},String}(),
-                   Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}[],
                    IdDict{Any,Tuple{Vector{String},Vector{String}}}(),
                    Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}(),
                    String[],
@@ -957,25 +968,33 @@ Base.@nospecializeinfer function flatten_tree!(draft::StructureDraft, @nospecial
                 haskey(draft.feeds, (path, face)) ||
                     push!(diags, UnconnectedInput(path = path, face = face,
                                                  declared = declared,
-                                                 level = _last_level(draft, path, face)))
+                                                 handed = _handed(draft, (path, face))))
             end
         end
     end
     nothing
 end
 
-# The obligation chain's last level (§6.1): the topmost face a
-# `input_wires` chain handed `(path, face)` up to — the shortest route path
-# naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
-# leaf's own path when no route names it: `draft.routes` records only routes with
-# consumers, so an entry nobody handed up has no row.
-function _last_level(draft::StructureDraft, path::String, face::Symbol)
-    level = path
-    for (route_path, _, routes) in draft.routes
-        any(route -> last(route) == (path, face), routes) &&
-            length(route_path) < length(level) && (level = route_path)
+# The obligation chain (§6.1): the faces `input_wires` entries handed `consumer`
+# up through, innermost first. From the consumer, the wire into it at its parent
+# level, while that wire's producer is the level's own face; the last face is the
+# outermost one nobody wired.
+function _handed(draft::StructureDraft, consumer::Tuple{String,Symbol})
+    handed = Tuple{String,Symbol}[]
+    while true
+        current = consumer                   # one binding per pass, for the closures
+        k = findfirst(level_path -> any(((segment, _),) -> _join(level_path, segment) == first(current),
+                                        first(draft.child_lists[level_path])),
+                      draft.level_paths)
+        k === nothing && return handed
+        level_path = draft.level_paths[k]
+        row = findfirst(wire -> last(wire) == current, draft.wires[level_path])
+        row === nothing && return handed
+        producer = first(draft.wires[level_path][row])
+        first(producer) == level_path || return handed
+        push!(handed, producer)
+        consumer = producer
     end
-    level
 end
 
 # The structure step's last act (D-261): the artifact, complete at construction,
@@ -1138,7 +1157,6 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
             for hop in unique(first.(routes))
                 push!(level_wires, (path, Symbol(face)) => hop)
             end
-            push!(draft.routes, (path, Symbol(face), routes))
             isempty(path) || continue
             push!(draft.root_inputs, Symbol(face))
             for consumer in last.(routes)

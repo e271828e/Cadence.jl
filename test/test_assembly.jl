@@ -786,8 +786,8 @@ function assembly_obligations()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa UnconnectedInput && d.path == "g" && d.face === :e
-        # No route names it, so the chain's last level is the leaf's own path.
-        @test d.declared === Float64 && d.level == "g"
+        # Nothing handed it up, so the chain is empty.
+        @test d.declared === Float64 && isempty(d.handed)
 
         err = failure(() -> build(DoubleFed(SampledLoop(), ModedSource(), ModedSource())))
         @test err isa DiagnosticError
@@ -813,7 +813,7 @@ function assembly_obligations()
         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
         @test d.port === :ot && :out in d.candidates
         d = only(filter(x -> x isa UnconnectedInput, diagnostics(err)))
-        @test d.path == "s" && d.face === :a && d.declared === Float64 && d.level == "s"
+        @test d.path == "s" && d.face === :a && d.declared === Float64 && isempty(d.handed)
 
         # A face is resolved once, where it is declared: three parent wires reading
         # a child face whose route is broken report the child's refusal once, not
@@ -829,10 +829,18 @@ function assembly_obligations()
         @test d.path == "i/a" && d.port === :outt
         @test [(x.path, x.face) for x in diagnostics(err) if x isa UnconnectedInput] ==
               [("i/a", :e), ("g1", :e), ("g2", :e), ("g3", :e)]
-        # The obligation chain's last level: `i/a`'s entry was handed up to `i`'s
-        # face and nothing fed it there; the three siblings were never handed up.
-        @test [(x.level, x.declared) for x in diagnostics(err) if x isa UnconnectedInput] ==
-              [("i", Float64), ("g1", Float64), ("g2", Float64), ("g3", Float64)]
+        # The obligation chain: `i/a`'s entry was handed up through `i`'s face and
+        # nothing fed it there; the three siblings were never handed up.
+        @test [(x.handed, x.declared) for x in diagnostics(err) if x isa UnconnectedInput] ==
+              [([("i", :f)], Float64), (Tuple{String,Symbol}[], Float64),
+               (Tuple{String,Symbol}[], Float64), (Tuple{String,Symbol}[], Float64)]
+
+        # A chain two faces long, innermost first, ending at the face nobody wired.
+        inner = Group((; a = Gain(1.0)); input_wires = ("f" => "a/e",))
+        middle = Group((; i = inner); input_wires = ("g" => "i/f",))
+        d = only(diagnostics(failure(() -> build(Group((; m = middle))))))
+        @test d isa UnconnectedInput && d.path == "m/i/a" && d.face === :e
+        @test d.handed == [("m/i", :f), ("m", :g)]
 
         # The parent's own typo against a child face is still its own refusal, and
         # the candidates are the child's face list.

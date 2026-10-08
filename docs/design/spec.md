@@ -12005,8 +12005,9 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   interface-connection entry's internal side, [D-210][d-210]), that end's
   path, the unknown port name, that end's port list (did-you-mean).
 - **`UnconnectedInput`** ([§6.1][s6-1], [§8.4][s8-4] w2). Error · build ·
-  collected. Leaf path, input name, declared entry type, the obligation
-  chain's last level.
+  collected. Leaf path, input name, declared entry type, the faces
+  `input_wires` entries handed it up through, innermost first, the last being
+  the outermost face nobody wired.
 - **`TwoProducers`** ([§6.1][s6-1], [§8.8][s8-8]). Error · build · collected.
   Destination terminal, both producer terminals with their declarations
   (sibling wire / interface connection entry).
