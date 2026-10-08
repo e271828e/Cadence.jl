@@ -32,8 +32,8 @@ boundary, publishes, and scans the stop requests:
 entry = sim.exec.clock.frame
 drain!(sim, roster)
 k = (sim.exec.clock.frame += 1)
-frame!(sim, k, pol, ignore_mask, roster, pacer)
-if pol.hit === nothing
+hit = frame!(sim, k, pol, ignore_mask, roster, pacer)
+if hit === nothing
     k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)
     publish!(sim, roster, pacer)
     hit = _stop_hit(sim, pol, ignore_mask)

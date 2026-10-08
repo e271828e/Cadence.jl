@@ -258,7 +258,7 @@ Whether the convention itself should move to `σ > 0` was weighed on
 section 3: the hit guard would read `0` at the rest point and not hold, so
 it would re-arm by itself, and `-in` at zero would not hold either. But it
 would break the events the design is built around, the ones in which a
-quantity reaches a level: the touchdown archetype and the stop faces of
+quantity reaches a level: the touchdown archetype and the stop requests of
 [§13.5][s13-5], a `Step` at `t_step = t₀`, a relay fed exactly its threshold, and
 every state initialized exactly on a level, which fires at boundary zero
 today and never would. It would also make the sign form `q - upper` and the
