@@ -1139,15 +1139,39 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
         # Both boundary declarations are resolved wherever they appear, so their
         # entries are checked at every level; only the root's input faces *feed*
         # anything, there being no parent above them to claim the obligation.
+        # Below the root, what this level's entries hand up: consumer => (entry, face).
+        handed_claims = Dict{Tuple{String,Symbol},Tuple{String,Tuple{String,Symbol}}}()
         for (face, inner) in input_entries
             entry = _entry("input_wires", path, face => inner)
             routes = _fanout(draft, entry, path, comp, inner, diags)
+            # A port this level already feeds, by a sibling wire or by an earlier
+            # endpoint handed up, is fed twice (§6.1), whether or not a parent wires
+            # the face: below the root only this level's own `local_wires` have
+            # claimed anything the entry reaches. The route is refused here, once,
+            # and hands nothing up (D-229). At the root the claims meet in `_claim!`.
+            if !isempty(path)
+                filter!(routes) do route
+                    consumer = last(route)
+                    incumbent = haskey(draft.feeds, consumer) ?
+                                (draft.claims[consumer], draft.feeds[consumer]) :
+                                get(handed_claims, consumer, nothing)
+                    if incumbent === nothing
+                        handed_claims[consumer] = (entry, (path, Symbol(face)))
+                        return true
+                    end
+                    push!(diags, TwoProducers(path = consumer[1], port = consumer[2],
+                                             incumbent = first(incumbent), entry = entry,
+                                             incumbent_producer = _terminal(last(incumbent)),
+                                             producer = _terminal((path, Symbol(face)))))
+                    false
+                end
+            end
             # Every entry routes to at least one internal endpoint, at every level
             # (D-210): a face feeding nothing declares nothing, and the empty tuple
             # would otherwise reach no consumer, record no wire in its level row,
             # and let a condition addressing it misdiagnose as a bare typo. Declared
-            # empty is the refusal; empty because every endpoint failed to resolve is
-            # already recorded, and registers nothing more.
+            # empty is the refusal; empty because every endpoint failed to resolve, or
+            # every consumer is fed twice, is already recorded, and registers nothing more.
             if isempty(routes)
                 isempty(_endpoints(inner)) &&
                     push!(diags, UnknownPort(entry = entry, endpoint = :connection,
@@ -1178,8 +1202,9 @@ _entry(method::String, path::String, pair::Pair) =
     "$method at $(_at_path(path)), entry `$(repr(first(pair))) => $(repr(last(pair)))`"
 
 # Every input takes exactly one connection, and the rule spans levels (§6.1): an
-# input fed both by a sibling wire and by an ancestor's route — or handed up while
-# also wired — meets its second claim here.
+# input fed by two wires at one level, or by two root claims routed through
+# faces, meets its second claim here. An input handed up while also wired is
+# refused where the `input_wires` entry is declared.
 function _claim!(draft::StructureDraft, consumer, producer, entry::String,
                  diags::Vector{Diagnostic})
     if haskey(draft.feeds, consumer)

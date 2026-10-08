@@ -795,15 +795,46 @@ function assembly_obligations()
         @test d isa TwoProducers && d.path == "loop/sum" && d.port === :a
         @test d.incumbent_producer == "`src`.out" && d.producer == "`src2`.out"
 
-        # The same rule one level down: the sub-assembly's own wire against the
-        # ancestor's route through the face, and the diagnostic names both entries.
+        # The same rule one level down: the sub-assembly's own wire against its
+        # `input_wires` entry onto the same port, refused where both are declared,
+        # and the diagnostic names both entries. The parent's wire into the face
+        # claims nothing more.
         err = failure(() -> build(DoubleFedSibling(Doubler(ModedSource(), Gain(1.0)),
                                                    ModedSource())))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa TwoProducers && startswith(d.incumbent, "local_wires at `loop`") &&
-              startswith(d.entry, "local_wires at the root component")
-        @test d.incumbent_producer == "`loop/s`.out" && d.producer == "`src`.out"
+        @test d isa TwoProducers && d.path == "loop/g" && d.port === :e
+        @test startswith(d.incumbent, "local_wires at `loop`") &&
+              startswith(d.entry, "input_wires at `loop`")
+        @test d.incumbent_producer == "`loop/s`.out" && d.producer == "`loop`.in"
+
+        # The double declaration is refused whether or not a parent wires the face.
+        inner = Group((; a = ModedSource(), b = Gain(1.0)); local_wires = ("a/out" => "b/e",),
+                      input_wires = ("u" => "b/e",))
+        err = failure(() -> build(Group((; inner))))
+        d = only(diagnostics(err))
+        @test d isa TwoProducers && d.path == "inner/b" && d.port === :e
+        @test startswith(d.incumbent, "local_wires at `inner`") &&
+              startswith(d.entry, "input_wires at `inner`")
+        @test d.incumbent_producer == "`inner/a`.out" && d.producer == "`inner`.u"
+
+        # So is a port the level hands up twice, through one entry or two, and the
+        # parent's wires into the faces claim nothing more.
+        twice = Group((; a = Gain(1.0)); input_wires = ("f" => ("a/e", "a/e"),))
+        err = failure(() -> build(Group((; src = ModedSource(), i = twice);
+                                        local_wires = ("src/out" => "i/f",))))
+        d = only(diagnostics(err))
+        @test d isa TwoProducers && d.path == "i/a" && d.port === :e
+        @test d.incumbent == d.entry && startswith(d.entry, "input_wires at `i`")
+        @test d.incumbent_producer == d.producer == "`i`.f"
+        twice = Group((; a = Gain(1.0)); input_wires = ("f" => "a/e", "g" => "a/e"))
+        err = failure(() -> build(Group((; src = ModedSource(), i = twice);
+                                        local_wires = ("src/out" => "i/f", "src/out" => "i/g"))))
+        d = only(diagnostics(err))
+        @test d isa TwoProducers && d.path == "i/a" && d.port === :e
+        @test startswith(d.incumbent, "input_wires at `i`, entry `\"f\"") &&
+              startswith(d.entry, "input_wires at `i`, entry `\"g\"")
+        @test d.incumbent_producer == "`i`.f" && d.producer == "`i`.g"
 
         # §13.1's worked example (D-229): the typo'd wire is recorded and claims
         # nothing, so the same throw carries the unknown port *and* the input it

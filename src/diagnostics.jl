@@ -351,8 +351,8 @@ Base.@kwdef struct TwoProducers <: Diagnostic
     port::Symbol                             # the destination terminal's port
     incumbent::String                        # the entry that claimed it first
     entry::String                            # the entry that claimed it second
-    incumbent_producer::String               # the terminal the first entry feeds it from
-    producer::String                         # the terminal the second entry feeds it from
+    incumbent_producer::String               # the terminal, or handing face, the first entry feeds it from
+    producer::String                         # the terminal, or handing face, the second entry feeds it from
 end
 path(d::TwoProducers) = d.path
 message(d::TwoProducers) =

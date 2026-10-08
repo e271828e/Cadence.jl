@@ -12009,8 +12009,9 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   `input_wires` entries handed it up through, innermost first, the last being
   the outermost face nobody wired.
 - **`TwoProducers`** ([§6.1][s6-1], [§8.8][s8-8]). Error · build · collected.
-  Destination terminal, both producer terminals with their declarations
-  (sibling wire / interface connection entry).
+  Destination terminal, both producers with their declarations (sibling wire
+  / interface connection entry), each a terminal or the face an entry hands
+  the input up through.
 - **`WireTypeMismatch`** ([§6.1][s6-1], [§8.2][s8-2], [§8.4][s8-4] w4). Error
   · build · collected. Both endpoint paths, both face names, declared entry
   type, producer face type.
