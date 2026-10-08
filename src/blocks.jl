@@ -198,6 +198,37 @@ stop_reason(c::StopRequest) = c.reason
 # --- the discrete tier (§7.3, §10.5, D-313) -------------------------------------
 
 """
+    Delay(; K, v0 = 0.0)
+
+The delay line, the tier's `z⁻ᴷ`: `out` publishes `in` from `K` ticks ago, from
+stage 1, and `v0` at the first `K` publications. `K ≥ 1` counts ticks of the
+component's own period (§10.5), so the model picks it from the rate it declares,
+and `K = 1` is `UnitDelay` in keyword spelling. The store is a ring of `K`
+values and a cursor `k`: the slot under the cursor holds the value from `K`
+ticks ago, and each tick overwrites it with `in` and advances, so the work per
+tick is constant in `K`. `V` is `Float64` or a static array of `Float64`, taken
+from `float(v0)`, so an integer `v0` qualifies.
+
+It breaks an algebraic loop as `UnitDelay` does (§5.5), and that is a modelling
+decision: placed in a continuous loop it moves the signal onto the discrete tier
+and inserts a `Δt_base`-scale zero-order hold.
+"""
+struct Delay{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, K} <: AbstractComponent
+    v0::V
+end
+function Delay(; K::Int, v0 = 0.0)
+    K >= 1 || throw(ArgumentError("Delay takes `K >= 1`; `K = 1` is `UnitDelay`."))
+    v0 = float(v0)
+    Delay{typeof(v0), K}(v0)
+end
+s_init(c::Delay{V, K}) where {V, K} = (buf = SVector{K, V}(ntuple(_ -> c.v0, K)), k = 1)
+u_types(::Delay{V}) where {V} = (in = V,)
+y_types(::Delay{V}) where {V} = (out = V,)
+y_state(::Delay, (; s)) = (out = s.buf[s.k],)
+s_update(::Delay{V, K}, (; s, u)) where {V, K} =
+    (buf = Base.setindex(s.buf, u.in, s.k), k = s.k == K ? 1 : s.k + 1)
+
+"""
     DiscreteIntegrator(; s0 = 0.0)
 
 The discrete integrator: one store field `q` from `s0`, advanced each tick by

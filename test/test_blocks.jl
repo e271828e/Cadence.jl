@@ -20,8 +20,11 @@ blocks_sum_model() =
           local_wires = ("r/out" => "s/in1", "k/out" => "s/in2", "d/out" => "s/in3",
                          "r/out" => "d/in"))
 
-# A delay behind a tick counter: the counter's `n` is its tick index.
-delay_model(v0) = Group((; c = TickCounter(), d = UnitDelay(v0)); local_wires = ("c/n" => "d/in",))
+# A delay behind a tick counter: the counter's `n` is its tick index. The delay
+# line's `V` is a float, so a junction converts the count.
+delay_model(delay) = Group((; c = TickCounter(), d = delay); local_wires = ("c/n" => "d/in",))
+delay_model(delay::Delay) = Group((; c = TickCounter(), f = Junction{Int, Float64, 1}(float), d = delay);
+                                  local_wires = ("c/n" => "f/in1", "f/out" => "d/in"))
 
 # A block fed by a source, under the given rates.
 fed_by(src, c; sample_times = (;)) =
@@ -563,7 +566,7 @@ function test_blocks()
     end
 
     @testset "the delay publishes its input one tick late, and `v0` first (§13.7, D-312)" begin
-        sim = Simulation(delay_model(-1); h = 1//100)
+        sim = Simulation(delay_model(UnitDelay(-1)); h = 1//100)
         init!(sim, fragment())
         @test port(sim, "c", :n) == 0 && port(sim, "d", :out) == -1
         for k in 1:4
@@ -571,8 +574,41 @@ function test_blocks()
             @test port(sim, "c", :n) == k && port(sim, "d", :out) == k - 1
         end
         # The store is isbits by rule (D-231), which bounds `V`.
-        err = failure(() -> build(delay_model([1.0])))
+        err = failure(() -> build(delay_model(UnitDelay([1.0]))))
         @test err isa DiagnosticError && only(diagnostics(err)) isa IllegalStoreField
+    end
+
+    @testset "the delay line publishes its input `K` ticks late, `v0` before, from a ring (§7.3, §13.7, D-313)" begin
+        sim = Simulation(delay_model(Delay(K = 3, v0 = -1)); h = 1//100)
+        init!(sim, fragment())
+        @test port(sim, "c", :n) == 0 && port(sim, "d", :out) == -1
+        # Past tick 5 the cursor has turned the three slots twice.
+        for k in 1:8
+            step!(sim; t_plus = 1//100)
+            @test port(sim, "c", :n) == k && port(sim, "d", :out) == (k < 3 ? -1 : k - 3)
+        end
+        # `K = 1` is `UnitDelay` in keyword spelling.
+        line_sim = Simulation(delay_model(Delay(K = 1, v0 = -1)); h = 1//100)
+        unit_sim = Simulation(delay_model(UnitDelay(-1)); h = 1//100)
+        init!(line_sim, fragment()); init!(unit_sim, fragment())
+        @test port(line_sim, "d", :out) == port(unit_sim, "d", :out)
+        for _ in 1:4
+            step!(line_sim; t_plus = 1//100); step!(unit_sim; t_plus = 1//100)
+            @test port(line_sim, "d", :out) == port(unit_sim, "d", :out)
+        end
+        vector_sim = Simulation(fed_by(Constant(SVector(1.0, -2.0)), Delay(K = 2, v0 = SVector(0.0, 0.0)));
+                                h = 1//100)
+        init!(vector_sim, fragment())
+        @test port(vector_sim, "c", :out) == SVector(0.0, 0.0)
+        for k in 1:4
+            step!(vector_sim; t_plus = 1//100)
+            @test port(vector_sim, "c", :out) == (k < 2 ? SVector(0.0, 0.0) : SVector(1.0, -2.0))
+        end
+        # The store is isbits by rule (D-231), which the type bounds at the spelling.
+        @test_throws TypeError Delay(K = 2, v0 = [1.0])
+        @test_throws ArgumentError Delay(K = 0)
+        # `out` is the store's, from stage 1, so a loop through the line builds.
+        @test build(feedback_loop(Delay(K = 2, v0 = 0.0))) isa Build
     end
 
     @testset "the discrete integrator accumulates `Δt in` per tick from `s0`, at its own period, and breaks a loop from stage 1 (§7.3, §10.5, §5.5, D-313)" begin
@@ -727,6 +763,7 @@ function test_blocks()
     @testset "the discrete tier's phase bodies allocate nothing (§7.5)" begin
         for model in (fed_by(Constant(1.0), DiscreteIntegrator()), feedback_loop(DiscreteIntegrator()),
                       discrete_limited_model(), limiter_model(0.0, 1.0),
+                      fed_by(Constant(1.0), Delay(K = 50, v0 = 0.0)),
                       fed_by(Constant(1.0), scalar_hold()),
                       fed_by(Constant(SVector(1.0, -1.0)), DiscretizedStateSpace(two_state_block())),
                       hold_pair_model((1,), (0.5, 1), FirstOrderLag(τ = 0.5)),
@@ -1706,6 +1743,7 @@ function test_blocks()
         @test Relay(lower = 0, upper = 1) isa Relay{Float64}
         @test LimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
               LimitedIntegrator{SVector{2, Float64}, true}
+        @test Delay(K = 2, v0 = 1) isa Delay{Float64, 2}
         @test DiscreteIntegrator(s0 = 1) isa DiscreteIntegrator{Float64}
         @test DiscreteLimitedIntegrator(lower = -1, upper = 1) isa DiscreteLimitedIntegrator{Float64}
         @test DiscreteLimitedIntegrator(lower = SVector(-1, -1), upper = SVector(1, 1)) isa
@@ -1779,7 +1817,8 @@ function test_blocks()
                      Pack{Float64, 2}(), Unpack{Float64, 2}(), Switch{Float64}(),
                      Source(sin), Source{Bool}(t -> t >= 0.5),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(), StopRequest(reason = "x"),
-                     DiscreteIntegrator(), DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
+                     Delay(K = 3, v0 = 0.0), Delay(K = 2, v0 = SVector(0.0, 0.0)),
+                     DiscreteIntegrator(),DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
                      DiscreteLimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
                      RateLimiter(rising = 1.0),
                      Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),

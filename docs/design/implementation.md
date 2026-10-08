@@ -123,7 +123,7 @@ The standard component library, the submodule `Redstone.Blocks`:
 - `Source`, pinned, its `f` fed the nominal time (D-312, D-313).
 - `Constant`, `UnitDelay` and `Freeze` (D-312).
 - `StopRequest` (D-316).
-- `DiscreteIntegrator`, `DiscreteLimitedIntegrator` with the helpers
+- `Delay`, `DiscreteIntegrator`, `DiscreteLimitedIntegrator` with the helpers
   `saturation_code` and `saturation_type`, and `RateLimiter` (D-313).
 - `GaussianWhiteNoise`, with the helpers `splitmix` and `gaussian` (D-231,
   D-313).
