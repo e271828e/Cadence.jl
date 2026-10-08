@@ -13,6 +13,16 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
+- **`UnconnectedInput` names the hand-up chain** (§6.1, §8.4 w2), one commit
+  at increment 67's tip. The kind's `level` becomes `handed`, the chain of
+  faces an `input_wires` entry handed the unfed port up through, innermost
+  first and empty when nothing did; its last element is the outermost face
+  nobody wired. The chain is a walk over the draft's per-level wires, consumer
+  to producer while the producer is the level's own face, and `_last_level`
+  and the draft's `routes` go with it. The message reads "handed up through
+  `i`.f and fed by nothing there"; the roster line in the spec's diagnostics
+  appendix, the rendering testset and the two hand-built constructions in
+  `test_assembly.jl` and `test_diagnostics.jl` follow.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment
