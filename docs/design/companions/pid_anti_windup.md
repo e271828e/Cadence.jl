@@ -447,7 +447,8 @@ their four arms read as section 4's table.
 **A scheduled port is an ordinary input.** `u` is a stage-2 output, so every
 input is a feedthrough edge (section 3, [§5.4][s5-4]). A schedule computed
 memorylessly from the block's own output closes an `AlgebraicCycle` as a
-clamped `v` does, and one read from a state is fine. Under a `Dual`
+clamped `v` does, classified real rather than artificial since the gain
+enters the direct law; one read from a state is fine. Under a `Dual`
 activation a scheduled gain carries partials, so a linearization sees the
 coupling through the schedule. A model that wants the gain frozen at its
 nominal value routes the port through `Freeze` ([§14.10][s14-10]).
