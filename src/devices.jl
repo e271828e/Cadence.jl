@@ -289,7 +289,8 @@ end
     port_views(handle) → Dict{Tuple{String,Symbol},PortView}
 
 §11.7's port table, keyed by `(path, port)`: one view per input face at
-every level, off the build's `in_faces`, its producer the terminal one, and
+every level, the root inputs and the endpoints of every level's wires, its
+producer the terminal one off `terminal_producer` (D-315), and
 one per produced cell — each primitive's outputs and every exported output
 face, the root's included — with itself as producer. An assembly's input face
 shares its producer with the ports behind it, and a root input's own view has
@@ -315,8 +316,17 @@ function port_views(handle::DeviceHandle)
                  addr[source], incumbent)
     end
     views = Dict{Tuple{String,Symbol},PortView}()
-    for ((path, port_name), source) in handle.structure.in_faces
-        views[(path, port_name)] = view_of(path, port_name, source)
+    structure = handle.structure
+    # A level's own input faces are the producers carrying its path, and every
+    # consumer not carrying it is a child's input face.
+    level_inputs = Tuple{String,Symbol}[("", face) for face in structure.root_inputs]
+    for level in structure.levels, (producer, consumer) in level.wires
+        first(producer) == level.path && push!(level_inputs, producer)
+        first(consumer) == level.path || push!(level_inputs, consumer)
+    end
+    for (path, port_name) in level_inputs
+        views[(path, port_name)] =
+            view_of(path, port_name, terminal_producer(structure, (path, port_name)))
     end
     root_inputs = _root_input_names(handle.layout)
     for key in keys(addr)

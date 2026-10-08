@@ -463,7 +463,7 @@ before the next is rebased, so the collected list keeps the authored order
 (§13.1); a selector that fails is skipped and the others go on.
 """
 function _mount(read_set::Reads, build::Build, diags::Vector{Diagnostic})
-    mount, level, description = "", build.structure.root, ""
+    mount, level, description = "", first(build.structure.levels).instance, ""
     for (i, prefix) in enumerate(read_set.prefixes)
         description = (i == 1 ? "the read set" : description * " →") * " at(\"$prefix\")"
         level = resolve_authored(description, mount, level, prefix, build.structure, diags)
@@ -501,8 +501,8 @@ end
 # as a condition's `u` entry is (§14.2).
 function _rebase(authored::GetInput, label::Symbol, mount::String, level, build::Build,
                  diags::Vector{Diagnostic})
-    structure = build.structure
-    faces = _input_faces_at(structure, mount)
+    structure, decls = build.structure, activation(build, Float64).decls
+    faces = _input_faces_at(structure, decls, mount)
     matched = match_leaf(authored.leaf, faces)
     if matched isa LeafRefusal
         push!(diags, _leaf_violation(label, authored, mount, matched;
@@ -515,7 +515,7 @@ function _rebase(authored::GetInput, label::Symbol, mount::String, level, build:
         return nothing
     end
     face, steps = matched
-    producer = _face_producer(structure, mount, face)
+    producer = _face_producer(structure, decls, mount, face)
     isempty(first(producer)) ||
         return (push!(diags, _reader_violation(label, authored, mount, :internally_wired;
                                                field = face, producer = producer)); nothing)
@@ -523,9 +523,9 @@ function _rebase(authored::GetInput, label::Symbol, mount::String, level, build:
 end
 
 # `get_face` names an output face of the mount level and reads its producer's
-# port (§14.9, D-277): an assembly's face through its row of the output-side
-# face graph, whose producer is a primitive's port, and a primitive's own port
-# directly. At the root the faces are the root-exported ones, as ever.
+# port (§14.9, D-277): an assembly's face through `terminal_producer`, whose
+# answer is a primitive's port, and a primitive's own port directly. At the
+# root the faces are the root-exported ones, as ever.
 function _rebase(authored::GetFace, label::Symbol, mount::String, level, build::Build,
                  diags::Vector{Diagnostic})
     structure = build.structure
@@ -539,7 +539,7 @@ function _rebase(authored::GetFace, label::Symbol, mount::String, level, build::
                                      field = _field(authored, faces)))
         return nothing
     elseif matched === nothing
-        inputs = _input_faces_at(structure, mount)
+        inputs = _input_faces_at(structure, activation(build, Float64).decls, mount)
         push!(diags, match_face(authored.leaf, inputs) === nothing ?
                      _reader_violation(label, authored, mount, :unknown_output_face;
                                        field = _field(authored, faces), candidates = faces) :
@@ -548,18 +548,17 @@ function _rebase(authored::GetFace, label::Symbol, mount::String, level, build::
         return nothing
     end
     face, steps = matched
-    producer = ci === nothing ?
-               last(structure.out_faces[findfirst(row -> first(row) == (mount, face),
-                                                  structure.out_faces)]) :
-               (mount, face)
+    producer = ci === nothing ? terminal_producer(structure, (mount, face)) : (mount, face)
     MountedRead(label, authored, mount, GetOutput(first(producer), last(producer)), face,
                 last(producer), steps)
 end
 
 # The output faces the assembly at `path` exports, the names a `get_face` may
-# take there; at the root, the root-exported faces.
-_exported_faces(structure::Structure, path::String) =
-    Symbol[face for ((face_path, face), _) in structure.out_faces if face_path == path]
+# take there, off its row's wires; at the root, the root-exported faces.
+function _exported_faces(structure::Structure, path::String)
+    row = _level_index(structure, path)
+    row === nothing ? Symbol[] : _boundary_outputs(structure.levels[row])
+end
 
 # --- the resolvers (§14.4) ------------------------------------------------------
 

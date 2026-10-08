@@ -177,7 +177,7 @@ _key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.f
 _step(origin::String, label::String) = isempty(origin) ? label : origin * " → " * label
 
 function _flat(node::Fragment, path::String, level, origin::String, tree_position::Tuple,
-               structure::Structure, diags::Vector{Diagnostic})
+               structure::Structure, decls::Vector{Decls}, diags::Vector{Diagnostic})
     out = CEntry[]
     for (store, name, payload) in ((:x, :x, node.x), (:s, :s, node.s),
                                    (:m, :m, node.m), (:input, :u, node.u))
@@ -185,8 +185,8 @@ function _flat(node::Fragment, path::String, level, origin::String, tree_positio
             entry = CEntry(path, store, field, v, _step(origin, "fragment($name).$field"),
                            nothing, (tree_position..., name, field))
             store === :input &&
-                (entry = CEntry(entry.path, entry.store, entry.field, entry.value,
-                                entry.origin, _root_input(structure, entry, diags), entry.position))
+                (entry = CEntry(entry.path, entry.store, entry.field, entry.value, entry.origin,
+                                _root_input(structure, decls, entry, diags), entry.position))
             push!(out, entry)
         end
     end
@@ -194,18 +194,18 @@ function _flat(node::Fragment, path::String, level, origin::String, tree_positio
 end
 
 function _flat(node::Scoped, path::String, level, origin::String, tree_position::Tuple,
-               structure::Structure, diags::Vector{Diagnostic})
+               structure::Structure, decls::Vector{Decls}, diags::Vector{Diagnostic})
     scoped_origin = _step(origin, "at(\"$(node.prefix)\")")
     child = resolve_authored(scoped_origin, path, level, node.prefix, structure, diags)
     child === nothing && return CEntry[]      # the path is the offender, reported once
     _flat(node.node, _join(path, node.prefix), child, scoped_origin,
-          (tree_position..., :node), structure, diags)
+          (tree_position..., :node), structure, decls, diags)
 end
 
 _flat(node::Combined, path::String, level, origin::String, tree_position::Tuple,
-      structure::Structure, diags::Vector{Diagnostic}) =
+      structure::Structure, decls::Vector{Decls}, diags::Vector{Diagnostic}) =
     reduce(vcat, (_flat(child, path, level, _step(origin, "combine[$i]"),
-                        (tree_position..., :nodes, (i,)), structure, diags)
+                        (tree_position..., :nodes, (i,)), structure, decls, diags)
                   for (i, child) in enumerate(node.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
@@ -213,12 +213,12 @@ _flat(node::Combined, path::String, level, origin::String, tree_position::Tuple,
 # accumulator, the patch replacing the leaf it overrode and inheriting its
 # origin beside its own.
 function _flat(node::Override, path::String, level, origin::String, tree_position::Tuple,
-               structure::Structure, diags::Vector{Diagnostic})
+               structure::Structure, decls::Vector{Decls}, diags::Vector{Diagnostic})
     layered = CEntry[]
     for (i, layer) in enumerate(node.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
         layer_entries = _flat(layer, path, level, _step(origin, label), (tree_position..., :layers, (i,)),
-                              structure, diags)
+                              structure, decls, diags)
         _check_duplicates!(layer_entries, diags)
         for entry in layer_entries
             overridden = findfirst(a -> _key(a) == _key(entry), layered)
@@ -352,7 +352,7 @@ function _resolve_entries(node::ConditionNode, build::Build, ::Type{T}) where {T
     act = activation(build, T)
     decls, layout = act.decls, act.layout
     diags = Diagnostic[]
-    entries = _flat(node, "", structure.root, "", (), structure, diags)
+    entries = _flat(node, "", first(structure.levels).instance, "", (), structure, decls, diags)
     _check_duplicates!(entries, diags)
 
     out = Resolved[]
@@ -440,13 +440,15 @@ end
 # producer is either a root input or an internal port, and a component-fed face
 # reaches none — writing it would be meaningless, because the first sweep
 # overwrites it.
-function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnostic})
-    producer = _face_producer(structure, entry.path, entry.field)
+function _root_input(structure::Structure, decls::Vector{Decls}, entry::CEntry,
+                     diags::Vector{Diagnostic})
+    producer = _face_producer(structure, decls, entry.path, entry.field)
     if producer === nothing
         push!(diags, isempty(entry.path) ?
                      _condition_violation(entry, :unexported_face; candidates = structure.root_inputs) :
                      _condition_violation(entry, :no_input_face;
-                                          candidates = _input_faces_at(structure, entry.path)))
+                                          candidates = _input_faces_at(structure, decls,
+                                                                       entry.path)))
         return nothing
     end
     isempty(first(producer)) && return last(producer)
@@ -455,21 +457,25 @@ function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnost
 end
 
 # The export chain's lookup, shared with the read side's mount step (readers.jl,
-# D-277), each side pushing its own kind. The graph has a row for every input
-# face at every level, the root's and the primitives' included (§9.2, D-207).
+# D-277), each side pushing its own kind. The chain is `terminal_producer` over
+# the declared wires, total at every level (§9.2, D-207, D-315).
 
-# The input faces of the level at `path`: the root inputs at the root.
-_input_faces_at(structure::Structure, path::String) =
-    isempty(path) ? structure.root_inputs :
-                    Symbol[face for ((face_path, face), _) in structure.in_faces if face_path == path]
+# The input faces of the level at `path`: the root inputs at the root, a
+# primitive's declared ones, and an assembly's the boundary inputs of its row.
+function _input_faces_at(structure::Structure, decls::Vector{Decls}, path::String)
+    isempty(path) && return structure.root_inputs
+    ci = findfirst(entry -> entry.path == path, structure.components)
+    ci === nothing || return Symbol[keys(decls[ci].ins)...]
+    row = _level_index(structure, path)
+    row === nothing ? Symbol[] : _boundary_inputs(structure.levels[row])
+end
 
 # The producer the input face `face` of the level at `path` lands on, `("", root
 # input)` when the chain reaches the root, or `nothing` when the level has no
 # such face.
-function _face_producer(structure::Structure, path::String, face::Symbol)
-    row = findfirst(pair -> first(pair) == (path, face), structure.in_faces)
-    row === nothing ? nothing : last(structure.in_faces[row])
-end
+_face_producer(structure::Structure, decls::Vector{Decls}, path::String, face::Symbol) =
+    face in _input_faces_at(structure, decls, path) ? terminal_producer(structure, (path, face)) :
+                                                      nothing
 
 # The store a condition names has to exist on the component at all: `x` is the
 # continuous tier's state and `s` the discrete one's, disjoint by construction

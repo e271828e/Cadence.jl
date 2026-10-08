@@ -1037,6 +1037,11 @@ function Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple
                                   for ((segment, kid), field) in zip(kids, fields)],
                                  draft.wires[path]))
     end
+    # A primitive root enters no level in the walk, and the root always has a
+    # row: its own, with no children and no wires.
+    isempty(levels) &&
+        push!(levels, LevelEntry("", draft.root, Child[],
+                                 Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]))
     Structure(draft.root,
               [ComponentEntry(path, instance, tier, rates, timing, cs)
                for (path, instance, tier, rates, timing, cs) in
@@ -1253,7 +1258,8 @@ end
 # They take plain data, so they compile once (D-289), and they find a level by
 # a linear search: the rows are few and nothing here runs in the loop.
 
-# The index of the level row at `path`, `nothing` at a primitive's path.
+# The index of the level row at `path`, `nothing` at a primitive's path. A
+# primitive root has the one row, with no children.
 _level_index(structure::Structure, path::String) =
     findfirst(level -> level.path == path, structure.levels)
 
@@ -1267,6 +1273,14 @@ function _wire_into(level::LevelEntry, face::Tuple{String,Symbol})
     row = findfirst(wire -> last(wire) == face, level.wires)
     row === nothing ? nothing : first(level.wires[row])
 end
+
+# A level's own faces, the endpoints of its wires that carry its path, in wire
+# order: its input faces as producers, once each however many children one
+# feeds, and its output faces as consumers.
+_boundary_inputs(level::LevelEntry) =
+    unique(Symbol[last(producer) for (producer, _) in level.wires if first(producer) == level.path])
+_boundary_outputs(level::LevelEntry) =
+    Symbol[last(consumer) for (_, consumer) in level.wires if first(consumer) == level.path]
 
 """
     terminal_producer(structure, face)
@@ -1311,7 +1325,9 @@ that consumer, in wire order. A primitive's face is its own one route.
 """
 function face_routes(structure::Structure, face::Tuple{String,Symbol})
     k = _level_index(structure, first(face))
-    k === nothing && return [[face]]
+    # A row with no children is a primitive root's: an assembly with no
+    # children declares no face.
+    (k === nothing || isempty(structure.levels[k].children)) && return [[face]]
     level = structure.levels[k]
     producer = _wire_into(level, face)
     producer === nothing || return _routes_behind(structure, producer)
@@ -1350,8 +1366,8 @@ subtree. Returns the component the path names, primitive or assembly, or
 `nothing` after recording the refusal against `entry`. The empty path names
 `level` itself.
 
-Each level's children are the list the build recorded in `structure`, so a
-service derives none again, however many paths it resolves.
+Each level's children are its level row's in `structure`, so a service
+derives none again, however many paths it resolves.
 """
 function resolve_authored(entry::String, base::String, level, path::AbstractString,
                           structure::Structure, diags::Vector{Diagnostic})
@@ -1359,39 +1375,40 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
     segments = String.(split(path, '/'))
     here, here_path, i = level, base, 1
     while i ≤ length(segments)
-        # A primitive has no children in this walk, and the build recorded no
-        # list for it. A component-typed field of one is inert to the composition:
+        # A primitive has no children in this walk, and no level row below the
+        # root. A component-typed field of one is inert to the composition:
         # `flatten_tree!` stops at the primitive and never descends, so no path
         # indexes what the field holds (§8.5, `ClassUnreadable.holds_components`).
-        child_list = get(structure.child_lists, here_path, nothing)
-        if child_list === nothing
+        row = _level_index(structure, here_path)
+        if row === nothing
             push!(diags, PathResolution(entry = entry, spelling = String(path),
                                        reason = :unknown_child, owner = _at_path(here_path),
                                        segment = segments[i]))
             return nothing
         end
-        kids, fields = child_list
-        child_index = findfirst(kid -> first(kid) == segments[i], kids)
+        kids = structure.levels[row].children
+        child_index = findfirst(kid -> kid.segment == segments[i], kids)
         child_index === nothing && i < length(segments) &&
             (child_index =
-                 findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
+                 findfirst(kid -> kid.segment == segments[i] * "/" * segments[i + 1], kids))
         if child_index === nothing
             push!(diags, PathResolution(entry = entry, spelling = String(path),
                                        reason = :unknown_child, owner = _at_path(here_path),
                                        segment = segments[i],
-                                       candidates = String[first(k) for k in kids]))
+                                       candidates = String[kid.segment for kid in kids]))
             return nothing
         end
-        segment, kid = kids[child_index]
-        i += count(==('/'), segment) + 1            # a matched pair consumes two segments
-        if i ≤ length(segments) && !_held_concretely(here, fields[child_index])
+        child = kids[child_index]
+        i += count(==('/'), child.segment) + 1      # a matched pair consumes two segments
+        if i ≤ length(segments) && !_held_concretely(here, child.field)
             push!(diags, PathResolution(entry = entry, spelling = String(path),
                                        reason = :past_generic, owner = _at_path(here_path),
-                                       segment = segment, level = _join(here_path, segment),
-                                       declared = _declared_holding(here, fields[child_index])))
+                                       segment = child.segment,
+                                       level = _join(here_path, child.segment),
+                                       declared = _declared_holding(here, child.field)))
             return nothing
         end
-        here, here_path = kid, _join(here_path, segment)
+        here, here_path = child.instance, _join(here_path, child.segment)
     end
     here
 end

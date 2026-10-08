@@ -68,12 +68,11 @@ Base.show(io::IO, structure::Structure) = print(io, "Structure(", _structure_cou
 _route_label(face::Symbol, route::Vector{Tuple{String,Symbol}}) =
     join([String(face); ["$path/$name" for (path, name) in route]], " → ")
 
-# One side's block: one line per route of a root face, in table order, or no
-# block when the side has no root face.
-function _route_lines(heading::String,
-                      routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}})
-    lines = ["    " * _route_label(face, route) for ((path, face), route) in routes
-             if isempty(path)]
+# One side's block: one line per route of each root face in `faces`, derived from
+# the wires (D-315), or no block when the side has no root face.
+function _route_lines(heading::String, structure::Structure, faces::Vector{Symbol})
+    lines = ["    " * _route_label(face, route)
+             for face in faces for route in face_routes(structure, ("", face))]
     isempty(lines) ? String[] : vcat(["  " * heading], lines)
 end
 
@@ -105,8 +104,9 @@ function _lines(structure::Structure)
                                [[_anchor_name(k), string(anchor.T), string(anchor.τ),
                                  _path_label(anchor.scope), string(anchor.key)]
                                 for (k, anchor) in enumerate(structure.anchors)])))
-    append!(lines, _route_lines("input routes:", structure.in_routes))
-    append!(lines, _route_lines("output routes:", structure.out_routes))
+    root_level = first(structure.levels)
+    append!(lines, _route_lines("input routes:", structure, _boundary_inputs(root_level)))
+    append!(lines, _route_lines("output routes:", structure, _boundary_outputs(root_level)))
     lines
 end
 
@@ -217,12 +217,13 @@ Base.show(io::IO, build::Build) =
 # The feedthrough edges the execution order was computed over (§5.3, D-261),
 # derived rather than carried: a face of a component with a stage 2, fed by
 # another component's stage-2 port. A root input and a stage-1 port add none.
-function _feedthrough(structure::Structure, outputs::Outputs)
+function _feedthrough(structure::Structure, outputs::Outputs, decls::Vector{Decls})
     edges = String[]
     for ci in outputs.order
         isempty(outputs.components[ci].stage2) && continue
         consumer = structure.components[ci]
-        for (face, (producer, port_name)) in consumer.conns
+        for face in keys(decls[ci].ins)
+            (producer, port_name) = terminal_producer(structure, (consumer.path, face))
             isempty(producer) && continue
             port_name in outputs.components[index_of(structure, producer)].stage2 || continue
             push!(edges, "$producer.$port_name → $(_path_label(consumer.path)).$face")
@@ -236,7 +237,7 @@ end
 function _lines(build::Build)
     components = build.structure.components
     continuous = count(entry.tier === CONTINUOUS for entry in components)
-    edges = _feedthrough(build.structure, build.outputs)
+    edges = _feedthrough(build.structure, build.outputs, activation(build, Float64).decls)
     vcat(["Build: " * _count(length(components), "component") *
           " ($continuous continuous, $(length(components) - continuous) discrete); activations: " *
           _activations_label(build) * "; " * _count(length(build.warnings), "warning")],

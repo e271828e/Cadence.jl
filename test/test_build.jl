@@ -894,6 +894,23 @@ function build_port_type_refusals()
     end
 end
 
+# --- the layout's aliases (§9.2, D-261, D-315) ----------------------------------
+
+function build_layout_aliases()
+    @testset "the layout aliases every assembly output face onto its producer's cell, and a primitive input face reads through its terminal producer (§9.2, D-210, D-261, D-315)" begin
+        vehicle_build = build(Vehicle())
+        structure = vehicle_build.structure
+        addr = activation(vehicle_build, Float64).layout.addr
+        @test addr[("loop", :y)] === addr[("loop/plant", :y)]
+        # A sibling's port and a root input, each reached through a level's face.
+        @test addr[terminal_producer(structure, ("loop/sum", :a))] === addr[("trim", :out)]
+        @test addr[terminal_producer(structure, ("trim", :e))] === addr[("", :ref)]
+        # A primitive's input face enters nothing: below the root it may share a
+        # key with an output port, whose cell it would overwrite (D-210).
+        @test !haskey(addr, ("loop/sum", :a))
+    end
+end
+
 # --- the user-code frame at the build (§13.2, D-248) --------------------------
 # The framing coverage set: a throw out of each probed function and out of each
 # kind of declaration, the seven bundle-law classes, the type match's negative,
@@ -1693,7 +1710,7 @@ const DECLARATION_LAYER = (
     event_bundle_names, children, _children, _walked_children, _contract,
     resolve_terminal, resolve_source, _workspace, _check_handler,
     resolve_dest, _check_transparent, _container_fields, _elements, _element_keys,
-    _is_container)
+    _is_container, terminal_producer, face_routes, membership, LevelEntry, Child)
 
 specialization_counts() =
     [nameof(fn) => sum(count(Returns(true), Base.specializations(m))
@@ -2026,6 +2043,7 @@ function test_build()
     build_root_input_type()
     build_wire_clauses()
     build_port_type_refusals()
+    build_layout_aliases()
     build_label_ports()
     build_tier()
     build_store_values()

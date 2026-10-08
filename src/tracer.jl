@@ -243,8 +243,8 @@ stays at the probe point.
 function _seed_face(ci::Int, face::Symbol, faces::Vector{Symbol}, face_traceable::Vector{Bool},
                structure::Structure, products::Vector{NamedTuple}, cluster_set::Set{Int},
                ::Type{T}, rng) where {T}
-    conns = structure.components[ci].conns
-    (producer_path, producer_port) = last(conns[findfirst(p -> first(p) === face, conns)])
+    (producer_path, producer_port) =
+        terminal_producer(structure, (structure.components[ci].path, face))
     if isempty(producer_path)
         k = findfirst(==(producer_port), structure.root_inputs)
         return probe_value(retype(T, structure.root_types[k]))

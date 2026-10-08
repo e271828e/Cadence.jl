@@ -378,7 +378,8 @@ function _outputs(structure::Structure, decls::Vector{Decls},
     edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n_components]
     for (ci, entry) in enumerate(structure.components)
         has_stage(y_direct, entry.instance) || continue
-        for (face, (producer_path, producer_port)) in entry.conns
+        for face in keys(decls[ci].ins)
+            (producer_path, producer_port) = terminal_producer(structure, (entry.path, face))
             isempty(producer_path) && continue           # a root input: no producer to wait for
             producer_ci = index_of(structure, producer_path)
             # stage-1 position: no dependence
@@ -584,8 +585,10 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
         push!(root_inputs, (face, value))
     end
     isempty(diags) || throw(DiagnosticError(diags))
-    for (alias, target) in structure.out_faces
-        addr[alias] = addr[target]
+    # Assembly output faces alone: a primitive's input face enters nothing, since
+    # a primitive below the root may share a key between its contracts (D-210).
+    for level in structure.levels, face in _boundary_outputs(level)
+        addr[(level.path, face)] = addr[terminal_producer(structure, (level.path, face))]
     end
     sizes = sort!([L => n for (L, n) in offsets]; by = p -> string(first(p)))
     # The flat buffer's layout is the declaration walk (§7.1): one range per
@@ -610,14 +613,10 @@ function _root_input_cell(structure::Structure, decls::Vector{Decls}, root_index
     walked_type = retype(T, P_F)
     consumer_types = (decls[ci].ins[consumer_face]
                       for (ci, entry) in enumerate(structure.components)
-                      for (consumer_face, producer) in entry.conns
-                      if producer === ("", face))
+                      for consumer_face in keys(decls[ci].ins)
+                      if terminal_producer(structure, (entry.path, consumer_face)) == ("", face))
     all(input_type -> _accepts_wire(input_type, walked_type, T), consumer_types) ? walked_type : P_F
 end
-
-"""Address of the cell feeding `face`: its resolved producer's port, or a root input."""
-input_addr(layout::Layout, conns::Vector{Pair{Symbol,Tuple{String,Symbol}}}, face::Symbol) =
-    layout.addr[last(conns[findfirst(p -> first(p) === face, conns)])]
 
 # --- 5. the Build artifact and its activations (§9.2, §9.4) ---------------------
 
@@ -1417,9 +1416,11 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
 
     addr_group(path, names) =
         NamedTuple{tuple(names...)}(tuple((layout.addr[(path, n)] for n in names)...))
+    # An input face's address is its terminal producer's, stored nowhere (D-315).
     in_group(ci, decl) =
         NamedTuple{tuple(keys(decl.ins)...)}(
-            tuple((input_addr(layout, components[ci].conns, face) for face in keys(decl.ins))...))
+            tuple((layout.addr[terminal_producer(structure, (components[ci].path, face))]
+                   for face in keys(decl.ins))...))
 
     # A cell holds what the build probe populated until a sweep first writes it
     # (§10.5): this is the table's pre-`init!` content, and a frozen
@@ -1577,8 +1578,7 @@ function _probe_input(structure::Structure, layout::Layout, products, ci, face, 
                       ::Type{T}) where {T}
     entry = structure.components[ci]
     path = entry.path
-    (producer_path, producer_port) =
-        last(entry.conns[findfirst(p -> first(p) === face, entry.conns)])
+    (producer_path, producer_port) = terminal_producer(structure, (path, face))
     value = if isempty(producer_path)
         last(layout.root_inputs[findfirst(r -> first(r) === producer_port, layout.root_inputs)])
     else

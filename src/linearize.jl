@@ -345,8 +345,8 @@ function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, ::GetInput, read::MountedR
         (consumer.path, Symbol(tier_word(consumer.tier)),
          invoke_declaration(u_types, consumer.instance)[consumer_face])
         for (ci, consumer) in enumerate(structure.components)
-        for (consumer_face, producer) in consumer.conns
-        if producer === ("", face) &&
+        for consumer_face in keys(act.decls[ci].ins)
+        if terminal_producer(structure, (consumer.path, consumer_face)) == ("", face) &&
            !_accepts_wire(act.decls[ci].ins[consumer_face], walked_type, T)]
     addr = act.layout.addr[("", face)]
     # The seeded cell's type is the meet's own witness.

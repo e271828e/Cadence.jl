@@ -82,12 +82,11 @@ in.
   body only outside a walk. Beside it `flatten_tree!` binds `WALK_CHILDREN`, a
   fresh cache of each assembly's child list, so endpoint resolution derives a
   list once per walk rather than once per endpoint (§9.7).
-- The service walk `resolve_authored` runs over the `Structure`'s retained
-  root and reads declared holdings off the type definition (D-061, D-130).
-  It searches `Structure.child_lists`, each assembly's child list as the walk
-  derived it, keyed by path, so a service derives none again. A path with no
-  list is a primitive. The walk sits in the file's last section, after the
-  `Structure` it reads.
+- The service walk `resolve_authored` runs from the root's level row and
+  reads declared holdings off the type definition (D-061, D-130). It searches
+  `Structure.levels`, each assembly's children as the walk derived them, so a
+  service derives none again. A path with no row is a primitive. The walk
+  sits in the file's last section, after the `Structure` it reads.
 - §8.8's `input_passthrough`/`output_passthrough`, with the three exclusive
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).
@@ -194,7 +193,9 @@ Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-
   (§5.6, D-012).
 - The layout, with the root-input meet (D-168, D-236), `IllegalPortType`'s
   three layout arms (D-237) and the flat `x` ranges every offset is read from
-  (D-261).
+  (D-261). Its alias pass enters assembly output faces alone, from
+  `terminal_producer`; `compile`'s input group reads a primitive input face's
+  address as its terminal producer's, and `input_addr` is gone (D-210, D-315).
 - The nominal evaluation `_nominal`. It returns the `Outputs`, the `Events` and
   the nominal activation. The `Events` hold one `ComponentEvents` row per
   component, with its path, policies and bundle.
@@ -214,7 +215,8 @@ Spec: §2.1, §5.4, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-179, D-184, D-
 
 Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2,
 D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236,
-D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265, D-289.
+D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265, D-289,
+D-315.
 
 ### `src/checkpoint.jl`
 
@@ -247,7 +249,8 @@ Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274.
   also lifts read sets, joining the prefix to their mount chain; trim.jl
   and linearize.jl add its methods for problems and tap sets (D-277).
 - The export chain's lookup, `_input_faces_at` and `_face_producer`, shared
-  by a condition's `u` entry and the read side's `get_input` (D-277).
+  by a condition's `u` entry and the read side's `get_input` (D-277), over
+  `terminal_producer` (D-315).
 - One collecting pass behind both ways of applying a plan. Each `at` prefix is
   walked from its authoring level (§13.3). The two ways are:
   - `resolve_condition`, for values;
@@ -257,7 +260,7 @@ Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274.
 - Root-input totality `assert_total`.
 
 Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
-D-130, D-204, D-205, D-207, D-226, D-277.
+D-130, D-204, D-205, D-207, D-226, D-277, D-315.
 
 ### `src/control.jl`
 
@@ -398,7 +401,7 @@ D-250, D-254, D-256, D-261.
 - The panel kit, §11.7's framework half (D-270):
   - `PortView`, one port's baked verdict, its address field abstract;
   - `port_views(handle)`, the `Dict` of views keyed by `(path, port)`, one
-    per input face at every level, off `Structure.in_faces`, and one per
+    per input face at every level, off `terminal_producer`, and one per
     produced cell;
   - `peek`, the peek rule over `pending` and the snapshot;
   - `incumbent_status`, the incumbent's `WriterStatus` by `who`, and
@@ -419,7 +422,7 @@ D-250, D-254, D-256, D-261.
   D-203).
 
 Spec: §11.1, §11.3, §11.6, §11.7, §12.1–§12.4, §13.5, §13.6, D-198, D-203,
-D-233, D-244, D-256, D-261, D-268, D-270.
+D-233, D-244, D-256, D-261, D-268, D-270, D-315.
 
 ### `src/diagnostics.jl`
 
@@ -564,9 +567,9 @@ D-261, D-269.
   `get_input` and `get_face`, each taking a leaf address as its `leaf`, a
   `Symbol` the short form of a plain name (D-276).
 - The mount step (§14.9, D-277). `Reads` carries its mount chain as
-  `prefixes`, and `_mount` walks it from the root, each prefix from the
-  level the previous one reached (§13.3), to the mount path and the level
-  there, reporting a failed chain once. `_rebase` then turns each selector
+  `prefixes`, and `_mount` walks it from the root's level row, each prefix
+  from the level the previous one reached (§13.3), to the mount path and the
+  level there, reporting a failed chain once. `_rebase` then turns each selector
   into a `MountedRead`: the selector as authored, the mount, the
   root-authored selector and the head and steps of its leaf. A path
   selector's path is walked from the mount level and joined to the mount.
@@ -593,7 +596,7 @@ D-261, D-269.
   check on plans sits in conditions.jl's `apply!`.
 
 Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.9, §14.10, D-125, D-130, D-253,
-D-276, D-277.
+D-276, D-277, D-315.
 
 ### `src/roster.jl`
 
@@ -632,7 +635,7 @@ D-261.
     and the producers' stage-2 names.
 - The `Structure`'s `input routes:` and `output routes:` blocks after the
   anchors, one line per route of a root face, its hops joined with ` → `
-  (§13.7). A side with no root face prints no block.
+  (§13.7), derived through `face_routes` over the root's level row (D-315). A side with no root face prints no block.
 - The `Schedule`'s hyperperiod chart, over `lcm(Dᵢ)` base ticks, with its
   binary guard at 100.
 - The `Deployment` sets `_grid_block`'s lines under `grid:`.
@@ -641,7 +644,7 @@ D-261.
   writer × kind in full up to `STATUS_MAXLOG` cumulative occurrences, and
   count-only past it.
 
-Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261.
+Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 
 ### `src/sim.jl`
 

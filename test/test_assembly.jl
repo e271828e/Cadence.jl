@@ -514,6 +514,19 @@ function assembly_wires()
         # Below the root the same leaf is untouched: its input face aliases its
         # producer's cell and places nothing, so there is no collision to forbid.
         @test build(fed(RootCollision(), "u")) isa Build
+
+        # Nor does the layout enter that input face, so the output port of the same
+        # name keeps its own cell (D-315): the stage reads the authored value through
+        # the root input's cell and publishes it doubled on its own.
+        collision_build = build(fed(RootCollision(), "u"))
+        addr = activation(collision_build, Float64).layout.addr
+        @test terminal_producer(collision_build.structure, ("c", :u)) == ("", :in)
+        @test addr[("c", :u)] !== addr[("", :in)]
+        sim = Simulation(collision_build; h = 1//10)
+        init!(sim, fragment(u = (in = 1.5,)))
+        step!(sim; frames = 1)
+        @test port(sim, "c", :u) === 3.0
+        @test port(sim, "", :in) === 1.5
     end
 
     @testset "an `input_wires` entry routes to at least one endpoint (§8.6, D-210)" begin
@@ -669,6 +682,13 @@ function assembly_levels()
         levels = build(aliased).structure.levels
         @test levels[1].instance === aliased
         @test (("pair", :y_copy) => ("b", :e)) in levels[1].wires
+
+        # The root always has a row: a primitive root's holds no child and no wire.
+        plant = Plant()
+        levels = build(plant).structure.levels
+        @test length(levels) == 1
+        @test only(levels).path == "" && only(levels).instance === plant
+        @test isempty(only(levels).children) && isempty(only(levels).wires)
     end
 
     @testset "container membership is read off the segment and the field (§8.5, D-211, D-315)" begin
