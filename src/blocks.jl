@@ -247,8 +247,7 @@ end
 saturation_code(q, lower, upper) = q >= upper ? Int8(1) : q <= lower ? Int8(-1) : Int8(0)
 s_init(c::DiscreteLimitedIntegrator) = (q = c.s0,)
 u_types(::DiscreteLimitedIntegrator{V}) where {V} = (in = V,)
-y_types(::DiscreteLimitedIntegrator{V}) where {V <: Real} = (out = V, saturation = Int8)
-y_types(::DiscreteLimitedIntegrator{V}) where {V <: StaticArray} = (out = V, saturation = similar_type(V, Int8))
+y_types(::DiscreteLimitedIntegrator{V}) where {V} = (out = V, saturation = saturation_type(V))
 y_state(c::DiscreteLimitedIntegrator, (; s)) =
     (out = s.q, saturation = saturation_code.(s.q, c.lower, c.upper))
 s_update(c::DiscreteLimitedIntegrator, (; s, u, Δt)) = (q = clamp.(s.q + Δt * u.in, c.lower, c.upper),)
@@ -804,6 +803,10 @@ state_events(::Step) = (fire = StateEvent(step_guard, step_handler),)
 
 # --- the moded blocks (§10.4, §10.6, D-313) -------------------------------------
 
+# The port type of a saturation code over `V`: one `Int8` per component.
+saturation_type(::Type{V}) where {V <: Real} = Int8
+saturation_type(::Type{V}) where {V <: StaticArray} = similar_type(V, Int8)
+
 """
     LimitedIntegrator(; lower, upper, x0 = zero(lower), localized = true)
 
@@ -858,8 +861,7 @@ end
 x_init(c::LimitedIntegrator) = (q = c.x0,)
 m_init(c::LimitedIntegrator) = (saturation = Int8.(zero(c.x0)),)    # -1 lower, 0 free, +1 upper
 u_types(::LimitedIntegrator{V}) where {V} = (in = V,)
-y_types(::LimitedIntegrator{V}) where {V <: Real} = (out = V, saturation = Int8)
-y_types(::LimitedIntegrator{V}) where {V <: StaticArray} = (out = V, saturation = similar_type(V, Int8))
+y_types(::LimitedIntegrator{V}) where {V} = (out = V, saturation = saturation_type(V))
 y_state(::LimitedIntegrator, (; x, m)) = (out = x.q, saturation = m.saturation)
 x_deriv(::LimitedIntegrator, (; u, m)) = (q = ifelse.(m.saturation .== 0, u.in, zero(u.in)),)
 # The hit guards are not gated by the free code on purpose. Gated, a hit guard
@@ -985,34 +987,37 @@ end
 # --- the controller (§13.7, §5.4, D-313) ----------------------------------------
 
 """
-    PIDBlock{Hold, Track}
+    PIDBlock{V, Hold, Track}
 
 The supertype of the two PID blocks, `PID` on the continuous tier and
 `DiscretePID` on the discrete one. It carries what their law shares, the ports
 picked by `Hold` and `Track`, the error's gate and the correction's reference,
-while each block carries its fields, its store and its stages.
+while each block carries its fields, its store and its stages. `V` is the type
+of the parameters and the signals, a `Real` or a static array of them.
 """
-abstract type PIDBlock{Hold, Track} <: AbstractComponent end
+abstract type PIDBlock{V, Hold, Track} <: AbstractComponent end
 
 # The methods both blocks share live here: the four `u_types` arms, `y_types`,
 # the gate and the reference rule.
-u_types(::PIDBlock{false, false}) = (r = Float64, y = Float64)
-u_types(::PIDBlock{true, false})  = (r = Float64, y = Float64, saturation = Int8)
-u_types(::PIDBlock{false, true})  = (r = Float64, y = Float64, v = Float64)
-u_types(::PIDBlock{true, true})   = (r = Float64, y = Float64, saturation = Int8, v = Float64)
-y_types(::PIDBlock) = (u = Float64, u_raw = Float64)
+u_types(::PIDBlock{V, false, false}) where {V} = (r = V, y = V)
+u_types(::PIDBlock{V, true, false})  where {V} = (r = V, y = V, saturation = saturation_type(V))
+u_types(::PIDBlock{V, false, true})  where {V} = (r = V, y = V, v = V)
+u_types(::PIDBlock{V, true, true})   where {V} = (r = V, y = V, saturation = saturation_type(V), v = V)
+y_types(::PIDBlock{V}) where {V} = (u = V, u_raw = V)
 # The gate tests the sign, not `saturation != 0`: integration resumes once the
 # error points back into the range, while the path still reports saturation.
-# The `!= 0` in front leaves a free path's zero error ungated, so the derivative
-# at an equilibrium does not depend on how `sign` orders a zero-valued `Dual`.
-gated_error(::PIDBlock{false}, e, u) = e
-gated_error(::PIDBlock{true}, e, u) = u.saturation != 0 && u.saturation == sign(e) ? zero(e) : e
+# The `.!= 0` in front leaves a free channel's zero error ungated, so the
+# derivative at an equilibrium does not depend on how `sign` orders a
+# zero-valued `Dual`. A broadcast `ifelse` selects per channel.
+gated_error(::PIDBlock{V, false}, e, u) where {V} = e
+gated_error(::PIDBlock{V, true}, e, u) where {V} =
+    ifelse.(u.saturation .!= 0 .&& u.saturation .== sign.(e), zero(e), e)
 # With a hold, `v` is the reference only while the code is nonzero. Tracking is
 # what to converge to while the path cannot follow; on a free path it would only
 # couple the integrator to the transients downstream.
-correction_reference(::PIDBlock{Hold, false}, u, y) where {Hold} = y.u
-correction_reference(::PIDBlock{false, true}, u, y) = u.v
-correction_reference(::PIDBlock{true, true}, u, y) = u.saturation == 0 ? y.u : u.v
+correction_reference(::PIDBlock{V, Hold, false}, u, y) where {V, Hold} = y.u
+correction_reference(::PIDBlock{V, false, true}, u, y) where {V} = u.v
+correction_reference(::PIDBlock{V, true, true}, u, y) where {V} = ifelse.(u.saturation .== 0, y.u, u.v)
 
 """
     PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
@@ -1046,6 +1051,13 @@ measurement, not the error, so a step in `r` makes no kick; `τd` is positive.
 The defaults make the plain spelling a P controller: `Ki = Kd = 0`, `Tt = Inf`,
 which switches the correction off, and infinite limits.
 
+`V` is `Float64` or a static array of `Float64`. Over a static vector the law
+is componentwise: the parameters, `r`, `y`, `v`, the outputs and the states are
+each a `V`, and `saturation` is a static vector of `Int8`. The seven keywords
+broadcast to one `V`, whose shape is the sum of their `zero`s, so a scalar
+pairs with a vector and integer values qualify. A vector PID with uniform gains
+spells at least one keyword as a vector, `Kp = @SVector fill(2.0, 3)`.
+
 A tracking input wired from a memoryless clamp of the block's own `u` is
 refused as an `AlgebraicCycle` classified artificial (§5.4): `u` is a stage-2
 output, so every input makes a feedthrough edge, whether `y_direct` reads it or
@@ -1053,27 +1065,30 @@ not. That is why the limits live inside the block. `v` serves a value published
 from state, such as a stateful actuator's position. `pid_anti_windup.md` gives
 the reasoning.
 """
-struct PID{Hold, Track} <: PIDBlock{Hold, Track}
-    Kp::Float64
-    Ki::Float64
-    Kd::Float64
-    τd::Float64       # the derivative filter's time constant, positive
-    Tt::Float64       # the tracking time; `Inf` switches the correction off
-    u_min::Float64    # the own limits; infinite by default
-    u_max::Float64
+struct PID{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, Hold, Track} <: PIDBlock{V, Hold, Track}
+    Kp::V
+    Ki::V
+    Kd::V
+    τd::V       # the derivative filter's time constant, positive
+    Tt::V       # the tracking time; `Inf` switches the correction off
+    u_min::V    # the own limits; infinite by default
+    u_max::V
 end
-PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
-      hold::Bool = false, tracking::Bool = false) =
-    PID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
+function PID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+             hold::Bool = false, tracking::Bool = false)
+    shape = Float64.(zero(Kp) .+ zero(Ki) .+ zero(Kd) .+ zero(τd) .+ zero(Tt) .+ zero(u_min) .+ zero(u_max))
+    PID{typeof(shape), hold, tracking}(
+        map(value -> Float64.(value .+ shape), (Kp, Ki, Kd, τd, Tt, u_min, u_max))...)
+end
 
-x_init(::PID) = (q = 0.0, yf = 0.0)
+x_init(::PID{V}) where {V} = (q = zero(V), yf = zero(V))
 function y_direct(c::PID, (; x, u))
-    u_raw = c.Kp * (u.r - u.y) + x.q - c.Kd * (u.y - x.yf) / c.τd
-    (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
+    u_raw = c.Kp .* (u.r - u.y) + x.q - c.Kd .* (u.y - x.yf) ./ c.τd
+    (u = clamp.(u_raw, c.u_min, c.u_max), u_raw = u_raw)
 end
 x_deriv(c::PID, (; x, u, y)) =
-    (q  = c.Ki * gated_error(c, u.r - u.y, u) + (correction_reference(c, u, y) - y.u_raw) / c.Tt,
-     yf = (u.y - x.yf) / c.τd)
+    (q  = c.Ki .* gated_error(c, u.r - u.y, u) + (correction_reference(c, u, y) - y.u_raw) ./ c.Tt,
+     yf = (u.y - x.yf) ./ c.τd)
 
 """
     DiscretePID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
@@ -1100,6 +1115,12 @@ which reads, over `PID`'s two type parameters:
 `hold` adds the input `saturation` and the gate, `tracking` the input `v`, and
 with both the reference falls back to `u` while the code is zero, as in `PID`.
 
+`V` is `Float64` or a static array of `Float64`, and over a static vector the
+law is componentwise, as in `PID`. The seven keywords broadcast to one `V` by
+`PID`'s rule, the shape the sum of their `zero`s, so a scalar pairs with a
+vector, and a uniform vector gain spells one keyword as a vector,
+`Kp = @SVector fill(2.0, 3)`.
+
 The backward Euler lag is stable at every period, and `τd = 0` is legal: `yf`
 is then the previous measurement, and the D term the backward difference
 `(y - yf) / Δt`. `β` is the exact step of the correction's relaxation over one
@@ -1112,29 +1133,32 @@ refused as an `AlgebraicCycle`, as for `PID`, but classified real: a discrete
 member traces structurally (§5.6), so no hop is named dead. `pid_anti_windup.md`,
 section 9, gives the reasoning.
 """
-struct DiscretePID{Hold, Track} <: PIDBlock{Hold, Track}
-    Kp::Float64
-    Ki::Float64
-    Kd::Float64
-    τd::Float64       # the derivative filter's time constant, nonnegative
-    Tt::Float64       # the tracking time; `Inf` switches the correction off
-    u_min::Float64    # the own limits; infinite by default
-    u_max::Float64
+struct DiscretePID{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, Hold, Track} <: PIDBlock{V, Hold, Track}
+    Kp::V
+    Ki::V
+    Kd::V
+    τd::V       # the derivative filter's time constant, nonnegative
+    Tt::V       # the tracking time; `Inf` switches the correction off
+    u_min::V    # the own limits; infinite by default
+    u_max::V
 end
-DiscretePID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
-              hold::Bool = false, tracking::Bool = false) =
-    DiscretePID{hold, tracking}(Kp, Ki, Kd, τd, Tt, u_min, u_max)
+function DiscretePID(; Kp, Ki = 0.0, Kd = 0.0, τd = 0.1, Tt = Inf, u_min = -Inf, u_max = Inf,
+                     hold::Bool = false, tracking::Bool = false)
+    shape = Float64.(zero(Kp) .+ zero(Ki) .+ zero(Kd) .+ zero(τd) .+ zero(Tt) .+ zero(u_min) .+ zero(u_max))
+    DiscretePID{typeof(shape), hold, tracking}(
+        map(value -> Float64.(value .+ shape), (Kp, Ki, Kd, τd, Tt, u_min, u_max))...)
+end
 
-s_init(::DiscretePID) = (q = 0.0, yf = 0.0)
+s_init(::DiscretePID{V}) where {V} = (q = zero(V), yf = zero(V))
 function y_direct(c::DiscretePID, (; s, u, Δt))
-    deriv = (u.y - s.yf) / (c.τd + Δt)
-    u_raw = c.Kp * (u.r - u.y) + s.q - c.Kd * deriv
-    (u = clamp(u_raw, c.u_min, c.u_max), u_raw = u_raw)
+    deriv = (u.y - s.yf) ./ (c.τd .+ Δt)
+    u_raw = c.Kp .* (u.r - u.y) + s.q - c.Kd .* deriv
+    (u = clamp.(u_raw, c.u_min, c.u_max), u_raw = u_raw)
 end
 function s_update(c::DiscretePID, (; s, u, y, Δt))
-    β = -expm1(-Δt / c.Tt)
-    (q  = s.q + Δt * c.Ki * gated_error(c, u.r - u.y, u) + β * (correction_reference(c, u, y) - y.u_raw),
-     yf = s.yf + Δt * (u.y - s.yf) / (c.τd + Δt))
+    β = -expm1.(-Δt ./ c.Tt)
+    (q  = s.q + Δt .* c.Ki .* gated_error(c, u.r - u.y, u) + β .* (correction_reference(c, u, y) - y.u_raw),
+     yf = s.yf + Δt .* (u.y - s.yf) ./ (c.τd .+ Δt))
 end
 
 # --- the anonymous assembly (§8.5, D-211) -------------------------------------

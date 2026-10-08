@@ -123,18 +123,20 @@ The standard component library, the submodule `Redstone.Blocks`:
 - `Source`, pinned, its `f` fed the nominal time (D-312, D-313).
 - `Constant`, `UnitDelay` and `Freeze` (D-312).
 - `StopRequest` (D-316).
-- `DiscreteIntegrator`, `DiscreteLimitedIntegrator` with the helper
-  `saturation_code`, and `RateLimiter` (D-313).
+- `DiscreteIntegrator`, `DiscreteLimitedIntegrator` with the helpers
+  `saturation_code` and `saturation_type`, and `RateLimiter` (D-313).
 - `GaussianWhiteNoise`, with the helpers `splitmix` and `gaussian` (D-231,
   D-313).
 - `Integrator`, `FirstOrderLag`, `Step`, `LimitedIntegrator` and `Relay` (D-313).
   `Step` and `LimitedIntegrator` each ship two detection policies, localized
   and boundary-detected, selected by the type parameter `L` (D-179).
   `LimitedIntegrator` and `Relay` are over `Real` and static vectors, with
-  `Int8` modes and, over a vector, events generated per component.
+  `Int8` modes and the helper `saturation_type`, and, over a vector, events
+  generated per component.
   `LimitedIntegrator` publishes its mode as the output `saturation`.
-- `PIDBlock{Hold, Track}`, carrying the ports, `gated_error` and
-  `correction_reference`, over `PID` and `DiscretePID` (D-313).
+- `PIDBlock{V, Hold, Track}` over `Real` and static vectors, carrying the
+  ports, `gated_error` and `correction_reference`, over `PID` and
+  `DiscretePID` (D-313).
 - `StateSpace` with the helper `static_system`, over scalar or `SVector` ports
   by its matrix shapes, its feedthrough class the type parameter `FT`, and
   `TransferFunction`, realized by `realize` into a held `StateSpace` (D-313).

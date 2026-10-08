@@ -253,9 +253,19 @@ pid_controller(hold, tracking) =
     PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0,
         hold = hold, tracking = tracking)
 
+# `pid_controller`'s gains, and a second set apart from them in every term of
+# the law.
+pid_gain_sets() = ((Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, u_min = -1.0, u_max = 1.0),
+                   (Kp = 2.0, Ki = 0.25, Kd = 0.1, τd = 0.2, Tt = 2.0, u_min = -0.5, u_max = 0.5))
+
+# A PID's outputs and the motion of its state at one point: `x_deriv` on the
+# continuous tier, `s_update` at `Δt = 0.01` on the discrete one.
+pid_law(c::PID, x, u, y) = (y_direct(c, (; x, u)), x_deriv(c, (; x, u, y)))
+pid_law(c::DiscretePID, s, u, y) = (y_direct(c, (; s, u, Δt = 0.01)), s_update(c, (; s, u, y, Δt = 0.01)))
+
 # A PID as the root's one child: its ports are root inputs, and `u` and `u_raw`
 # leave the root.
-function pid_root_model(controller::PID{Hold, Track}) where {Hold, Track}
+function pid_root_model(controller::PID{V, Hold, Track}) where {V, Hold, Track}
     inputs = ["r" => "controller/r", "y" => "controller/y"]
     Hold && push!(inputs, "saturation" => "controller/saturation")
     Track && push!(inputs, "v" => "controller/v")
@@ -291,12 +301,18 @@ pid_assembly(; Kp, Ki, Kd, τd, Tt, u_min, u_max) = Group((
       output_wires = ("sat/out" => "u", "raw/out" => "u_raw"))
 
 # A single loop on the own limits: the controller drives an integrator plant,
-# continuous unless given.
-pid_single_loop(controller; plant = Integrator()) = Group((
-        reference = Step(t_step = 0.5, after = 5.0), controller = controller, plant = plant);
+# continuous unless given, to a reference step to `level`.
+pid_single_loop(controller; plant = Integrator(), level = 5.0) = Group((
+        reference = Step(t_step = 0.5, before = zero(level), after = level), controller = controller,
+        plant = plant);
       local_wires = ("reference/out" => "controller/r", "plant/out" => "controller/y",
                      "controller/u" => "plant/in"),
       output_wires = ("plant/out" => "y",))
+
+# The single loop over two channels, one per gain set: channel 1 is the loop
+# above at `pid_controller`'s gains, channel 2 the second set's on a reference of 3.
+vector_pid_loop() = pid_single_loop(PID(; map(SVector, pid_gain_sets()...)...);
+                                    plant = Integrator(x0 = SVector(0.0, 0.0)), level = SVector(5.0, 3.0))
 
 # A servo loop: a first-order position servo limited at ±1 between the
 # controller and the plant, whose position the controller tracks.
@@ -1276,7 +1292,7 @@ function test_blocks()
         @test u_types(PID(Kp = 1.0, hold = true, tracking = true)) ==
               (r = Float64, y = Float64, saturation = Int8, v = Float64)
         @test y_types(PID(Kp = 1.0)) == (u = Float64, u_raw = Float64)
-        @test PID(Kp = 1.0, hold = true, tracking = true) isa PID{true, true}
+        @test PID(Kp = 1.0, hold = true, tracking = true) isa PID{Float64, true, true}
     end
 
     @testset "the PID's law gates the error on the code's sign and falls back to `u` on a free path (§13.7, D-313)" begin
@@ -1339,6 +1355,45 @@ function test_blocks()
         @test d isa AlgebraicCycle && d.classification === :artificial
         @test d.dead == [("controller", :v, :u)]
         @test d.wires == ["controller/u" => "sat/in1", "sat/out" => "controller/v"]
+    end
+
+    @testset "the vector PID is two scalar PIDs side by side, in both tiers (§13.7, D-313)" begin
+        # Channel 1 is the law testsets' row; channel 2 reads the second gain set,
+        # its own state and outputs, `r = 1`, `y = 2`, the same code and `v = -0.3`,
+        # so its gate passes where channel 1's holds and holds where it passes.
+        first_gains, second_gains = pid_gain_sets()
+        stacked_gains = map(SVector, first_gains, second_gains)
+        x1, x2 = (q = 0.3, yf = 0.1), (q = -0.1, yf = 1.2)
+        y1, y2 = (u = 1.0, u_raw = 2.0), (u = -0.5, u_raw = -0.9)
+        x, y = map(SVector, x1, x2), map(SVector, y1, y2)
+        for (hold, tracking, u1) in
+                ((false, false, (r = 3.0, y = 0.5)),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(1))),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(-1))),
+                 (true, false, (r = 3.0, y = 0.5, saturation = Int8(0))),
+                 (false, true, (r = 3.0, y = 0.5, v = 0.7)),
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(1), v = 0.7)),
+                 (true, true, (r = 3.0, y = 0.5, saturation = Int8(0), v = 0.7)))
+            u2 = merge(u1, (r = 1.0, y = 2.0), tracking ? (v = -0.3,) : (;))
+            u = map(SVector, u1, u2)
+            for block_type in (PID, DiscretePID)
+                first_law = pid_law(block_type(; first_gains..., hold, tracking), x1, u1, y1)
+                second_law = pid_law(block_type(; second_gains..., hold, tracking), x2, u2, y2)
+                vector_law = pid_law(block_type(; stacked_gains..., hold, tracking), x, u, y)
+                for (first_part, second_part, vector_part) in zip(first_law, second_law, vector_law),
+                        name in keys(vector_part)
+                    @test vector_part[name] isa SVector{2, Float64}
+                    @test vector_part[name][1] ≈ first_part[name] atol = 1e-12
+                    @test vector_part[name][2] ≈ second_part[name] atol = 1e-12
+                end
+            end
+        end
+        @test build(vector_pid_loop(); activations = (Float64, LinearizeDual)) isa Build
+        samples = loop_samples(sim -> port(sim, "", :y), vector_pid_loop(), 20)
+        first_samples = loop_samples(sim -> port(sim, "", :y), pid_single_loop(pid_controller(false, false)), 20)
+        second_samples = loop_samples(sim -> port(sim, "", :y), pid_single_loop(PID(; second_gains...); level = 3.0), 20)
+        @test maximum(abs.(getindex.(samples, 1) .- first_samples)) <= 1e-12
+        @test maximum(abs.(getindex.(samples, 2) .- second_samples)) <= 1e-12
     end
 
     @testset "the bang-bang loop builds with no algebraic loop and cycles between the thresholds (§5.3, §13.7)" begin
@@ -1491,8 +1546,8 @@ function test_blocks()
         @test u_types(DiscretePID(Kp = 1.0, hold = true, tracking = true)) ==
               (r = Float64, y = Float64, saturation = Int8, v = Float64)
         @test y_types(DiscretePID(Kp = 1.0)) == (u = Float64, u_raw = Float64)
-        @test PID(Kp = 1.0) isa Redstone.Blocks.PIDBlock{false, false}
-        @test DiscretePID(Kp = 1.0, hold = true, tracking = true) isa Redstone.Blocks.PIDBlock{true, true}
+        @test PID(Kp = 1.0) isa Redstone.Blocks.PIDBlock{Float64, false, false}
+        @test DiscretePID(Kp = 1.0, hold = true, tracking = true) isa Redstone.Blocks.PIDBlock{Float64, true, true}
         @test Redstone.has_stage(y_direct, DiscretePID(Kp = 1.0))
         @test !Redstone.has_stage(y_state, DiscretePID(Kp = 1.0))
     end
@@ -1549,8 +1604,14 @@ function test_blocks()
               DiscreteLimitedIntegrator{SVector{2, Float64}}
         @test RateLimiter(rising = 1) isa RateLimiter{Float64}
         @test RateLimiter(rising = 3).falling == 3.0
-        @test PID(Kp = 1) isa PID{false, false}
-        @test DiscretePID(Kp = 1) isa DiscretePID{false, false}
+        @test PID(Kp = 1) isa PID{Float64, false, false}
+        @test DiscretePID(Kp = 1) isa DiscretePID{Float64, false, false}
+        @test PID(Kp = 1, Ki = 1, Kd = 1, τd = 1, Tt = 1, u_min = -1, u_max = 1) isa PID{Float64, false, false}
+        @test PID(Kp = SVector(1, 2)) isa PID{SVector{2, Float64}, false, false}
+        @test PID(Kp = SVector(1, 2)).Ki === SVector(0.0, 0.0)
+        @test DiscretePID(Kp = 1, u_max = SVector(1.0, 2.0)) isa DiscretePID{SVector{2, Float64}, false, false}
+        @test DiscretePID(Kp = 1, u_max = SVector(1.0, 2.0)).Kp === SVector(1.0, 1.0)
+        @test u_types(PID(Kp = SVector(1.0, 2.0), hold = true)).saturation === SVector{2, Int8}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;]) isa StateSpace{1, 1, 1, false}
         @test StateSpace(A = [-1;;], B = [1;;], C = [1;;], x0 = 1).x0 === SVector(1.0)
         @test TransferFunction(num = (1,), den = (1, 2)) isa TransferFunction{1, false}
@@ -1575,7 +1636,7 @@ function test_blocks()
     @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
         for model in (servo_loop(true), servo_loop(false), bang_bang_loop(),
                       vector_limited_model(true), vector_limited_model(false), vector_relay_model(),
-                      pid_single_loop(pid_controller(false, false)),
+                      pid_single_loop(pid_controller(false, false)), vector_pid_loop(),
                       pid_single_loop(pid_assembly(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0,
                                                    u_min = -1.0, u_max = 1.0)),
                       pid_servo_loop(PID(Kp = 1.0, Ki = 0.5, Kd = 0.2, τd = 0.1, Tt = 1.0, tracking = true)),
@@ -1626,6 +1687,8 @@ function test_blocks()
                      DiscretizedTransferFunction(num = (1, 2), den = (1, 5)),
                      DiscretePID(Kp = 1.0), DiscretePID(Kp = 1.0, hold = true),
                      DiscretePID(Kp = 1.0, tracking = true), DiscretePID(Kp = 1.0, hold = true, tracking = true),
+                     PID(Kp = SVector(1.0, 2.0), hold = true, tracking = true),
+                     DiscretePID(Kp = SVector(1.0, 2.0), hold = true, tracking = true),
                      GaussianWhiteNoise(seed = 1, σ = 1.0),
                      GaussianWhiteNoise(seed = 7, μ = SVector(1.0, -1.0), σ = SVector(1.0, 2.0)),
                      Group((; k = Constant(1.0))))
