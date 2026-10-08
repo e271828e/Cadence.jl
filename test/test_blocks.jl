@@ -75,9 +75,6 @@ lag_model(value) =
 # The two-state state space with two inputs and two outputs, strictly proper.
 two_state_block() = StateSpace(A = [-1 0.5; 0 -2], B = [1 0.5; 0 1], C = [1 2; 0 1])
 
-# A linear block fed by a constant.
-linear_model(block, value) = Group((; k = Constant(value), c = block); local_wires = ("k/out" => "c/in",))
-
 # A linear block under the root faces `in` and `out`.
 linear_root_model(block) =
     Group((; c = block); input_wires = ("in" => "c/in",), output_wires = ("c/out" => "out",))
@@ -631,14 +628,14 @@ function test_blocks()
     end
 
     @testset "the state space runs from `x0` and walks under `Dual` (§7.2, §13.7)" begin
-        scalar_model = linear_model(StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], x0 = 2), 1.0)
+        scalar_model = fed_by(Constant(1.0), StateSpace(A = [-1.0;;], B = [1.0;;], C = [1.0;;], x0 = 2))
         sim = Simulation(scalar_model; h = 1//100)
         init!(sim, fragment())
         step!(sim; t_plus = 1.0)
         @test state(sim, "c").q[1] ≈ 1 + exp(-1) rtol = 1e-7
         @test port(sim, "c", :out) == state(sim, "c").q[1]
         @test build(scalar_model; activations = (Float64, LinearizeDual)) isa Build
-        @test build(linear_model(two_state_block(), SVector(1.0, -1.0)); activations = (Float64, LinearizeDual)) isa Build
+        @test build(fed_by(Constant(SVector(1.0, -1.0)), two_state_block()); activations = (Float64, LinearizeDual)) isa Build
         @test build(linear_root_model(two_state_block()); activations = (Float64, LinearizeDual)) isa Build
     end
 
@@ -698,7 +695,7 @@ function test_blocks()
         # A pole at the origin starts at rest.
         origin_pole = TransferFunction(num = (1,), den = (1, 0))
         @test origin_pole isa TransferFunction{1, false}
-        origin_sim = Simulation(linear_model(origin_pole, 1.0); h = 1//100)
+        origin_sim = Simulation(fed_by(Constant(1.0), origin_pole); h = 1//100)
         init!(origin_sim, fragment())
         step!(origin_sim; t_plus = 1.0)
         @test port(origin_sim, "c", :out) ≈ 1.0 rtol = 1e-12
@@ -723,8 +720,8 @@ function test_blocks()
     end
 
     @testset "the linear blocks' phase bodies allocate nothing (§7.5)" begin
-        for model in (linear_model(two_state_block(), SVector(1.0, -1.0)), feedback_loop(0.0),
-                      linear_model(lag_form(), 1.0), lead_lag_loop())
+        for model in (fed_by(Constant(SVector(1.0, -1.0)), two_state_block()), feedback_loop(0.0),
+                      fed_by(Constant(1.0), lag_form()), lead_lag_loop())
             @test build(model; activations = (Float64, LinearizeDual)) isa Build
             sim = Simulation(model; h = 1//100)
             bodies = phase_bodies(sim)

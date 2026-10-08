@@ -43,8 +43,10 @@ the push. The open points are at the end.
    Reason: the brief's positional form does not convert integer rates to
    `Float64`, since the default constructor of a parametric struct takes
    exact field types.
-5. **`fed_by(Constant(v), c)` duplicates `linear_model(block, v)`.** Left as
-   is, both helpers kept. Open for the user: merge or not.
+5. **`fed_by(Constant(v), c)` duplicated `linear_model(block, v)`.**
+   Resolved after the run with the user: `linear_model` is retired and its
+   five call sites read `fed_by(Constant(v), block)`, which builds the same
+   model. The gate stayed at 5265.
 
 ### Stage 2 (c34fae2)
 
@@ -155,7 +157,6 @@ survived, and one extra mutant the reviewer added survived. Rulings:
 
 ## Open points for the user
 
-- The `fed_by` / `linear_model` duplicate above.
 - **`held` is now a package function while locals named `held` remain** in
   `src/dataplane.jl` (lines 594 to 607), `src/devices.jl` (163 to 165) and
   `test/test_blocks.jl`'s cascade testset. "Naming" says no local shares a
