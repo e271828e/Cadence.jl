@@ -79,8 +79,8 @@ end
 # The component table with its timing against the anchors, the rate-scope rows
 # when any keyed scope exists, the anchor table with the `A₀` row always
 # present: `Δt_base` symbolic in its `T` column and dashes where no scope
-# declares it (§9.2), and the root faces' routes. The face tables and wires are
-# fields, printed by no method here.
+# declares it (§9.2), and the root faces' routes, derived through `face_routes`.
+# The level rows and their wires are fields, printed by no method here.
 function _lines(structure::Structure)
     lines = ["Structure: " * _structure_counts(structure) * "; root inputs: " *
              (isempty(structure.root_inputs) ? "none" : join(structure.root_inputs, ", ")),
