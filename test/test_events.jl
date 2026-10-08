@@ -339,9 +339,9 @@ function test_events()
         sim = Simulation(overloaded(); h = 1//10)
         init!(sim)
         @test port(sim, "mon", :tripped) === false       # before the crossing
-        run!(sim; t_end = 5.0, stop_on = ("tripped",))
+        run!(sim; t_end = 5.0)
         record = termination(sim)
-        @test record.source === ModelRequestedStop(:tripped)
+        @test record.source === ModelRequestedStop("stop", :flag, "overload tripped")
         @test record.t ≈ 0.315 atol = 1e-6               # the localized crossing
         @test modes(sim, "mon").tripped === true
         @test port(sim, "mon", :tripped) === true

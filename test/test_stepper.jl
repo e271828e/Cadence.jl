@@ -3,6 +3,10 @@
 # machinery and the deployment surface are method-blind, and the two backends
 # differ exactly where their orders say they must.
 
+# The bouncer beside a stop request that never holds: one honoured requester,
+# scanned at every publication.
+requested_bouncer() = Group((; b = Bouncer(1.0, 0.07), r = requested(false, "never")))
+
 function test_stepper()
     @testset "the method is a deployment binding, RK4 the default (§10.2)" begin
         sim = Simulation(feedback_model(); h = 1//100)
@@ -90,8 +94,15 @@ function test_stepper()
         bouncer_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
         init!(bouncer_sim; log = false)
         publish_bytes = @ballocated publish!($bouncer_sim, $(bouncer_sim.plane.roster))
-        no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_addrs, $(bouncer_sim.plane.roster), nothing), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
+        no_policy, no_mask = StopPolicy(Inf, String[]), Bool[]   # the advance's arguments (D-260, D-261)
+        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_mask, $(bouncer_sim.plane.roster), nothing), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
+        # One honoured requester adds the scan of its buffer and no allocation
+        # (§13.5, D-316).
+        requested_sim = Simulation(requested_bouncer(); h = 1//10, algorithm = Heun)
+        init!(requested_sim; log = false)
+        requested_bytes = @ballocated publish!($requested_sim, $(requested_sim.plane.roster))
+        honoured = Bool[false]
+        @test @ballocated(frame!($requested_sim, 1, $no_policy, $honoured, $(requested_sim.plane.roster), nothing), setup = (init!($requested_sim; log = false)), evals = 1) == requested_bytes
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin

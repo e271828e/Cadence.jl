@@ -684,7 +684,7 @@ function test_trim()
         init!(live, fragment(u = (in = 0.0,)))
         attach!(live, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
                                                 # frame (§12.2), so the spin gets its turn on one thread
-        task = Threads.@spawn run!(live; t_end = 3.0e5, stop_on = ("stop",))
+        task = Threads.@spawn run!(live; t_end = 3.0e5)
         while lifecycle(live) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end

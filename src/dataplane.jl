@@ -107,14 +107,15 @@ struct DebtReanchor <: Diagnostic
 end
 
 """
-§13.5's unbounded run: `run!` with `t_end = Inf` and no stop faces, the
-interactive shape whose escape is the operator interrupt (§12.4). It is raised
-once per `run!`, into the loop's own cell, and the ring is the rate limit
-(D-255).
+§13.5's unbounded run: `run!` with `t_end = Inf` and no honoured stop request,
+the interactive shape whose escape is the operator interrupt (§12.4). The model
+has no requester, and `ignored` is empty, or the advance ignores them all, and
+`ignored` names them. It is raised once per `run!`, into the loop's own cell,
+and the ring is the rate limit (D-255, D-316).
 """
 struct UnboundedRun <: Diagnostic
-    t_end::Float64            # Inf
-    stop_on::Vector{Symbol}   # empty
+    t_end::Float64              # Inf
+    ignored::Vector{String}     # the ignored requester paths; empty with no requester
 end
 
 """
@@ -219,11 +220,15 @@ message(d::DebtReanchor) =
     "t = $(d.t) (τ = $(d.τ)) rather than catch up in a burst (§10.7)"
 message(d::UnboundedRun) =
     "this `run!` declared `t_end = $(d.t_end)` and " *
-    (isempty(d.stop_on) ? "no stop face" : "the stop faces $(_faceset(d.stop_on))") *
+    (isempty(d.ignored) ? "the model publishes no stop request" :
+     "ignores every stop request the model publishes, $(_faceset(d.ignored))") *
     " — nothing in the model or the clock can end it, so it runs until a " *
     "control-plane stop: `stop!(sim)`, a device's stop button, or the operator " *
     "interrupt, which is the sanctioned escape from this configuration. Give " *
-    "`run!` a finite `t_end`, or a `stop_on` face, to bound it (§13.5, §12.4)"
+    "`run!` a finite `t_end`, or " *
+    (isempty(d.ignored) ? "the model a `StopFlag` port, such as a `StopRequest`," :
+     "honour a request by leaving its path out of `ignore_stop_requests`,") *
+    " to bound it (§13.5, §12.4)"
 message(d::ThreadBudget) =
     "the run occupies $(d.device_tasks + 1) tasks, the loop and one per rostered device, " *
     "on $(d.threads) thread$(d.threads == 1 ? "" : "s"), so co-resident tasks share a " *

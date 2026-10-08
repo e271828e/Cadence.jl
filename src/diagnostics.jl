@@ -1207,28 +1207,17 @@ message(d::ServiceLifecycle) =
     "`$(d.op)` is legal in $(_namelist(d.legal)), and this simulation is `$(d.status)` " *
     "(§12.6, §14)"
 
-"§13.5: a `stop_on` name that is no root-exported `Bool` output face."
-Base.@kwdef struct StopFaceInvalid <: Diagnostic
-    face::Symbol
-    reason::Symbol                           # :unknown | :root_input | :not_bool
-    site::Symbol                             # :run! | :replay! | :step!
-    declared::Any = nothing                  # the declared type, for :not_bool
-    candidates::Vector{Symbol} = Symbol[]    # the root output-face list
+"§13.5: an `ignore_stop_requests` path that names no stop requester."
+Base.@kwdef struct StopRequestInvalid <: Diagnostic
+    path::String                             # the path as given
+    site::Symbol                             # :run! | :replay! | :step!, the advance (D-249)
+    candidates::Vector{String}               # the roster's requester paths, in roster order
 end
 
-# The binding site the name came from (§13.5, §12.7, D-249): the advance that
-# declared it — `run!`, `replay!` or `step!` (D-255).
-_stop_site(site::Symbol) = "`$(site)`'s `stop_on`"
-
-message(d::StopFaceInvalid) =
-    d.reason === :unknown ?
-    "$(_stop_site(d.site)) names `$(d.face)`, which is no root face — a stop face is a " *
-    "root-exported Bool output face, and this model exports $(_namelist(d.candidates)) (§13.5)" :
-    d.reason === :root_input ?
-    "$(_stop_site(d.site)) names `$(d.face)`, a root input — a stop face is a root-exported " *
-    "*output*: the model detects and exports the condition, and the deployment names it (§13.5)" :
-    "$(_stop_site(d.site)) names `$(d.face)`, whose declared type is $(d.declared) — stop " *
-    "faces are Bool, OR-combined (§13.5)"
+message(d::StopRequestInvalid) =
+    "`$(d.site)`'s `ignore_stop_requests` names `$(d.path)`, which publishes no stop " *
+    "request — the list takes `:all` or the component paths of requesters, and this " *
+    "model's are $(_namelist(d.candidates)) (§13.5)"
 
 # --- the grid attribution (§9.2, D-187) -----------------------------------------
 # Deployment substrate rather than diagnostics: `deployment.jl`'s `_grid_report`
@@ -2221,7 +2210,7 @@ message(d::CheckpointMidFrame) =
     " — a `t*` stop abandons the frame's remainder, an interrupt thrown from model code " *
     "abandons the frame unpublished with its stores possibly mid-boundary, and a checkpoint " *
     "is taken at the rest a published frame top leaves only; stop the run at one: `t_end`, " *
-    "a stop face read at a grid boundary, or `stop!` (§12.4, §12.6, D-274)"
+    "a stop request read at a grid boundary, or `stop!` (§12.4, §12.6, D-274)"
 
 "§11.5, §12.7: a recorded writer schema naming faces the target model does not export as root inputs."
 Base.@kwdef struct ReplaySchemaMismatch <: Diagnostic

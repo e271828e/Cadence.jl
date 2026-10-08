@@ -3,15 +3,27 @@
 # declares and binds, partial advance, the §13.5 termination record and
 # §13.6's abnormal entry.
 
-# A monitored ramp: `hit` goes true at the first boundary whose sweep sees the
-# ramp at the trigger's level — the boundary-detected stop face.
-monitored() = Group((; src = Ramp(0.0), trig = Trigger(0.35));
-                    local_wires = ("src/out" => "trig/sig",),
-                    output_wires = ("trig/on" => "hit",))
+# A monitored ramp: the trigger fires at the first boundary whose sweep sees the
+# ramp at its level, and the stop request publishes it from that boundary on —
+# the boundary-detected request.
+ramp_request(level, reason) =
+    Group((; src = Ramp(0.0), trig = Trigger(level), stop = StopRequest(reason = reason));
+          local_wires = ("src/out" => "trig/sig", "trig/on" => "stop/request"))
+monitored() = ramp_request(0.35, "ramp at level")
 
-# A root-input-fed trigger exporting its flag: the boundary-zero stop's model.
-armed() = Group((; c = Trigger(0.5)); input_wires = ("in" => "c/sig",),
-                output_wires = ("c/on" => "stop",))
+# Two monitored ramps, `a` first in build order.
+two_ramps(level_a, level_b) =
+    Group((; a = ramp_request(level_a, "a at level"), b = ramp_request(level_b, "b at level")))
+two_ramps_swapped(level_a, level_b) =
+    Group((; b = ramp_request(level_b, "b at level"), a = ramp_request(level_a, "a at level")))
+
+# A root-input-fed trigger feeding a stop request: the boundary-zero stop's model.
+armed() = Group((; c = Trigger(0.5), stop = StopRequest(reason = "input at level"));
+                input_wires = ("in" => "c/sig",), local_wires = ("c/on" => "stop/request",))
+
+# The hooked interrupter beside a request that never holds: a requester
+# honoured, or ignored, while only a control-plane stop can end the run.
+hooked_requested(c) = Group((; run = hooked_interrupted(c), r = requested(false, "never")))
 
 # The pendulum's torque held by a discrete integrator, and the condition D-273's
 # probe authored: a sampled model, where a resume from the stores alone ran one
@@ -83,7 +95,8 @@ function test_lifecycle()
 
     @testset "the freeze is the lifecycle's :running — init! and run! refuse it too (§12.6)" begin
         # Both ends of the run are test-controlled: the spin below waits for its
-        # start, and the run cannot reach *its* end until the stop face is staged,
+        # start, and the run cannot reach *its* end until the input arming its
+        # stop request is staged,
         # so the mid-run probes race nothing — no frame count and no JIT warming
         # stand between them. `t_end` is a loud safety net rather than the run's
         # expected end — 30M frames, twenty times what the probes' own compilation
@@ -93,14 +106,13 @@ function test_lifecycle()
         init!(sim, total)
         attach!(sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
                                                # frame (§12.2), so the spin gets its turn on one thread
-        task = Threads.@spawn run!(sim; t_end = 3.0e5, stop_on = ("stop",))
+        task = Threads.@spawn run!(sim; t_end = 3.0e5)
         while lifecycle(sim) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end
         init_diagnostic = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(
             sim, total))
-        run_diagnostic = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0,
-                                                                                  stop_on = ("stop",)))
+        run_diagnostic = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0))
         stage!(sim, "in" => 1.0)                         # now, and only now, may the run end:
         wait(task)                                          # the next drain arms the trigger (§12.6)
         @test init_diagnostic.op === :init! &&
@@ -108,7 +120,7 @@ function test_lifecycle()
         @test run_diagnostic.op === :run! &&
               run_diagnostic.status === :running
         @test lifecycle(sim) === :stopped
-        @test termination(sim).source === ModelRequestedStop(:stop)
+        @test termination(sim).source === ModelRequestedStop("stop", :flag, "input at level")
     end
 
     @testset "t_end is the advance's own bound, validated per call (§13.5)" begin
@@ -186,17 +198,17 @@ function test_lifecycle()
         @test termination(sim).t == 1.0
 
         # `Inf` is the default and a value (Appendix B): an advance bounded by its
-        # stop face alone, and one advance's `Inf` after another's finite bound.
+        # stop request alone, and one advance's `Inf` after another's finite bound.
         unbound = Simulation(monitored(); h = 1//10)
         init!(unbound)
-        run!(unbound; stop_on = ("hit",))
-        @test termination(unbound).source === ModelRequestedStop(:hit)
+        run!(unbound)
+        @test termination(unbound).source === ModelRequestedStop("stop", :flag, "ramp at level")
         lifted = Simulation(monitored(); h = 1//10)
         init!(lifted)
-        run!(lifted; t_end = 0.2, stop_on = ("hit",))
+        run!(lifted; t_end = 0.2)
         @test termination(lifted).source === EndTimeReached() && termination(lifted).t == 0.2
         init!(lifted)
-        run!(lifted; t_end = Inf, stop_on = ("hit",))
+        run!(lifted; t_end = Inf)
         @test termination(lifted).t == 4 * lifted.deployment.h
         unbound = Simulation(feedback_model(); h = 1//50)
         init!(unbound, fragment(u = (ref = 0.0,)))
@@ -216,45 +228,44 @@ function test_lifecycle()
               step_diagnostic.call === :step!
     end
 
-    @testset "stop_on names root-exported Bool output faces, validated at all three sites (§13.5)" begin
-        model = feedback_model()                    # "ref" a root input, "y" a Float64 export
-        sim = Simulation(model; h = 1//50)
-        init!(sim, fragment(u = (ref = 0.0,)))
+    @testset "ignore_stop_requests names requester paths, validated at all three sites (§13.5, D-316)" begin
+        sim = Simulation(two_ramps(0.15, 0.35); h = 1//10)
+        init!(sim)
         trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
-        for (bad, reason) in (("nope", :unknown), ("ref", :root_input), ("y", :not_bool))
-            run_err = failure(() -> run!(sim; t_end = 1.0, stop_on = (bad,)))
-            replay_err = failure(() -> replay!(sim, trc; stop_on = (bad,)))
-            step_err = failure(() -> step!(sim; stop_on = (bad,)))
-            run_diagnostic, replay_diagnostic, step_diagnostic =
-                only(diagnostics(run_err)), only(diagnostics(replay_err)),
-                only(diagnostics(step_err))
-            @test run_err isa DiagnosticError && run_diagnostic isa StopFaceInvalid &&
-                  run_diagnostic.reason === reason
-            @test run_diagnostic.face == replay_diagnostic.face == step_diagnostic.face &&
-                  run_diagnostic.reason == replay_diagnostic.reason ==
-                  step_diagnostic.reason &&
-                  run_diagnostic.declared == replay_diagnostic.declared ==
-                  step_diagnostic.declared   # identical at all three sites
-            # The binding site is the one payload field that differs (§13.5, D-249).
-            @test run_diagnostic.site === :run! && replay_diagnostic.site === :replay! &&
-                  step_diagnostic.site === :step!
-        end
+        given = ("a/stop", "nope")                  # one requester, one path naming none
+        run_err = failure(() -> run!(sim; t_end = 1.0, ignore_stop_requests = given))
+        replay_err = failure(() -> replay!(sim, trc; ignore_stop_requests = given))
+        step_err = failure(() -> step!(sim; ignore_stop_requests = given))
+        run_diagnostic, replay_diagnostic, step_diagnostic =
+            only(diagnostics(run_err)), only(diagnostics(replay_err)), only(diagnostics(step_err))
+        @test run_err isa DiagnosticError && run_diagnostic isa StopRequestInvalid
+        # identical at all three sites: the path, and the roster's paths in roster order
+        @test run_diagnostic.path == replay_diagnostic.path == step_diagnostic.path == "nope"
+        @test run_diagnostic.candidates == replay_diagnostic.candidates ==
+              step_diagnostic.candidates == ["a/stop", "b/stop"]
+        # The binding site is the one payload field that differs (§13.5, D-249).
+        @test run_diagnostic.site === :run! && replay_diagnostic.site === :replay! &&
+              step_diagnostic.site === :step!
+        # Collected over the given paths: an assembly's path names no requester.
+        err = failure(() -> run!(sim; t_end = 1.0, ignore_stop_requests = ("nope", "a", "b/stop")))
+        @test [d.path for d in diagnostics(err)] == ["nope", "a"]
         # One advance is one call, and the bound refuses first: `_t_bound` is
-        # fail-fast and runs ahead of the faces, so a call naming both a bad bound
-        # and a bad face is refused for the bound (§13.5, D-229).
+        # fail-fast and runs ahead of the paths, so a call naming both a bad bound
+        # and a bad path is refused for the bound (§13.5, D-229).
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(sim; t_end = -1.0,
-                                                                       stop_on = ("nope",)))
+                                                                       ignore_stop_requests = ("nope",)))
         @test d.argument === :t_end && d.call === :run!
 
         @test lifecycle(sim) === :initialized            # a rejected advance bound nothing
     end
 
-    @testset "a boundary-detected stop face ends the run at its own boundary (§13.5)" begin
+    @testset "a request stops the run by default, and the record names the requester (§13.5, D-316)" begin
         sim = Simulation(monitored(); h = 1//10)
         init!(sim)
-        run!(sim; t_end = 5.0, stop_on = ("hit",))
+        run!(sim; t_end = 5.0)
         record = termination(sim)
-        @test record.source === ModelRequestedStop(:hit)      # kind + payload, one typed value (D-203)
+        # kind + payload, one typed value (D-203)
+        @test record.source === ModelRequestedStop("stop", :flag, "ramp at level")
         @test record.t == 4 * sim.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
         @test sim.exec.clock.frame == 4                       # the run ended there, not at t_end
         # that snapshot is the final one
@@ -265,53 +276,114 @@ function test_lifecycle()
         sim = Simulation(armed(); h = 1//10)
         init!(sim, fragment(u = (in = 1.0,)))        # holds in the authored state:
         #                                                boundary zero derives the firing (§10.6)
-        run!(sim; t_end = 5.0, stop_on = ("stop",))
+        run!(sim; t_end = 5.0)
         record = termination(sim)
-        @test record.source === ModelRequestedStop(:stop) && record.t == 0.0
+        @test record.source === ModelRequestedStop("stop", :flag, "input at level") && record.t == 0.0
         @test sim.exec.clock.frame == 0             # zero frames: the check precedes the first step
     end
 
     @testset "a localized stop ends the run at t*, the crossing state final (§13.5, §10.4)" begin
         sim = Simulation(overloaded(); h = 1//10)
         init!(sim)
-        run!(sim; t_end = 5.0, stop_on = ("tripped",))
+        run!(sim; t_end = 5.0)
         record = termination(sim)
-        @test record.source === ModelRequestedStop(:tripped)
+        @test record.source === ModelRequestedStop("stop", :flag, "overload tripped")
         @test record.t ≈ 0.315 atol = 1e-6                    # the analytic crossing, not a frame top
         @test record.t == sim.exec.clock.t                         # the frame's remainder was abandoned
         @test latest(sim).t === record.t
         @test logged(sim)[end] === latest(sim)           # the log's terminal endpoint is the t* boundary
     end
 
-    @testset "stop_on binds per advance, like t_end (§13.5)" begin
+    @testset "ignore_stop_requests binds per advance, like t_end (§13.5, D-316)" begin
         sim = Simulation(monitored(); h = 1//10)
         init!(sim)
-        run!(sim; stop_on = ("hit",), t_end = 1.0)
-        @test termination(sim).source isa ModelRequestedStop
-        init!(sim)
-        run!(sim; t_end = 1.0)                           # no faces: this advance's default
+        run!(sim; ignore_stop_requests = ("stop",), t_end = 1.0)
         @test termination(sim).source === EndTimeReached() && termination(sim).t == 1.0
+        init!(sim)
+        run!(sim; t_end = 1.0)                           # every request honoured: the default
+        @test termination(sim).source isa ModelRequestedStop
+    end
+
+    @testset "the override is per requester, or all (§13.5, D-316)" begin
+        # `a` holds from boundary 2, `b` from boundary 4.
+        sim = Simulation(two_ramps(0.15, 0.35); h = 1//10)
+        init!(sim)
+        run!(sim; t_end = 1.0)
+        @test termination(sim).source === ModelRequestedStop("a/stop", :flag, "a at level")
+        @test sim.exec.clock.frame == 2
+        init!(sim)
+        run!(sim; t_end = 1.0, ignore_stop_requests = ("a/stop",))
+        @test termination(sim).source === ModelRequestedStop("b/stop", :flag, "b at level")
+        @test sim.exec.clock.frame == 4
+        # the ignored request is still a cell in the snapshot
+        @test port(latest(sim), "a/stop", :flag) === STOP_REQUESTED
+        init!(sim)
+        run!(sim; t_end = 1.0, ignore_stop_requests = ("b/stop", "a/stop"))
+        @test termination(sim).source === EndTimeReached() && termination(sim).t == 1.0
+        @test termination(sim).policy.ignored == ["b/stop", "a/stop"]   # in the order given
+        init!(sim)
+        run!(sim; t_end = 1.0, ignore_stop_requests = :all)
+        @test termination(sim).source === EndTimeReached() && termination(sim).t == 1.0
+        @test termination(sim).policy.ignored == ["a/stop", "b/stop"]   # the roster, expanded
+    end
+
+    @testset "two requests at one boundary resolve to the first in build order (D-316)" begin
+        sim = Simulation(two_ramps(0.35, 0.35); h = 1//10)
+        init!(sim)
+        run!(sim; t_end = 1.0)
+        @test termination(sim).source === ModelRequestedStop("a/stop", :flag, "a at level")
+        @test sim.exec.clock.frame == 4
+        @test port(latest(sim), "b/stop", :flag) === STOP_REQUESTED     # both hold there
+        # The declaration order swapped, the roster and the record follow it.
+        swapped = Simulation(two_ramps_swapped(0.35, 0.35); h = 1//10)
+        init!(swapped)
+        run!(swapped; t_end = 1.0)
+        @test [r.path for r in swapped.exec.act.layout.requesters] == ["b/stop", "a/stop"]
+        @test termination(swapped).source === ModelRequestedStop("b/stop", :flag, "b at level")
+        @test swapped.exec.clock.frame == 4
+    end
+
+    @testset "a tick-detected request stops at the tick's own boundary (§10.5, D-316)" begin
+        # Ignored, the run shows where the detector first holds: the third tick
+        # at `Relative(3)`, frame 9, with the request already publishing there.
+        free = Simulation(tick_alarmed(); h = 1//10)
+        init!(free)
+        step!(free; frames = 12, ignore_stop_requests = :all)
+        snapshots = logged(free)
+        first_alarm = findfirst(snapshot -> port(snapshot, "counter", :alarm), snapshots)
+        tick = snapshots[first_alarm]
+        @test tick.frame == 9
+        @test port(tick, "stop", :flag) === STOP_REQUESTED
+        @test port(snapshots[first_alarm - 1], "stop", :flag) === NO_STOP
+        # Honoured, the run ends at that boundary, not one later.
+        sim = Simulation(tick_alarmed(); h = 1//10)
+        init!(sim)
+        run!(sim; t_end = 5.0)
+        record = termination(sim)
+        @test record.source === ModelRequestedStop("stop", :flag, "three ticks counted")
+        @test record.t === tick.t && sim.exec.clock.frame == 9
     end
 
     @testset "the record carries the terminating advance's policy (§13.5, D-255)" begin
         sim = Simulation(monitored(); h = 1//10)
         init!(sim)
-        run!(sim; t_end = 1.0, stop_on = ("hit",))
+        run!(sim; t_end = 1.0, ignore_stop_requests = ("stop", "stop"))
         policy = termination(sim).policy
-        # the advance that ended the run
-        @test policy.t_end == 1.0 && policy.faces == [:hit]
+        # the advance that ended the run, its duplicates collapsed
+        @test policy.t_end == 1.0 && policy.ignored == ["stop"]
         # A `step!` that stops carries its own policy, which is where
         # `EndTimeReached`'s bound is read off now that no constructor holds one.
         init!(sim)
         @test step!(sim; frames = 10, t_end = 0.3) == 3
         @test termination(sim).source === EndTimeReached()
-        @test termination(sim).policy.t_end == 0.3 && isempty(termination(sim).policy.faces)
+        @test termination(sim).policy.t_end == 0.3 && isempty(termination(sim).policy.ignored)
     end
 
     @testset "an unbounded run raises the advisory into the loop's cell (§13.5, §11.8)" begin
-        # `t_end = Inf` with no stop face is allowed and is the interactive shape:
-        # nothing but a control-plane stop can end it, so the loop says so once
-        # (D-255). The model stops itself from its own RHS, `:code` the issuer.
+        # `t_end = Inf` with no honoured stop request is allowed and is the
+        # interactive shape: nothing but a control-plane stop can end it, so the
+        # loop says so once (D-255, D-316). The model stops itself from its own
+        # RHS, `:code` the issuer. This one has no requester.
         comp = HookedInterrupter()
         sim = Simulation(hooked_interrupted(comp); h = 1//10)
         comp.hook[] = () -> stop!(sim)
@@ -319,6 +391,29 @@ function test_lifecycle()
         run!(sim)
         @test termination(sim).source === ControlRequestedStop(:code)
         @test writer_status(latest(sim), "loop").totals.unbounded == 1
+        advisory = only(d for snapshot in logged(sim)
+                          for d in writer_status(snapshot, "loop").recent if d isa UnboundedRun)
+        @test advisory.t_end == Inf && isempty(advisory.ignored)
+
+        # A requester honoured bounds the run, though it never holds.
+        comp_honoured = HookedInterrupter()
+        honoured = Simulation(hooked_requested(comp_honoured); h = 1//10)
+        comp_honoured.hook[] = () -> stop!(honoured)
+        init!(honoured)
+        run!(honoured)
+        @test termination(honoured).source === ControlRequestedStop(:code)
+        @test writer_status(latest(honoured), "loop").totals.unbounded == 0
+        # Every requester ignored, the run is unbounded again, and the advisory
+        # names what was ignored.
+        comp_ignored = HookedInterrupter()
+        all_ignored = Simulation(hooked_requested(comp_ignored); h = 1//10)
+        comp_ignored.hook[] = () -> stop!(all_ignored)
+        init!(all_ignored)
+        run!(all_ignored; ignore_stop_requests = :all)
+        @test writer_status(latest(all_ignored), "loop").totals.unbounded == 1
+        advisory = only(d for snapshot in logged(all_ignored)
+                          for d in writer_status(snapshot, "loop").recent if d isa UnboundedRun)
+        @test advisory.t_end == Inf && advisory.ignored == ["r/stop"]
 
         # A bound of either kind is the advisory's absence.
         comp2 = HookedInterrupter()
@@ -400,22 +495,22 @@ function test_lifecycle()
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; t_plus = 0.0))
         @test d.call === :step! && d.argument === :t_plus && d.value == 0.0
         # `step!` reads its own keywords before the policy, as `replay!` does: a
-        # call naming both a bad pair and a bad face is refused for the pair.
+        # call naming both a bad pair and a bad path is refused for the pair.
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(
-            sim2; frames = 1, t_plus = 0.1, stop_on = ("nope",)))
+            sim2; frames = 1, t_plus = 0.1, ignore_stop_requests = ("nope",)))
         @test d.call === :step! && d.reason === :both_given
     end
 
-    @testset "a stop face inside step! truncates it through the deviceless tail (§12.6, §13.5)" begin
+    @testset "a stop request inside step! truncates it through the deviceless tail (§12.6, §13.5)" begin
         sim = Simulation(monitored(); h = 1//10)
         init!(sim)
         # short of the trigger: an ordinary advance
-        @test step!(sim; frames = 2, t_end = 5.0, stop_on = ("hit",)) == 2
+        @test step!(sim; frames = 2, t_end = 5.0) == 2
         @test lifecycle(sim) === :initialized
-        # the face holds at boundary 4
-        @test step!(sim; frames = 10, t_end = 5.0, stop_on = ("hit",)) == 2
+        # the request holds at boundary 4
+        @test step!(sim; frames = 10, t_end = 5.0) == 2
         @test lifecycle(sim) === :stopped
-        @test termination(sim).source === ModelRequestedStop(:hit)
+        @test termination(sim).source === ModelRequestedStop("stop", :flag, "ramp at level")
     end
 
     @testset "§13.6: a loop-side throw discards the failed boundary and promotes the last one" begin

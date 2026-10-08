@@ -28,10 +28,11 @@ x_deriv(c::HookedInterrupter, (; x, u)) =
 hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
                               local_wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
 
-# The self-interrupter under a stop face on its own ramp: the face holds at
-# frame 3's publication, the frame whose integration sent the signal.
-interrupter_watched() = Group((c = SelfInterrupter(0.22), trig = Trigger(0.25));
-                              local_wires = ("c/q" => "trig/sig",), output_wires = ("trig/on" => "hit",))
+# The self-interrupter under a stop request on its own ramp: the request holds
+# at frame 3's publication, the frame whose integration sent the signal.
+interrupter_watched() = Group((c = SelfInterrupter(0.22), trig = Trigger(0.25),
+                               stop = StopRequest(reason = "ramp at level"));
+                              local_wires = ("c/q" => "trig/sig", "trig/on" => "stop/request"))
 
 # A frame failing on a bundle field its law does not give: the species rule's
 # lookup (§13.2, D-248) re-invokes `x_init`, which, armed by that failing
@@ -368,17 +369,17 @@ function failures_runtime()
         end
     end
 
-    @testset "a deferred interrupt yields to a stop face holding at the same publication (§12.4, §13.5, D-268)" begin
+    @testset "a deferred interrupt yields to a stop request holding at the same publication (§12.4, §13.5, D-268)" begin
         sigint_raising() do
             sim = Simulation(interrupter_watched(); h = 1//10)
             init!(sim)
-            run!(sim; t_end = 5.0, stop_on = ("hit",))
-            @test termination(sim).source === ModelRequestedStop(:hit)
+            run!(sim; t_end = 5.0)
+            @test termination(sim).source === ModelRequestedStop("stop", :flag, "ramp at level")
             @test latest(sim).frame == 3 && !sigint_pending()
-            # Without the face the same frame ends on the interrupt.
+            # With the request ignored the same frame ends on the interrupt.
             unwatched = Simulation(interrupter_watched(); h = 1//10)
             init!(unwatched)
-            run!(unwatched; t_end = 5.0)
+            run!(unwatched; t_end = 5.0, ignore_stop_requests = :all)
             @test termination(unwatched).source === ControlRequestedStop(:interrupt)
             @test latest(unwatched).frame == 3 && !sigint_pending()
         end

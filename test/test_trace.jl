@@ -1187,7 +1187,7 @@ function trace_checkpoints()
         spinning = Simulation(armed(); h = 1//100)
         init!(spinning, fragment(u = (in = 0.0,)))
         attach!(spinning, TailProbe(), NoClaim())
-        task = Threads.@spawn run!(spinning; t_end = 3.0e5, stop_on = ("stop",))
+        task = Threads.@spawn run!(spinning; t_end = 3.0e5)
         while lifecycle(spinning) !== :running && !istaskdone(task)
             yield()
         end
@@ -1200,7 +1200,7 @@ function trace_checkpoints()
         # with the clock, the top and the frame index. A stop at a frame top is not.
         sim = Simulation(overloaded(); h = 1//10)
         init!(sim)
-        run!(sim; t_end = 5.0, stop_on = ("tripped",))
+        run!(sim; t_end = 5.0)
         @test lifecycle(sim) === :stopped
         d = carried(@test_throws DiagnosticError{CheckpointMidFrame} checkpoint(sim))
         @test d.t ≈ 0.315 atol = 1e-6

@@ -306,7 +306,7 @@ D-256, D-268, D-269.
 - `KINDS`, the closed set's one home. The union `DiagValue` and `KindCounts`'
   field order are built from it.
 - The diagnostic kinds include:
-  - `UnboundedRun`, the loop's own advisory (§13.5, D-255);
+  - `UnboundedRun`, the loop's own advisory (§13.5, D-255, D-316);
   - `EmptyGreedyClaim`, declared with the service kinds and reported by
     `attach!` into the roster entry's own cell (§11.3, D-250);
   - `DebtReanchor`, the pacer's forgiveness on the loop's own cell (§10.7);
@@ -322,7 +322,7 @@ D-256, D-268, D-269.
   - the copy off a live `Pacer` is control.jl's.
 
 Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
-D-027, D-038, D-137, D-250, D-255, D-269.
+D-027, D-038, D-137, D-250, D-255, D-269, D-316.
 
 ### `src/declare.jl`
 
@@ -455,10 +455,12 @@ D-233, D-244, D-256, D-261, D-268, D-270, D-315.
 - `StepError`'s `host` and its rendered recipe (§13.4, D-274).
 - `CheckpointMismatch`'s store and clock arms, and `ArgumentInvalid`'s
   `restore` arm.
+- `StopRequestInvalid`, the refusal of an `ignore_stop_requests` path (§13.5,
+  D-316).
 
-Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C,
+Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §13.5, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
-D-261, D-262, D-263, D-272, D-274, D-276, D-277.
+D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316.
 
 ### `src/executor.jl`
 
@@ -551,15 +553,15 @@ D-276, D-277.
   bracketing `_crossing`, `t*` boundaries, the localization budget and the
   `ChatteringBudget` degradation.
 - The cursor's arrival/validation/trial phases.
-- §13.5's stop-face read at every `t*` publication (D-261):
-  - the read is off the policy and the addresses `frame!` carries;
-  - when a face holds, the frame's remainder is abandoned and the face is
-    returned.
-- The run's pacer, carried beside the policy and the addresses to the `t*`
+- §13.5's stop-request read at every `t*` publication (D-261, D-316):
+  - the read is off the policy and the ignore mask `frame!` carries;
+  - when an honoured request holds, the frame's remainder is abandoned and
+    its `Requester` is returned.
+- The run's pacer, carried beside the policy and the mask to the `t*`
   publication for its record (§10.7, D-269).
 
 Spec: §10.2, §10.4, §10.7, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
-D-261, D-269.
+D-261, D-269, D-316.
 
 ### `src/readers.jl`
 
@@ -651,7 +653,8 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 
 - §13.5's block: the four termination sources `EndTimeReached`,
   `ModelRequestedStop`, `ControlRequestedStop` and `LoopError`, `StopPolicy`
-  and `TerminationRecord` (D-203, D-255).
+  and `TerminationRecord` (D-203, D-255). `ModelRequestedStop` carries the
+  requester's path, port and reason (D-316).
 - `Run{T}`, §12.6's run state, and `closed(run)` (D-255, D-260).
 - The mutable `Simulation` (§12.1, D-256).
 - The materialization `Simulation(deployment, T)`.
@@ -677,9 +680,11 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - Publication's `task_state`, read off `run_tasks` by `_status` (§12.2,
   D-270).
 - §12.6's input mode: `mode(sim)`, `to_time` and `live!` (D-260).
-- `_bind_policy`, which builds each advance's `StopPolicy`.
-- `t_end` and `stop_on`, the advances' keywords, and `run!`'s `UnboundedRun`
-  advisory (D-255, D-260, D-261).
+- `_bind_policy`, which builds each advance's `StopPolicy` and its ignore
+  mask through `_ignored_requests`, and `_stop_hit`, the scan of the `StopFlag`
+  buffer (D-316).
+- `t_end` and `ignore_stop_requests`, the advances' keywords, and `run!`'s
+  `UnboundedRun` advisory (D-255, D-260, D-261, D-316).
 - The lifecycle and the termination record.
 - The frame loop's one catch site in `_advance!`, its second host
   `_host_boundary_zero!`, the one constructor `_wrap_step`, and the species
@@ -694,7 +699,7 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
 §14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
 D-223, D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
-D-268, D-269, D-270, D-274.
+D-268, D-269, D-270, D-274, D-316.
 
 ### `src/stepper.jl`
 
@@ -786,6 +791,8 @@ The suite's fixtures:
 - The `condition` methods, the fragment-function idiom over the framework's
   generic. The generic lives in `src/conditions.jl`.
 - `Pendulum`.
+- `tick_alarmed`, the tick-detected stop request over `TickAlarm` (§10.5,
+  §13.5, D-316).
 - The `ForgottenImport` module and the forgotten-import fixtures `Inventory`,
   `Update`, `Events`, `Rates` and `Reason`, which import nothing, and
   `PassthroughOverForgotten`.
@@ -889,7 +896,7 @@ Traps the code does not warn about, each hit more than once while building:
   address facts (§9.2, D-261);
 - **`checkpoint` is refused after a `t*` stop and after an abandoned
   frame.** A test that checkpoints a stopped run stops it at a frame top:
-  `t_end`, a stop face read at a grid boundary, or `stop!` (§12.6, D-274);
+  `t_end`, a stop request read at a grid boundary, or `stop!` (§12.6, D-274);
 - **a mask's two ends sit on one level, never split across a `try`.** On
   1.13 a `try` exit restores the sigatomic count to its entry value, normal
   exit included. A deferred interrupt raises at `sigatomic_end`, so a mask

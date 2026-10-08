@@ -13,19 +13,6 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **Increment 68, stop requests** (D-316). What the code owes the ruling,
-  by stage. Stage 1, the vocabulary, the roster and the block: `StopFlag`
-  beside `Pinned`; `stop_reason` with the optional defaults and in the
-  declaration family (§8.1); `Requester` and the cell layout's `requesters`,
-  aligned with the `StopFlag` buffer; the `IllegalPortType` reasons
-  `:stop_flag_nested` and `:stop_flag_at_root`; and `StopRequest` in
-  `Redstone.Blocks`. Stage 2, the policy, the read, the record and the
-  retirement: `StopPolicy(t_end, ignored)` and `ignore_stop_requests` on
-  `run!`, `replay!` and `step!`; the ignore mask in place of the faces'
-  addresses through the loop; `_stop_hit` over the `StopFlag` buffer;
-  `ModelRequestedStop(path, port, reason)`; `UnboundedRun`'s condition and
-  payload; `StopRequestInvalid` in place of `StopFaceInvalid`; and `stop_on`
-  gone from `src/` and `test/` (§13.5). Stage 2 removes this bullet.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment

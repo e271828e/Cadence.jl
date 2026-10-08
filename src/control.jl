@@ -74,7 +74,7 @@ Control(join_timeout::Float64) =
     Control(nothing, true, false, Inf, 0.002, Threads.Condition(), 0, :built, join_timeout)
 
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
-# the same arbitration as the loop reacting to the first holding stop face —
+# the same arbitration as the loop reacting to the first holding stop request —
 # and a later issuer is dropped, the tail already having its initiator. The
 # notify wakes a loop parked in the pause block (§12.4(2)); no caller holds
 # the lock.

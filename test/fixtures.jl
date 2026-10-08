@@ -568,7 +568,7 @@ state_events(::Relaxer) = (pop = StateEvent(relaxer_guard, relaxer_handler),)
 """
 Overload monitor: §13.5's touchdown archetype — a **sign-form** guard on its
 input against a level, a handler that latches `m.tripped`, and the sticky
-`Bool` output face a `stop_on` policy names. The sign form declares the event
+`Bool` output a stop request is fed from. The sign form declares the event
 localized, so a run stopped on `tripped` ends at the crossing's `t*` boundary
 with the crossing state as the terminal snapshot.
 """
@@ -590,12 +590,35 @@ state_events(::Overload) = (trip = StateEvent(overload_guard, overload_handler),
 """
     overloaded()
 
-A sawtooth crossing the overload's level mid-frame, so the stop localizes to the
-crossing's `t*` boundary (§13.5).
+A sawtooth crossing the overload's level mid-frame, so the stop the overload
+requests localizes to the crossing's `t*` boundary (§13.5).
 """
-overloaded() = Group((; src = Sawtooth(1.0), mon = Overload(0.315));
-                     local_wires = ("src/q" => "mon/sig",),
-                     output_wires = ("mon/tripped" => "tripped",))
+overloaded() = Group((; src = Sawtooth(1.0), mon = Overload(0.315),
+                        stop = StopRequest(reason = "overload tripped"));
+                     local_wires = ("src/q" => "mon/sig", "mon/tripped" => "stop/request"))
+
+"""
+Tick alarm: a discrete counter whose `alarm` holds once its store has counted
+three ticks.
+"""
+struct TickAlarm <: AbstractComponent end
+
+s_init(::TickAlarm) = (n = 0,)
+y_types(::TickAlarm) = (alarm = Bool,)
+
+y_state(::TickAlarm, (; s)) = (alarm = s.n ≥ 3,)
+s_update(::TickAlarm, (; s)) = (n = s.n + 1,)
+
+"""
+    tick_alarmed()
+
+A `TickAlarm` at `Relative(3)` feeding a stop request: a tick-detected stop,
+which the continuous request publishes at the tick's own boundary (§10.5, §13.5).
+"""
+tick_alarmed() = Group((; counter = TickAlarm(),
+                          stop = StopRequest(reason = "three ticks counted"));
+                       local_wires = ("counter/alarm" => "stop/request",),
+                       sample_times = (; counter = Relative(3)))
 
 """
 `Overload` with its `y_state` removed: `tripped` is a mode field declared

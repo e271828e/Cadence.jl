@@ -176,7 +176,7 @@ function test_linearize()
         init!(running_sim, fragment(u = (in = 0.0,)))
         attach!(running_sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
                                                 # frame (§12.2), so the spin gets its turn on one thread
-        task = Threads.@spawn run!(running_sim; t_end = 3.0e5, stop_on = ("stop",))
+        task = Threads.@spawn run!(running_sim; t_end = 3.0e5)
         while lifecycle(running_sim) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end
@@ -192,7 +192,7 @@ function test_linearize()
         # `checkpoint`'s refusal, and `about` is legal there as anywhere `init!` is.
         tripped = Simulation(overloaded(); h = 1//10)
         init!(tripped)
-        run!(tripped; t_end = 5.0, stop_on = ("tripped",))
+        run!(tripped; t_end = 5.0)
         d = carried(@test_throws DiagnosticError{CheckpointMidFrame} linearize(tripped, taps()))
         @test d.t_frame == 0.4 && d.frame == 4
         @test linearize(tripped, taps(); about = fragment()) isa Linearization

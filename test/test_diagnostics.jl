@@ -413,11 +413,7 @@ function diagnostics_kind_set()
             ServiceLifecycle(op = :checkpoint, status = :errored, legal = [:initialized, :stopped]),
             ServiceLifecycle(op = :run!, status = :stopped, legal = [:initialized]),
             ServiceLifecycle(op = :checkpoint, status = :built, legal = [:initialized, :stopped]),
-            StopFaceInvalid(face = :done, reason = :unknown, site = :step!,
-                            candidates = [:hit]),
-            StopFaceInvalid(face = :done, reason = :root_input, site = :run!),
-            StopFaceInvalid(face = :done, reason = :not_bool, site = :replay!,
-                            declared = Float64),
+            StopRequestInvalid(path = "a", site = :step!, candidates = ["a/stop", "b"]),
             DeploymentInvalid(parameter = :firing_budget, reason = :range, value = 0),
             DeploymentInvalid(parameter = :h, reason = :inexact, value = 0.01),
             DeploymentInvalid(parameter = :Δt_base, reason = :not_a_quantity, value = Int),
@@ -679,7 +675,8 @@ function diagnostics_kind_set()
             ChatteringBudget("a/b", :snap, 1.0, 8, 9),
             FiringBudget("a/b", :snap, 1.0, 4, 5),
             DebtReanchor(0.05, 1.0, 12345.0),
-            UnboundedRun(Inf, Symbol[]),
+            UnboundedRun(Inf, String[]),
+            UnboundedRun(Inf, ["a/stop", "b"]),
             ThreadBudget(1, 2),
             DeviceCrash(ArgumentError("bad"), false),
             DeviceJoinTimeout("device 1 (Pad)", 5.0, 1.0, 10),
@@ -1040,7 +1037,7 @@ function diagnostics_kind_set()
         # frame, and the three ways to stop at a top.
         rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4))
         @test occursin("t = 0.315, inside frame 4 and short of its top at t = 0.4", rendered)
-        @test occursin("`t_end`, a stop face read at a grid boundary, or `stop!`", rendered)
+        @test occursin("`t_end`, a stop request read at a grid boundary, or `stop!`", rendered)
         # A frame an interrupt abandoned at its top reads as never published.
         rendered = message(CheckpointMidFrame(t = 0.4, t_frame = 0.4, frame = 4))
         @test startswith(rendered, "`checkpoint` with the clock at frame 4's top, t = 0.4, " *
