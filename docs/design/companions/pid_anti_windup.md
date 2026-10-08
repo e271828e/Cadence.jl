@@ -23,7 +23,8 @@ them, section 4 the two axes and the law, section 5 a scenario per variant,
 section 6 the variants not carried, section 7 the decision with the measured
 numbers, and section 8 what the episode says about the framework. Section
 9, added the same day, carries the law to the discrete tier as
-`DiscretePID`.
+`DiscretePID`. Section 10, added on 2026-10-08, widens both blocks over
+static vectors, makes any parameter a port and adds the setpoint weights.
 
 ## 1. Windup
 
@@ -166,12 +167,21 @@ excess that history set and the gate cannot undo; a tracking term undoes
 it at rate `1/Tt`.
 
 **The grouping.** The integrator holds the integral term in output units,
-`q̇ = Ki e + …` with `u_raw = Kp e + q + …`, rather than the error integral
-with `Ki` outside. A change in `Ki` then alters only future accumulation,
-which is what a gain-scheduled controller needs, and `1/Tt` has the units
-of Simulink's `Kb`. The derivative acts on the measurement through a lag,
-`d = (y - yf) / τd` with `ẏf = (y - yf) / τd`, so a setpoint step produces
-no kick.
+`q̇ = Ki e + …` with `u_raw = Kp (b r - y) + q + …`, rather than the error
+integral with `Ki` outside. A change in `Ki` then alters only future
+accumulation, which is what a gain-scheduled controller needs, and `1/Tt`
+has the units of Simulink's `Kb`. The derivative acts on a weighted
+measurement through a lag, `d = (w - yf) / τd` with `w = y - c r` and
+`ẏf = (w - yf) / τd`. The setpoint weights `b` and `c`, Åström's
+two-degree-of-freedom form, multiply `r` alone, with defaults `b = 1` and
+`c = 0`, and the integral's error stays the unweighted `e = r - y`. The
+default puts the derivative on the measurement because a setpoint step
+through `Kd de/dt` is a spike of height `Kd Δr / τd`, an impulse at `τd = 0`
+on the discrete tier, which drives `u` into saturation where the anti-windup
+takes over. The gains set disturbance rejection and robustness, and `b` and
+`c` shape the setpoint response apart from them; `c = 1` restores the
+derivative on the error for a model that wants it, say with a smooth
+generated reference.
 
 ## 5. A scenario per variant
 
@@ -205,10 +215,6 @@ a tracking value be used without paying for it during free transients.
 
 ## 6. The variants not carried
 
-- **Setpoint weighting**, `Kp (b r - y)`, the two-degree-of-freedom form.
-  One field, one multiplication; the derivative on the measurement is its
-  `c = 0` case. Not carried because nothing asked; the first candidate if
-  something does.
 - **Integrator authority limits**, the integral term bounded to a fraction
   of the command range so a failed sensor cannot drive it to full
   authority. The limiting scheme of section 2 in its proper role. It is
@@ -221,9 +227,6 @@ a tracking value be used without paying for it during free transients.
 - **A general hold rule.** The `saturation` port is one hold rule with the sign
   built in. A `hold::Bool` port with the rule computed outside covers
   integral separation and mode logic.
-- **Gain scheduling**, the gains as ports rather than instance data. The
-  grouping already admits it bumplessly; the inventory lists it as a
-  candidate.
 - **The velocity form**, section 2. The positional law itself carries to
   the discrete tier as `DiscretePID` (section 9); the velocity form would
   be a different controller there, with the output a limited integrator,
@@ -364,27 +367,124 @@ fully exact step would also scale the integral's drive by `Tt β`, which is
 `Inf · 0` at the default and needs a branch for nothing the plain `Δt`
 does not already give.
 
-**The law is shared, not the type.** The gate, the reference rule, the
-four `u_types` arms and `y_types` are identical in both blocks, ten
-methods, which earns a supertype in the `LinearBlock` style, `PIDBlock{Hold,
-Track}`, carrying those ten. The stores and the stages sit on each
-concrete type, and the fields repeat in the discrete struct, since an
-abstract type carries none. The continuous `PID` reparents in one line.
+**The law is shared, not the type.** The port sets, the gate and the
+reference rule are identical in both blocks, eleven methods: the four
+`signal_ports` arms, `u_types`, `y_types`, the two `gated_error` arms and
+the three `correction_reference` arms. With `parameters`, which fetches the
+nine parameters, they earn a supertype in the `LinearBlock` style,
+`PIDBlock{V, Hold, Track, Fixed}`, which carries them (section 10). The
+stores and the stages sit on each concrete type, and the field `fixed`
+repeats in the discrete struct, since an abstract type carries none. The
+continuous `PID` reparents in one line.
 
 **Two smaller points.** The hold wires from either tier, a continuous
 `LimitedIntegrator`'s code read at the tick or a `DiscreteLimitedIntegrator`
 on the same tier, whose stage-1 `saturation` breaks the loop back into the
-PID's stage-2 `u`. And `s_init` is `(q = 0.0, yf = 0.0)` with no keywords,
-as the continuous block has none; both share the start-up kick from `yf`
-starting at zero rather than at the first measurement, a not-carried item
-common to the pair.
+PID's stage-2 `u`. And `s_init` is `(q = zero(V), yf = zero(V))` with no
+keywords, as the continuous block's `x_init` is; both share the start-up
+kick from `yf` starting at zero rather than at the first measurement, a
+not-carried item common to the pair.
+
+## 10. Vectors, scheduled parameters and the weights
+
+Added on 2026-10-08, superseding the type parameters, the fields and the
+scalar sketch of sections 7 and 9. The spec names neither the PID's shape
+nor its parameters, so the design lives here and in the inventory
+([§13.7][s13-7], [D-313][d-313]).
+
+**Widening, not forking.** The library's vector blocks are one struct each
+over `V <: Union{Real, StaticArray{<:Tuple, <:Real}}`, with the law in
+broadcast form: `Integrator`, `FirstOrderLag`, `LimitedIntegrator`, `Relay`,
+`DiscreteLimitedIntegrator` and `RateLimiter`. Only two things fork on
+scalar against vector, `state_events` and the saturation code's port type.
+The PID has no events, and the port type becomes one helper shared with the
+two limited integrators, `saturation_type(V)`, `Int8` over a `Real` and
+`similar_type(V, Int8)` over a static array. Over a vector every law is
+componentwise. The gate and the reference rule become broadcast `ifelse`s,
+which select without short-circuiting, so the gate's `.!= 0` still works
+per channel: a free channel at zero error never consults `sign` of a
+zero-valued `Dual`. Every product with a parameter and every division by one
+is dotted, since `SVector * SVector` is a shape error.
+
+**Every parameter a `V`.** The blocks are `PID{V, Hold, Track, Fixed}` and
+`DiscretePID{V, Hold, Track, Fixed}` over `PIDBlock{V, Hold, Track, Fixed}`,
+`V` first as in `LimitedIntegrator{V, L}`. Each parameter of the roster
+`PID_PARAMETERS = (:Kp, :Ki, :Kd, :τd, :Tt, :u_min, :u_max, :b, :c)` is a
+`V`, and the stores start at `zero(V)`. The keywords given as values
+broadcast to one shape by `GaussianWhiteNoise`'s idiom. The shape is the sum
+of their `zero`s, each value is `Float64.(value .+ shape)`, and `V` is the
+shape's type. `promote` cannot serve, since `promote(1.0, SVector(1.0,
+2.0))` throws. A scalar pairs with a vector and integer keywords qualify, so
+a vector PID with uniform gains spells at least one keyword as a vector,
+`Kp = @SVector fill(2.0, 3)`, as the integrators take their shape from `s0`.
+
+**A parameter becomes a port by `AsPort()`.** Any of the nine may be an
+input port instead of a field, spelled `Kp = AsPort()` with the marker type
+`AsPort`. It takes no part in the shape, and when every value-carrying
+keyword is scheduled `V` is `Float64`. The struct stores the fixed
+parameters alone, and one function fetches all nine:
+
+```julia
+struct PID{V, Hold, Track, Fixed} <: PIDBlock{V, Hold, Track, Fixed}
+    fixed::Fixed      # the parameters that are not ports, each a `V`, in roster order
+end
+parameters(c::PIDBlock, u) = NamedTuple{PID_PARAMETERS}(merge(c.fixed, u))
+```
+
+`merge` resolves at compile time, and the selection lays the nine out in
+roster order however the merged keys are staggered. With `Ki` and `u_min`
+scheduled the merge reads `(:Kp, :Kd, :τd, :Tt, :u_max, :b, :c, :r, :y,
+:u_min, :Ki)`. Port and parameter names never collide, so merging the whole
+input bundle is safe. The ports are section 4's four arms, now
+`signal_ports`, merged by `u_types` with one `V` port per scheduled name.
+
+**Nothing dispatches on the scheduled set.** Each set is one `Fixed` type,
+and a scheduled gain and a fixed gain enter the same expression, so the 512
+sets share every method. `Hold` and `Track` keep type parameters of their
+own because they change the law. They pick the gate and the reference, and
+their four arms read as section 4's table.
+
+**A scheduled port is an ordinary input.** `u` is a stage-2 output, so every
+input is a feedthrough edge (section 3, [§5.4][s5-4]). A schedule computed
+memorylessly from the block's own output closes an `AlgebraicCycle` as a
+clamped `v` does, and one read from a state is fine. Under a `Dual`
+activation a scheduled gain carries partials, so a linearization sees the
+coupling through the schedule. A model that wants the gain frozen at its
+nominal value routes the port through `Freeze` ([§14.10][s14-10]).
+
+**The setpoint weights.** `b` weights the reference in the proportional term
+and `c` in the derivative term, with defaults `1` and `0`, which leave the
+law of sections 7 and 9 unchanged; section 4 gives the reason. `yf` keeps its name and sign
+and filters the weighted measurement `w = y - c r`, so at `c = 0` every
+number of section 7 holds. The integral's error stays `e = r - y`. Over a
+vector each channel weights its own reference. Continuous:
+
+```
+w     = y - c r
+u_raw = Kp (b r - y) + q - Kd (w - yf) / τd
+q̇     = Ki · gate(e) + (ref - u_raw) / Tt
+ẏf    = (w - yf) / τd
+```
+
+Discrete, with `Δt` the component's own period ([§10.5][s10-5]):
+
+```
+deriv = (w - yf) / (τd + Δt)
+u_raw = Kp (b r - y) + q - Kd deriv
+q⁺    = q + Δt Ki · gate(e) + β (ref - u_raw),    β = 1 - exp(-Δt / Tt)
+yf⁺   = yf + Δt deriv
+```
+
+On both tiers `u = clamp(u_raw, u_min, u_max)`.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-179]: ../decisions.md#d-179--derive-detection-policy-from-the-guards-return-type
 [d-231]: ../decisions.md#d-231--require-isbits-store-values-checked-at-build
 [d-313]: ../decisions.md#d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [s10-4]: ../spec.md#104-localization-mechanics
+[s10-5]: ../spec.md#105-multi-rate-tick-scheduling
 [s13-7]: ../spec.md#137-tooling-consequences-face-routes-and-the-component-library
+[s14-10]: ../spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
 [s2-1]: ../spec.md#21-events-two-detection-policies
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch

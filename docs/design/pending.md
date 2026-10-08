@@ -13,6 +13,18 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
+- **Increment 69, the vector PID, its scheduled parameters and weights, and
+  the delay line** (§13.7, D-313). What the code owes
+  `docs/design/companions/library_inventory.md` and `pid_anti_windup.md`,
+  section 10, by stage. Stage 1, the vector PID: `PID{V, Hold, Track}` and
+  `DiscretePID{V, Hold, Track}` over `PIDBlock{V, Hold, Track}`,
+  componentwise over a static vector, every parameter a `V` broadcast to one
+  shape, and `saturation_type` shared with the two limited integrators.
+  Stage 2, the scheduled parameters and the weights: `PID_PARAMETERS`,
+  `AsPort`, the type parameter `Fixed` and the field `fixed`, `parameters`,
+  `signal_ports` and `u_types` over them, and `b` and `c`, with `yf`
+  filtering `w = y - c r`. Stage 3, the delay line: `Delay{V, K}` over a
+  ring store. Stage 3 removes this bullet.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment

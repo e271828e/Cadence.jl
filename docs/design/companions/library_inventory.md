@@ -79,9 +79,9 @@ Status is one of *shipped*, *candidate* (listed, built when wanted), or
 *example first* (built as an example model, promoted only if one form
 proves standard). A block is generic over its port type `V`, in the
 [D-263][d-263] spelling, unless its ports are fixed by what it is: the `Bool`
-gates, the PID and the linear blocks, whose ports follow their matrix
-shapes. The port names are `in`, `in1…inN` and `out`, and `out1…outN` where a
-block splits one port into `N` ports alike.
+gates and the linear blocks, whose ports follow their matrix shapes. The
+port names are `in`, `in1…inN` and `out`, and `out1…outN` where a block
+splits one port into `N` ports alike.
 
 A block with a defaulted parameter, or with more than one, gets a
 hand-written keyword constructor, as in `Integrator(; x0 = 0.0)` and
@@ -90,9 +90,14 @@ call is easy to get wrong, and [§7.2][s7-2] already makes keyword defaults the
 convention. A parameter with no sensible default is a required keyword.
 Fields that share a type parameter promote, so mixed `Int` and `Float64`
 keywords work, which is why the constructor is hand-written rather than
-`@kwdef`. The struct keeps its positional constructor. A block with one
-required parameter, such as `Constant(value)`, takes it positionally. Its
-docstring shows the keyword form, and its tests call it.
+`@kwdef`. The PID's keywords that share `V` broadcast to one shape instead,
+as `GaussianWhiteNoise`'s do: a scalar pairs with a vector and the shape's
+type is `V`, so a uniform vector gain spells one keyword as a vector,
+`Kp = @SVector fill(2.0, 3)`. A keyword given as `AsPort()` is a port of
+the block, not a field, and takes no part in the shape. The struct keeps
+its positional constructor. A block with one required parameter, such as
+`Constant(value)`, takes it positionally. Its docstring shows the keyword
+form, and its tests call it.
 
 ### Structure
 
@@ -142,7 +147,7 @@ docstring shows the keyword form, and its tests call it.
 | `DiscreteStateSpace` and `DiscreteTransferFunction`, the pair in `z` | shipped | the continuous pair mirrored over `DiscreteLinearBlock{FT}`, `s_update` for `x_deriv`; the period is the scope's and the block cannot check it; `linear_blocks.md`, section 9 |
 | `DiscretizedStateSpace` and `DiscretizedTransferFunction`, from a continuous system | shipped | the zero-order hold taken per tick at the bundle's `Δt`, so the class and the initial condition are the continuous ones; `linear_blocks.md`, section 9 |
 | `DiscreteLimitedIntegrator{V}` | shipped | tier semantics by contrast: the continuous block's mode and four events are one `clamp` in `s_update`, with no mode store and no localization; `LimitedIntegrator`'s interface, `lower`, `upper`, `s0` and the `Int8` `saturation` code, the code read off the state from stage 1 |
-| `Delay{V, K}`, a tapped delay | candidate | only if a model asks |
+| `Delay{V, K}` | shipped | the tier's `z⁻ᴷ` in a ring store, `K` ticks of the component's own period ([§10.5][s10-5]), one output, `K = 1` the `UnitDelay` in keyword spelling |
 
 ### Stop-gradient
 
@@ -155,9 +160,8 @@ docstring shows the keyword form, and its tests call it.
 
 | Block | Status | Mechanism |
 |---|---|---|
-| `PID{Hold, Track}` | shipped | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; `pid_anti_windup.md` |
-| `DiscretePID{Hold, Track}` | shipped | the positional law carried to the discrete tier, the ports, the gate and the reference rule shared through `PIDBlock{Hold, Track}`; forward Euler on the integral, backward Euler on the derivative filter so `τd = 0` is the backward difference, and the correction's step `1 - e^{-Δt/Tt}` so every `Tt` is stable and `Tt = 0` is instant; `pid_anti_windup.md`, section 9 |
-| a gain-scheduled `PID`, gains as ports | candidate | the grouping admits a gain change bumplessly; built when a model asks |
+| `PID{V, Hold, Track, Fixed}` over `Real` or a `StaticArray` | shipped | one law, `q̇ = Ki gate(e) + (ref - u_raw) / Tt`, componentwise over a static vector, with two independent ports: a saturation code that gates the integrator and a tracking reference; back-calculation against the own limits otherwise; `Ki` inside the integral; every parameter a `V`, and any of them a port by `AsPort()`; the setpoint weights `b = 1` and `c = 0`, so the derivative acts on the measurement by default; `pid_anti_windup.md`, section 10 for the vectors, the ports and the weights |
+| `DiscretePID{V, Hold, Track, Fixed}` | shipped | the positional law carried to the discrete tier, the ports, the gate, the reference rule and the parameters shared through `PIDBlock{V, Hold, Track, Fixed}`, so componentwise over a static vector, every parameter a `V`, any of them a port by `AsPort()` and the weights `b = 1` and `c = 0` as in `PID`; forward Euler on the integral, backward Euler on the derivative filter so `τd = 0` is the backward difference, and the correction's step `1 - e^{-Δt/Tt}` so every `Tt` is stable and `Tt = 0` is instant; `pid_anti_windup.md`, sections 9 and 10 |
 
 The PID assembly of library blocks, the first variant as a `Group`, is an
 example model in the tests, the inspector's example beside the block, not a
