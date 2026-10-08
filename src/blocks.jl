@@ -221,12 +221,12 @@ function Delay(; K::Int, v0 = 0.0)
     v0 = float(v0)
     Delay{typeof(v0), K}(v0)
 end
-s_init(c::Delay{V, K}) where {V, K} = (buf = SVector{K, V}(ntuple(_ -> c.v0, K)), k = 1)
+s_init(c::Delay{V, K}) where {V, K} = (ring = SVector{K, V}(ntuple(_ -> c.v0, K)), k = 1)
 u_types(::Delay{V}) where {V} = (in = V,)
 y_types(::Delay{V}) where {V} = (out = V,)
-y_state(::Delay, (; s)) = (out = s.buf[s.k],)
+y_state(::Delay, (; s)) = (out = s.ring[s.k],)
 s_update(::Delay{V, K}, (; s, u)) where {V, K} =
-    (buf = Base.setindex(s.buf, u.in, s.k), k = s.k == K ? 1 : s.k + 1)
+    (ring = Base.setindex(s.ring, u.in, s.k), k = s.k == K ? 1 : s.k + 1)
 
 """
     DiscreteIntegrator(; s0 = 0.0)
