@@ -63,6 +63,12 @@ The user's ruling, 2026-10-08, to be recorded by stage 0 as D-316.
   component that publishes a `StopFlag` port. The `String` is instance data on
   the struct, never a port value; the isbits check (`src/build.jl` line 166)
   covers stores only.
+  It joins the declaration family (ruling 3 of `notes_increment_68.md`,
+  2026-10-08): §8.1's import list gains it after `transparent_container`, and
+  D-246's shadowing check covers it, since an optional declaration has no
+  absence to notice and a foreign `stop_reason` would silently read `""`.
+  `condition` stays outside the family because a foreign one fails loudly
+  (`src/conditions.jl` 55 to 63); `stop_reason` is the case D-246 exists for.
 - **The roster.** `Layout` (`src/build.jl` line 520) gains
   `requesters::Vector{Requester}`, with
 
@@ -245,6 +251,11 @@ rewritten.
   sentence (9778 to 9781) gains `StopRequest`; §8.2's declaration inventory
   gains `stop_reason` as an optional declaration with its default; §4.3
   (541) notes `StopFlag` as the one enum with a framework meaning; Appendix
+  §8.1's import list (2093 to 2098) gains `stop_reason`; §8.2 line 2356
+  ("the one piece of framework vocabulary it admits") is reworded, since a
+  `StopFlag` input is legal and left alone; §12.7's replay rewrite says in
+  one sentence that a replay honours requests by default too, so a live run
+  that ignored some is replayed under the same `ignore_stop_requests`; Appendix
   B's three signatures and keyword table (11829 to 11860, 11886 to 11896);
   Appendix C: `StopFaceInvalid`'s row (12169) replaced by
   `StopRequestInvalid`, `IllegalPortType`'s row gains the two reasons,
@@ -284,7 +295,11 @@ companions, `gloss_table.md` and `pending.md`, and nothing else.
 
 `StopFlag` in `src/leaves.jl` after `Pinned`, with a docstring saying what a
 port of this type means and that nested or root-input placement is refused.
-`stop_reason` in `src/declare.jl` with the optional defaults. `Requester`,
+`stop_reason` in `src/declare.jl` with the optional defaults.
+`DECLARATION_FAMILY` (`src/declare.jl` 254) gains `:stop_reason` last, in
+§8.1's order, and `_OTHER_FAMILY` (`src/assembly.jl` 18 to 23) gains
+`(:stop_reason, stop_reason)`, its "five names" comment becoming six;
+`declarations_found` and `foreign_declarations` then cover it unchanged. `Requester`,
 `Layout.requesters`, the roster pass and the two refusals in `src/build.jl`.
 `STOP_FLAG_KEY` in `src/store.jl`. `StopRequest` in `src/blocks.jl` in a
 section of its own after `Freeze`, the module's import list gaining
@@ -324,6 +339,11 @@ Probe before asserting and report the numbers: build a `Group` with two
   block to the "structure blocks … allocate nothing" testset at 491.
 - `test/test_diagnostics.jl`'s rendering testset: the two new
   `IllegalPortType` arms, message text asserted there and nowhere else.
+- `test/test_declare.jl`, the forgotten-import testset (55 to 78): a new
+  `ForgottenImport` submodule in `test/fixtures.jl` (1611) whose leaf defines
+  a bare `stop_reason` reads `[:stop_reason]` from `foreign_declarations`,
+  and `test/test_assembly.jl`'s `DeclarationShadowed` testset (112 to 139)
+  gains one arm building it.
 
 ### Routing
 
@@ -340,7 +360,8 @@ flags, in the foreground, 600 s.
   not behaviour.
 - `test/imports.jl`: `StopFlag`, `NO_STOP`, `STOP_REQUESTED`, `stop_reason`,
   `Requester` on the `import Redstone:` lines, `StopRequest` on the
-  `Redstone.Blocks` line.
+  `Redstone.Blocks` line. `stop_reason` also joins the family list the suite's
+  fixtures import, wherever `transparent_container` is imported there.
 
 ## Stage 2: the policy, the read, the record and the retirement
 
