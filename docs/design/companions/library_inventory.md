@@ -79,7 +79,8 @@ Status is one of *shipped*, *candidate* (listed, built when wanted), or
 proves standard). A block is generic over its port type `V`, in the
 [D-263][d-263] spelling, unless its ports are fixed by what it is: the `Bool`
 gates, the PID and the linear blocks, whose ports follow their matrix
-shapes. The port names are `in`, `in1…inN` and `out`.
+shapes. The port names are `in`, `in1…inN` and `out`, and `out1…outN` for a
+block with several outputs.
 
 ### Structure
 
@@ -87,7 +88,7 @@ shapes. The port names are `in`, `in1…inN` and `out`.
 |---|---|---|
 | `Junction{In, Out, N, F}`, with `SumJunction{V, N}`, `Or{N}`, `And{N}` | shipped | one wire per input; the consumer's consolidated input |
 | `Group` | shipped | the on-the-fly assembly ([§8.5][s8-5], [D-184][d-184]) |
-| `Pack{N}`, `Unpack{N}` between scalar ports and an `SVector{N}` port | candidate | wires name whole ports |
+| `Pack{V, N}`, a junction alias at a named fold, and `Unpack{V, N}` between scalar ports and an `SVector{N, V}` port | shipped | wires name whole ports |
 | `Switch{V}` selecting between two inputs on a `Bool` | candidate | a discontinuity on a continuous selector wants an event |
 
 ### Sources

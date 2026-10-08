@@ -56,15 +56,46 @@ The `Bool` gate at `&` over `N` inputs (§13.7).
 """
 const And{N} = Junction{Bool, Bool, N, typeof(&)}
 
+pack(args...) = SVector(args)
+
+"""
+    Pack{V, N}()
+
+The pack: the `Junction` at `pack`, `N` inputs at `V` and the output at
+`SVector{N, V}` (§13.7). The fold is the named function `pack` and not
+`SVector`, whose type is a `UnionAll` that fixes no method, so the sweep would
+dispatch on it at every call and allocate.
+"""
+const Pack{V, N} = Junction{V, SVector{N, V}, N, typeof(pack)}
+
 (::Type{SumJunction{V, N}})() where {V, N} = SumJunction{V, N}(+)
 (::Type{Or{N}})() where {N} = Or{N}(|)
 (::Type{And{N}})() where {N} = And{N}(&)
+(::Type{Pack{V, N}})() where {V, N} = Pack{V, N}(pack)
 
 x_init(::Junction) = (;)
 u_types(::Junction{In, Out, N}) where {In, Out, N} =
     NamedTuple{ntuple(i -> Symbol(:in, i), N)}(ntuple(_ -> In, N))
 y_types(::Junction{In, Out}) where {In, Out} = (out = Out,)
 y_direct(j::Junction, (; u)) = (out = j.f(u...),)
+
+# --- the structure blocks (§13.7, D-313) ----------------------------------------
+
+@generated unpack_names(::Val{N}) where {N} = ntuple(i -> Symbol(:out, i), N)
+
+"""
+    Unpack{V, N}()
+
+The inverse of `Pack`: one input `in` at `SVector{N, V}`, and `N` outputs `out1`
+to `outN` at `V`, `outi = in[i]`. A stateless continuous leaf. The output names
+come from the generated `unpack_names`, which hands the body a constant tuple,
+where names built in the body would allocate at every sweep.
+"""
+struct Unpack{V, N} <: AbstractComponent end
+x_init(::Unpack) = (;)
+u_types(::Unpack{V, N}) where {V, N} = (in = SVector{N, V},)
+y_types(::Unpack{V, N}) where {V, N} = NamedTuple{unpack_names(Val(N))}(ntuple(_ -> V, N))
+y_direct(::Unpack{V, N}, (; u)) where {V, N} = NamedTuple{unpack_names(Val(N))}(Tuple(u.in))
 
 # --- the leaf blocks (§13.7, D-312) ---------------------------------------------
 

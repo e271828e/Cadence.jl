@@ -1,12 +1,12 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
-# snapshot: the junction's contract and its folds, the source, the delay, the
-# discrete integrators and the rate limiter, the noise, the stop-gradient, the
-# integrator, the lag, the state space, the transfer function, their discrete
-# twins, the step, the limited integrator, the relay, the PID and its discrete
-# twin, the PID assembled from blocks, and the loops built from them alone. The
-# models are built at top level, like the fixtures they reuse: `RealEntry` and
-# `PinnedEntry` are test_build.jl's.
+# snapshot: the junction's contract and its folds, the pack and the unpack, the
+# source, the delay, the discrete integrators and the rate limiter, the noise,
+# the stop-gradient, the integrator, the lag, the state space, the transfer
+# function, their discrete twins, the step, the limited integrator, the relay,
+# the PID and its discrete twin, the PID assembled from blocks, and the loops
+# built from them alone. The models are built at top level, like the fixtures
+# they reuse: `RealEntry` and `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -25,6 +25,26 @@ delay_model(v0) = Group((; c = TickCounter(), d = UnitDelay(v0)); local_wires = 
 # A block fed by a source, under the given rates.
 fed_by(src, c; sample_times = (;)) =
     Group((; k = src, c = c); local_wires = ("k/out" => "c/in",), sample_times = sample_times)
+
+# A pack over a walking source and a pinned one.
+pack_model(p) = Group((; a = Ramp(0.0), b = Constant(2.0), p = p);
+                      local_wires = ("a/out" => "p/in1", "b/out" => "p/in2"))
+
+# A pack under the root inputs `a` and `b` and the root output `v`.
+pack_root_model() = Group((; p = Pack{Float64, 2}()); input_wires = ("a" => "p/in1", "b" => "p/in2"),
+                          output_wires = ("p/out" => "v",))
+
+# An unpack fed by a constant vector.
+unpack_model() = fed_by(Constant(SVector(1.0, -2.0, 3.5)), Unpack{Float64, 3}())
+
+# An unpack under the root input `v` and the root outputs `a` and `b`.
+unpack_root_model() = Group((; u = Unpack{Float64, 2}()); input_wires = ("v" => "u/in",),
+                            output_wires = ("u/out1" => "a", "u/out2" => "b"))
+
+# A pack into an unpack, over a walking source and a pinned one.
+round_trip_model() =
+    Group((; a = Ramp(0.0), b = Constant(2.0), p = Pack{Float64, 2}(), u = Unpack{Float64, 2}());
+          local_wires = ("a/out" => "p/in1", "b/out" => "p/in2", "p/out" => "u/in"))
 
 # A discrete limited integrator fed by a step from `1` down to `-1` at 0.1.
 discrete_limited_model() =
@@ -326,6 +346,56 @@ function test_blocks()
         @test port(sim, "d", :out) ≈ 1.02 atol = 1e-12    # the ramp one tick back
         # The pinned producers feed the tolerant entries under a `Dual` activation.
         @test build(blocks_sum_model(); activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the pack is the junction at a static vector, and linearizes to the identity (§6.2, §14.10, D-311)" begin
+        @test u_types(Pack{Float64, 3}()) == (in1 = Float64, in2 = Float64, in3 = Float64)
+        @test y_types(Pack{Float64, 3}()) == (out = SVector{3, Float64},)
+        @test typeof(Pack{Float64, 2}()) === Junction{Float64, SVector{2, Float64}, 2, typeof(Redstone.Blocks.pack)}
+        @test Pack{Float64, 2}().f === Redstone.Blocks.pack
+        sim = Simulation(pack_model(Pack{Float64, 2}()); h = 1//10)
+        init!(sim, fragment())
+        step!(sim; t_plus = 0.3)
+        @test isapprox(port(sim, "p", :out), SVector(0.3, 2.0); atol = 1e-12)
+        @test build(pack_model(Pack{Float64, 2}()); activations = (Float64, LinearizeDual)) isa Build
+        root_sim = Simulation(pack_root_model(); h = 1//100)
+        init!(root_sim, fragment(u = (a = 1.0, b = 2.0)))
+        linearization = linearize(root_sim, taps(u = (a = get_input(:a), b = get_input(:b)),
+                                                 y = (v1 = get_face("v[1]"), v2 = get_face("v[2]"))))
+        @test isapprox(linearization.D, [1 0; 0 1]; atol = 1e-12)
+    end
+
+    @testset "the unpack splits a static vector into scalar ports, named `out1` on (§13.7, D-313)" begin
+        sim = Simulation(unpack_model(); h = 1//10)
+        init!(sim, fragment())
+        @test (port(sim, "c", :out1), port(sim, "c", :out2), port(sim, "c", :out3)) == (1.0, -2.0, 3.5)
+        @test y_types(Unpack{Float64, 3}()) == (out1 = Float64, out2 = Float64, out3 = Float64)
+        @test y_types(Unpack{Float64, 1}()) == (out1 = Float64,)
+        @test build(unpack_model(); activations = (Float64, LinearizeDual)) isa Build
+        root_sim = Simulation(unpack_root_model(); h = 1//100)
+        init!(root_sim, fragment(u = (v = SVector(1.0, 2.0),)))
+        linearization = linearize(root_sim, taps(u = (v1 = get_input("v[1]"), v2 = get_input("v[2]")),
+                                                 y = (a = get_face(:a), b = get_face(:b))))
+        @test isapprox(linearization.D, [1 0; 0 1]; atol = 1e-12)
+        round_sim = Simulation(round_trip_model(); h = 1//10)
+        init!(round_sim, fragment())
+        step!(round_sim; t_plus = 0.3)
+        @test port(round_sim, "u", :out1) ≈ 0.3 atol = 1e-12
+        @test port(round_sim, "u", :out2) == 2.0
+        @test build(round_trip_model(); activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the structure blocks' phase bodies allocate nothing (§7.5)" begin
+        for model in (pack_model(Pack{Float64, 2}()), unpack_model(), round_trip_model())
+            sim = Simulation(model; h = 1//10)
+            bodies = phase_bodies(sim)
+            for name in (:sweep_1, :sweep_2, :rhs, :ticks)
+                body = bodies[name]
+                body(); body(0)
+                @test @ballocated($body()) == 0
+                @test @ballocated($body(1)) == 0
+            end
+        end
     end
 
     @testset "the delay publishes its input one tick late, and `v0` first (§13.7, D-312)" begin
@@ -1409,6 +1479,7 @@ function test_blocks()
         # reaches the declarations by import alone, as a user's component file
         # does, so a missing import here would surface as `DeclarationShadowed`.
         for comp in (Or{3}(), And{2}(), SumJunction{Float64,2}(), Junction{Float64,Float64,2}(max),
+                     Pack{Float64, 2}(), Unpack{Float64, 2}(),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
                      DiscreteIntegrator(), DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
                      DiscreteLimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),
