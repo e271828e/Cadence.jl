@@ -97,6 +97,26 @@ u_types(::Unpack{V, N}) where {V, N} = (in = SVector{N, V},)
 y_types(::Unpack{V, N}) where {V, N} = NamedTuple{unpack_names(Val(N))}(ntuple(_ -> V, N))
 y_direct(::Unpack{V, N}, (; u)) where {V, N} = NamedTuple{unpack_names(Val(N))}(Tuple(u.in))
 
+"""
+    Switch{V}()
+
+The switch: inputs `in1` and `in2` at `V` and `select` at `Bool`, and one
+output `out` at `V`, which is `in1` while `select` holds and `in2` otherwise. A
+stateless continuous leaf. `out` reads all three inputs, so a selector wired
+from a memoryless function of `out` closes an algebraic cycle (§5.3).
+
+The block declares no event, so the jump in `out` lands where `select` flips. A
+`select` published from a mode, or held between ticks, flips on a boundary and
+the jump is clean. One computed from a continuous quantity inside a stage body
+flips inside a step and smears that step, a mode made silently, which the moded
+blocks exist to declare (§2.1, D-179).
+"""
+struct Switch{V} <: AbstractComponent end
+x_init(::Switch) = (;)
+u_types(::Switch{V}) where {V} = (in1 = V, in2 = V, select = Bool)
+y_types(::Switch{V}) where {V} = (out = V,)
+y_direct(::Switch, (; u)) = (out = ifelse(u.select, u.in1, u.in2),)
+
 # --- the leaf blocks (§13.7, D-312) ---------------------------------------------
 
 """
@@ -308,6 +328,31 @@ function y_state(c::GaussianWhiteNoise{V}, (; s, Δt)) where {V}
     (out = c.μ .+ scale .* gaussian(c.seed, s.k, V),)
 end
 s_update(::GaussianWhiteNoise, (; s)) = (k = s.k + 1,)
+
+# --- the time source (§13.7, D-313) ---------------------------------------------
+
+"""
+    Source{V}(f)
+    Source(f)
+
+The time source: no inputs, no state, and `out` publishes `f(t)` from stage 1.
+`Source(f)` is `Source{Float64}(f)`. `f` receives the nominal `Float64` time
+under every activation, so it need not be generic, and it returns a `V`. Nothing
+converts, so a value of another type is refused at build.
+
+`out` is pinned at `V` (D-312): the time is stripped of its partials before `f`
+sees it, so `out` depends on neither state nor a walking input and carries zero
+partials under every activation. A source set from outside is a root input
+(§11.3).
+"""
+struct Source{V, F} <: AbstractComponent
+    f::F
+end
+(::Type{Source{V}})(f) where {V} = Source{V, typeof(f)}(f)
+Source(f) = Source{Float64}(f)
+x_init(::Source) = (;)
+y_types(::Source{V}) where {V} = (out = Pinned{V},)
+y_state(c::Source, (; t)) = (out = c.f(ForwardDiff.value(t)),)
 
 # --- the continuous dynamics (§13.7, D-313) -------------------------------------
 

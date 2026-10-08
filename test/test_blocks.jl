@@ -1,12 +1,13 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
-# snapshot: the junction's contract and its folds, the pack and the unpack, the
-# source, the delay, the discrete integrators and the rate limiter, the noise,
-# the stop-gradient, the integrator, the lag, the state space, the transfer
-# function, their discrete twins, the step, the limited integrator, the relay,
-# the PID and its discrete twin, the PID assembled from blocks, and the loops
-# built from them alone. The models are built at top level, like the fixtures
-# they reuse: `RealEntry` and `PinnedEntry` are test_build.jl's.
+# snapshot: the junction's contract and its folds, the pack, the unpack and the
+# switch, the source, the delay, the discrete integrators and the rate limiter,
+# the noise, the time source, the stop-gradient, the integrator, the lag, the
+# state space, the transfer function, their discrete twins, the step, the
+# limited integrator, the relay, the PID and its discrete twin, the PID
+# assembled from blocks, and the loops built from them alone. The models are
+# built at top level, like the fixtures they reuse: `RealEntry` and
+# `PinnedEntry` are test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -45,6 +46,41 @@ unpack_root_model() = Group((; u = Unpack{Float64, 2}()); input_wires = ("v" => 
 round_trip_model() =
     Group((; a = Ramp(0.0), b = Constant(2.0), p = Pack{Float64, 2}(), u = Unpack{Float64, 2}());
           local_wires = ("a/out" => "p/in1", "b/out" => "p/in2", "p/out" => "u/in"))
+
+# A switch under the root inputs `in1`, `in2` and `select` and the root output
+# `out`.
+switch_root() =
+    Group((; s = Switch{Float64}());
+          input_wires = ("in1" => "s/in1", "in2" => "s/in2", "select" => "s/select"),
+          output_wires = ("s/out" => "out",))
+
+# A switch between two constant vectors, selecting the second.
+vector_switch_model() =
+    Group((; a = Constant(SVector(1.0, 2.0)), b = Constant(SVector(-1.0, -2.0)), k = Constant(false),
+             s = Switch{SVector{2, Float64}}());
+          local_wires = ("a/out" => "s/in1", "b/out" => "s/in2", "k/out" => "s/select"))
+
+# A switch between a walking source and a pinned one.
+mixed_switch_model() =
+    Group((; r = Ramp(0.0), k = Constant(2.0), f = Constant(true), s = Switch{Float64}());
+          local_wires = ("r/out" => "s/in1", "k/out" => "s/in2", "f/out" => "s/select"))
+
+# A switch whose selector is a memoryless function of its own output.
+switch_cycle_model() =
+    Group((; s = Switch{Float64}(), a = Constant(1.0), b = Constant(-1.0),
+             g = Junction{Float64, Bool, 1}(v -> v > 0));
+          local_wires = ("a/out" => "s/in1", "b/out" => "s/in2", "s/out" => "g/in1", "g/out" => "s/select"))
+
+# A switch from `-1` to `1` at 0.5, its selector a source of `t`, into an
+# integrator.
+flip_model() =
+    Group((; a = Constant(1.0), b = Constant(-1.0), k = Source{Bool}(t -> t >= 0.5), s = Switch{Float64}(),
+             i = Integrator());
+          local_wires = ("a/out" => "s/in1", "b/out" => "s/in2", "k/out" => "s/select", "s/out" => "i/in"))
+
+# A vector source of `t` into a vector integrator.
+vector_source_model() =
+    fed_by(Source{SVector{2, Float64}}(t -> SVector(sin(t), cos(t))), Integrator(x0 = SVector(0.0, 0.0)))
 
 # A discrete limited integrator fed by a step from `1` down to `-1` at 0.1.
 discrete_limited_model() =
@@ -385,8 +421,75 @@ function test_blocks()
         @test build(round_trip_model(); activations = (Float64, LinearizeDual)) isa Build
     end
 
-    @testset "the structure blocks' phase bodies allocate nothing (§7.5)" begin
-        for model in (pack_model(Pack{Float64, 2}()), unpack_model(), round_trip_model())
+    @testset "the switch publishes the selected input and linearizes to its selection (§13.7, §14.10, D-313)" begin
+        for (select, out, row) in ((true, 1.0, [1 0]), (false, -1.0, [0 1]))
+            sim = Simulation(switch_root(); h = 1//100)
+            init!(sim, fragment(u = (in1 = 1.0, in2 = -1.0, select = select)))
+            @test port(sim, "s", :out) == out
+            linearization = linearize(sim, taps(u = (in1 = get_input(:in1), in2 = get_input(:in2)),
+                                                y = (out = get_face(:out),)))
+            @test isapprox(linearization.D, row; atol = 1e-12)
+        end
+        @test build(switch_root(); activations = (Float64, LinearizeDual)) isa Build
+        vector_sim = Simulation(vector_switch_model(); h = 1//10)
+        init!(vector_sim, fragment())
+        @test port(vector_sim, "s", :out) == SVector(-1.0, -2.0)
+        @test u_types(Switch{SVector{2, Float64}}()) ==
+              (in1 = SVector{2, Float64}, in2 = SVector{2, Float64}, select = Bool)
+        @test build(vector_switch_model(); activations = (Float64, LinearizeDual)) isa Build
+        # A walking value beside a pinned one.
+        @test build(mixed_switch_model(); activations = (Float64, LinearizeDual)) isa Build
+        # A selector published by a source of `t`.
+        @test build(flip_model(); activations = (Float64, LinearizeDual)) isa Build
+        @test Redstone.has_stage(y_direct, Switch{Float64}())
+        @test !Redstone.has_stage(y_state, Switch{Float64}())
+    end
+
+    @testset "a selector wired from a memoryless function of the switch's own output closes an algebraic cycle (§5.3, §5.5)" begin
+        err = failure(() -> build(switch_cycle_model()))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle && d.classification === :real
+    end
+
+    @testset "the source publishes `f` at the grid time, pinned, and walks nothing (§13.7, §7.2, D-312, D-313)" begin
+        sim = Simulation(fed_by(Source(sin), Integrator()); h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 1)
+        @test state(sim, "c").q ≈ 1 - cos(1) atol = 1e-10
+        @test port(sim, "k", :out) == sin(1.0)    # a frame-top stamp of the grid time
+        @test y_types(Source(sin)) == (out = Pinned{Float64},)
+        @test typeof(Source(sin)) === Source{Float64, typeof(sin)}
+        @test build(fed_by(Source(sin), Integrator()); activations = (Float64, LinearizeDual)) isa Build
+        vector_sim = Simulation(vector_source_model(); h = 1//100)
+        init!(vector_sim, fragment())
+        step!(vector_sim; t_plus = 1)
+        @test isapprox(state(vector_sim, "c").q, SVector(1 - cos(1), sin(1)); atol = 1e-10)
+        @test build(vector_source_model(); activations = (Float64, LinearizeDual)) isa Build
+        start_sim = Simulation(single(Source(t -> 2t)); h = 1//10)
+        init!(start_sim, fragment(); t0 = 1.0)
+        @test port(start_sim, "c", :out) == 2.0
+        # The pinned source feeds a pinned entry, which a walking `out` could not.
+        model = Group((; s = Source(sin), e = PinnedEntry()); local_wires = ("s/out" => "e/u",))
+        @test build(model; activations = (Float64, LinearizeDual)) isa Build
+        integer_sim = Simulation(single(Source{Int}(t -> 1)); h = 1//10)
+        init!(integer_sim, fragment())
+        @test port(integer_sim, "c", :out) === 1
+        @test Redstone.has_stage(y_state, Source(sin))
+        @test !Redstone.has_stage(y_direct, Source(sin))
+    end
+
+    @testset "the source refuses a value that is not a `V` (§9.5)" begin
+        for source in (Source(t -> 1), Source(t -> 1f0), Source(t -> SVector(t, t)))
+            err = failure(() -> build(single(source)))
+            @test err isa DiagnosticError && only(diagnostics(err)) isa ConformanceFailure
+        end
+    end
+
+    @testset "the structure blocks' and the time source's phase bodies allocate nothing (§7.5)" begin
+        for model in (pack_model(Pack{Float64, 2}()), unpack_model(), round_trip_model(),
+                      switch_root(), vector_switch_model(), fed_by(Source(sin), Integrator()),
+                      fed_by(Source(t -> 2 * sin(t)), Integrator()), vector_source_model(), flip_model())
             sim = Simulation(model; h = 1//10)
             bodies = phase_bodies(sim)
             for name in (:sweep_1, :sweep_2, :rhs, :ticks)
@@ -1479,7 +1582,8 @@ function test_blocks()
         # reaches the declarations by import alone, as a user's component file
         # does, so a missing import here would surface as `DeclarationShadowed`.
         for comp in (Or{3}(), And{2}(), SumJunction{Float64,2}(), Junction{Float64,Float64,2}(max),
-                     Pack{Float64, 2}(), Unpack{Float64, 2}(),
+                     Pack{Float64, 2}(), Unpack{Float64, 2}(), Switch{Float64}(),
+                     Source(sin), Source{Bool}(t -> t >= 0.5),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
                      DiscreteIntegrator(), DiscreteLimitedIntegrator(lower = -1.0, upper = 1.0),
                      DiscreteLimitedIntegrator(lower = SVector(-1.0, -1.0), upper = SVector(1.0, 1.0)),

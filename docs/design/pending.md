@@ -13,18 +13,6 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The library's one remaining tranche**, the candidate rows of
-  `docs/design/companions/library_inventory.md` batched by the mechanism they
-  exercise (§13.7, D-313), one brief, two stages and one review:
-  - **Increment 66, structure and sources**: `Pack{N}`, `Unpack{N}`,
-    `Switch{V}`, `Source(f)` and `Freeze` over a struct `V`. Measured
-    against the junction's shape, `Pack{N}` is an alias,
-    `Junction{V, SVector{N, V}, N}(SVector)`, as `SumJunction` is;
-    `Unpack{N}` has `N` outputs, `Switch{V}` mixes two `V` inputs with a
-    `Bool` the junction's one `In` cannot type, and `Source(f)` has no
-    inputs and reads the bundle's `t`, so those three stay blocks. The
-    struct `Freeze` needs the allocation-free leafwise map D-312 asks for,
-    and becomes a loose fix of its own if the tranche is kept pure.
 - **Increment 67, the `Structure` refactor** (D-315), one brief, its stages
   and one review. The artifact keeps one row per assembly, its children and
   its declared wires, and no resolved table: `child_lists`, `root`, the two

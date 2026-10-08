@@ -79,8 +79,8 @@ Status is one of *shipped*, *candidate* (listed, built when wanted), or
 proves standard). A block is generic over its port type `V`, in the
 [D-263][d-263] spelling, unless its ports are fixed by what it is: the `Bool`
 gates, the PID and the linear blocks, whose ports follow their matrix
-shapes. The port names are `in`, `in1…inN` and `out`, and `out1…outN` for a
-block with several outputs.
+shapes. The port names are `in`, `in1…inN` and `out`, and `out1…outN` where a
+block splits one port into `N` alike.
 
 ### Structure
 
@@ -89,7 +89,7 @@ block with several outputs.
 | `Junction{In, Out, N, F}`, with `SumJunction{V, N}`, `Or{N}`, `And{N}` | shipped | one wire per input; the consumer's consolidated input |
 | `Group` | shipped | the on-the-fly assembly ([§8.5][s8-5], [D-184][d-184]) |
 | `Pack{V, N}`, a junction alias at a named fold, and `Unpack{V, N}` between scalar ports and an `SVector{N, V}` port | shipped | wires name whole ports |
-| `Switch{V}` selecting between two inputs on a `Bool` | candidate | a discontinuity on a continuous selector wants an event |
+| `Switch{V}` selecting between two inputs on a `Bool` | shipped | the `Bool` a junction's one `In` cannot type; the jump lands where the selector flips, so the event is the selector's producer's |
 
 ### Sources
 
@@ -97,7 +97,7 @@ block with several outputs.
 |---|---|---|
 | `Constant{V}` | shipped | the pinned source; the zero-contributor wire and the rig stub |
 | `Step{V, L}` with a guard on the bundle's `t` in either form | shipped | the jump is localized, or lands on a step boundary, by the guard's form ([D-179][d-179]) |
-| `Source(f)`, a user function of `t` | candidate | covers ramps and sines without a block each |
+| `Source{V}(f)`, a user function of the nominal `t` | shipped | covers ramps and sines without a block each; pinned ([D-312][d-312]): `t` is the activation scalar, stripped before `f` |
 | `GaussianWhiteNoise{V}`, a discrete Gaussian white noise process, seed as instance data | shipped | a counter-based draw: the sample is a pure function of the seed and a tick counter, the store's one field ([D-231][d-231]), so the stage draws and no generator or workspace is needed; `σ` per sample, or the two-sided density `Q` read against the bundle's `Δt` as `σ² = Q/Δt` |
 
 ### Continuous dynamics
