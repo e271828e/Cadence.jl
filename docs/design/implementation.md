@@ -884,7 +884,58 @@ Traps the code does not warn about, each hit more than once while building:
   address facts (§9.2, D-261);
 - **`checkpoint` is refused after a `t*` stop and after an abandoned
   frame.** A test that checkpoints a stopped run stops it at a frame top:
-  `t_end`, a stop face read at a grid boundary, or `stop!` (§12.6, D-274).
+  `t_end`, a stop face read at a grid boundary, or `stop!` (§12.6, D-274);
+- **a mask's two ends sit on one level, never split across a `try`.** On
+  1.13 a `try` exit restores the sigatomic count to its entry value, normal
+  exit included. A deferred interrupt raises at `sigatomic_end`, so a mask
+  that must not escape sits whole inside one retrying `try`. Verify a mask by
+  reading the count after every exit path, with no enclosing `try`. The count
+  is per task. A spawned task starts at 0, and a masked lock wait leaks
+  nothing to the thread's next task;
+- **a real SIGINT lands on thread 1's current task**, in a single-threaded
+  process the sender itself. While thread 1's task is parked masked, it lands
+  on whichever task runs next there. The suite's `interrupt_parked` raises in
+  a parked task through `schedule(task, exc; error = true)`. It can inject
+  into a masked park that a real SIGINT never reaches, so a probe there tests
+  a path the operator cannot take. A signal from inside the frame is reliable
+  only once `jl_signal_pending` is set;
+- **a test never passes by timing.** It parks on a condition and asserts
+  against that, never after a `sleep`. A claim that no deterministic park
+  exists is checked by listing every lock wait on the path, `_shutdown!`'s
+  catch arm included. A user `shutdown!` waiting on a condition, then the
+  `_request_stop!` it calls, parks twice on demand;
+- **never assert `Int(Threads.nthreads() < n)`.** At `-t auto` it reduces to
+  `== 0`, and the mechanism can vanish unnoticed. Make the run tight on every
+  layout by rostering `Threads.nthreads()` claimless probes, and assert the
+  exact count and payload;
+- **an allocation check on a long run measures past 1000 frames.** A dynamic
+  read of an `Int` field, off a `@nospecialize`d or `Any` value, returns a
+  boxed `Int`. Julia caches those boxes only in -512..511, so the read
+  allocates 16 B from 512 on;
+- `something(@atomic x.f, default)` swallows the trailing argument; write
+  `something((@atomic x.f), default)`;
+- **`SMatrix{N, M, T}` is abstract**, since the length is a fourth parameter.
+  A field typed so boxes in every stage body, while the model still builds and
+  linearizes. A static `hvcat`, `[A B; C D]`, allocates about 1 KB per call.
+  `vcat(hcat(…), hcat(…))`, `exp` and `SOneTo`/`SUnitRange` slices allocate
+  nothing;
+- a fail-fast throw is `DiagnosticError{K}`, read with `diagnostic`, never
+  `diagnostics`;
+- **a discrete member traces structurally (§5.6).** A cycle through a
+  discrete stage-2 block is `AlgebraicCycle` `:real` with an empty `dead`,
+  never `:artificial`. A store counter reads `N + 1` after `N` steps, since
+  the `t₀` boundary runs the first tick;
+- a keyword default that depends on another keyword, such as `μ = zero(σ)`,
+  defaults to `nothing` and is resolved in the body;
+- **"every call site" takes two greps**, the direct call and the function
+  passed as an argument, and a field's readers likewise (`\.id\b`). `\b` does
+  not close after `!`, so grep `run!\(`;
+- **a mutant survives a test whose parameter is an identity for the
+  operation**, such as `Tt = 1` for `/ Tt` or a pole at `0.5` for `I - A`, or
+  whose oracle shares the mutated code, such as a vector draw checked through
+  the vector helper. Pick values that separate the expressions, and assert
+  against the scalar form or probed literals. Sample times sit on the step
+  grid, since `step!` rounds up to the next frame.
 
 ## Naming
 
@@ -1003,6 +1054,10 @@ override:
 
 To check a refactor for test loss, compare the suite's own assertion total;
 `grep -c '@test '` misses the loops that multiply them.
+
+A diagnostic's message text is asserted only in `test_diagnostics.jl`'s
+rendering testset, and the build tests assert kind and payload. A new
+warning-severity kind joins that file's `warning_kinds`.
 
 **The gate** is the full suite under the sandbox flags:
 

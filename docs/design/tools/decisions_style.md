@@ -103,7 +103,8 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
    the spec rather than the log gets flagged, not dropped.
 6. **The battery is the acceptance test.** `check_refs.jl`, `check_rows.jl`,
    `check_glossary.jl --strict`, `check_bold.jl`, and `linkify.jl` as a no-op
-   on re-run.
+   on re-run. Run `linkify.jl` before `check_refs.jl`. A fresh citation's
+   label has no definition until `linkify.jl` writes one.
 7. **A prose rewrite is audited, not trusted.** `audit_fragments.jl [rev]`
    compares every entry's multiset of code spans, inline math, citations and
    named identifiers against a git revision — losing one is fatal. Rewording an
@@ -117,3 +118,20 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
    reconstruction, not prose work, and retrofitting under rule 1. If ever
    revisited, first survey which entries have a real documented source; do not
    expand wholesale.
+9. **Implementation policy earns no entry.** The log records design content.
+   A ruling on implementation or process policy, such as how a block is
+   admitted to the library or what order work happens in, gets no new
+   `D-nnn`. When an existing entry of that kind changes, it is rewritten in
+   place rather than superseded, an exception to rules 1 and 5 made
+   knowingly so the log does not grow entries that decide no design. D-313's
+   admission rule was rewritten so on 2026-10-06. Supersession stays for
+   design positions. Policy is written as weighed guidelines, not as gates
+   that park work behind preconditions.
+10. **The spec and the latest entry beat an older entry's contrary reading.**
+    When the spec and the latest entry ruling an issue agree, their position
+    wins over an older entry that reads it the other way. The older entry
+    gets an annotation, and a new entry states the position if none does.
+    Such a conflict is not a finding to escalate. Escalate only when a reason
+    against the position holds, such as the latest entry stating the point in
+    passing while older entries argue it. §8.1 and D-267 settled D-146's
+    Rationale so on 2026-10-02, recorded as D-301.

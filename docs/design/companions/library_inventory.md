@@ -82,6 +82,17 @@ gates, the PID and the linear blocks, whose ports follow their matrix
 shapes. The port names are `in`, `in1…inN` and `out`, and `out1…outN` where a
 block splits one port into `N` ports alike.
 
+A block with a defaulted parameter, or with more than one, gets a
+hand-written keyword constructor, as in `Integrator(; x0 = 0.0)` and
+`Relay(; lower, upper, off = zero(lower), on = one.(lower))`. A positional
+call is easy to get wrong, and [§7.2][s7-2] already makes keyword defaults the
+convention. A parameter with no sensible default is a required keyword.
+Fields that share a type parameter promote, so mixed `Int` and `Float64`
+keywords work, which is why the constructor is hand-written rather than
+`@kwdef`. The struct keeps its positional constructor. A block with one
+required parameter, such as `Constant(value)`, takes it positionally. Its
+docstring shows the keyword form, and its tests call it.
+
 ### Structure
 
 | Block | Status | Mechanism |
@@ -183,6 +194,7 @@ qualifies the two they share, `StateSpace` and `TransferFunction`.
 [s5-5]: ../spec.md#55-algebraic-loop-policy-reject-at-build-time
 [s6-1]: ../spec.md#61-connections-and-hierarchy
 [s6-2]: ../spec.md#62-aggregation-explicit-summing-junctions
+[s7-2]: ../spec.md#72-numeric-genericity-eltype
 [s8-5]: ../spec.md#85-assembly-declaration-type-based-class-by-declaration-shape
 [s8-7]: ../spec.md#87-rate-scopes
 [s9-7]: ../spec.md#97-the-compiled-executor

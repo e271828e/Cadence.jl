@@ -109,6 +109,12 @@ markers. `pending.md` tracks the rewrite.
   demotes it to a consequence.
 - **Bold weight is measured in words, not spans.** A whole sentence in bold
   where its headline clause would do adds weight and no ruling.
+- **An unmarked sentence settles nothing.** A spec sentence with neither
+  marker nor an entry behind it may describe a shape inherited from
+  FlightCore. Before ruling by a sentence, find its marker or its entry. If
+  neither exists, say so and propose a new ruling with its rejected
+  alternatives. A count, such as "a struct of four fields", is never an
+  argument for where new state lives.
 
 ## Rationale
 
@@ -152,6 +158,13 @@ flag it for discussion instead of guessing.
   files it rewrites besides `spec.md`: `decisions.md`, `extensions.md` and
   the companions. A file checked but not linkified keeps plain citations, as
   `implementation.md` and `pending.md` do.
+- **`linkify.jl` owns everything after the `<!-- citation link definitions`
+  marker** in a file it rewrites. New text, a new log entry included, goes
+  before it.
+- **A scripted edit to a rostered file matches the linkified spelling**,
+  `[§14.8][s14-8]`, not `§14.8`. It reads every file and asserts every match
+  before it opens any file for writing. Check `git diff --stat` before
+  committing.
 - **The `.jl` sketches under `prototypes/` sit outside the rosters.** Every `§`
   in them is hand-verified prose that rots silently at each renumbering. A
   sketch carries its verification state in its own header; a renumbering that
