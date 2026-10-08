@@ -9569,8 +9569,8 @@ loop through declared machinery.
   child, the library's spelling of a request (below). No level above it
   re-exports anything, because the loop reads the request where it is.
 - **Placement** is checked at build. **A `StopFlag` leaf nested inside a
-  port of another type is `IllegalPortType`, and so is a root input declared
-  `StopFlag`** ([D-316][d-316]). The first is refused because the build rosters
+  port of another type is `IllegalPortType`, and so is a root input whose
+  type carries a `StopFlag` anywhere** ([D-316][d-316]). The first is refused because the build rosters
   requests per port, so a request inside a struct field or a static array
   would have no entry of its own. The second is refused because a request is
   the model's, never an operator's. The operator's path is the
@@ -12210,7 +12210,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   vocabulary ([§4.3][s4-3]). Two reasons concern stop requests
   ([§13.5][s13-5], [D-316][d-316]): `:stop_flag_nested`, a `StopFlag` leaf inside a
   port whose type is not `StopFlag` itself, and `:stop_flag_at_root`, a root
-  input declared `StopFlag`.
+  input whose type carries a `StopFlag` anywhere.
 - **`IllegalStoreField`** ([§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1]). Error ·
   build · collected. Component path, the store at fault (`s_init`/`m_init`),
   field name, the offending type (one neither isbits nor `Symbol`), the fix

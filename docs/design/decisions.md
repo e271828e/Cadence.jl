@@ -13333,9 +13333,9 @@ where it holds, unless the advance ignores it.
 - Two placements are `IllegalPortType`. `:stop_flag_nested` is a `StopFlag`
   leaf inside a port whose type is not `StopFlag` itself, a struct field or
   a static array of them, since the roster is per port. `:stop_flag_at_root`
-  is a root input declared `StopFlag`, since a request is the model's, never
-  an operator's ([§12.1][s12-1]). A `StopFlag` input port places nothing and is left
-  alone.
+  is a root input whose type carries a `StopFlag` anywhere, bare or nested,
+  since a request is the model's, never an operator's ([§12.1][s12-1]). A
+  `StopFlag` input port places nothing and is left alone.
 - `stop_reason(c)` is an optional declaration with default `""`, which the
   build consults for every component that publishes a `StopFlag` port. One
   reason serves all of a component's `StopFlag` ports. The `String` is
