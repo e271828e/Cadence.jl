@@ -4,11 +4,12 @@ One docs stage, two code stages, one cold review and a fixer if the review
 needs one. Written at f851a51 while two loose commits queued at increment
 67's tip (the `UnconnectedInput` hand-up chain and the §6.1 double
 declaration, `pending.md`'s first two bullets) were in flight on this tree,
-touching `src/assembly.jl`, `src/diagnostics.jl` and three test files. The
-brief is rebased at their tip before launch: every line number below is
-recounted against `git show <tip>:file`, `src/diagnostics.jl` and
-`test/test_diagnostics.jl` first. The tip at launch is the commit rebasing
-this brief. Find passages in `docs/design/implementation.md` by heading.
+touching `src/assembly.jl`, `src/diagnostics.jl` and three test files. Rebased
+at cacc95b on 2026-10-08, both landed: they moved only `pending.md`'s bullet
+(now 93 to 104) and `src/diagnostics.jl` by three lines; every other anchor
+below was recounted against `git show cacc95b:file` and holds. The tip at
+launch is the commit rebasing this brief. Find passages in
+`docs/design/implementation.md` by heading.
 
 Design and code are peers, neither subservient. If a shape below proves
 wrong at the keyboard, stop and report rather than deviate silently.
@@ -83,8 +84,8 @@ The user's ruling, 2026-10-08, to be recorded by stage 0 as D-316.
   _cell_key(StopFlag)` in `src/store.jl` fixes the bundle key once, since
   `_cell_key` prints and allocates.
 - **Two placement refusals** in `place!` and the root-input loop (`src/build.jl`
-  lines 536 to 585), both `IllegalPortType` (`src/diagnostics.jl`, the struct
-  above its `message` at line 804), new reasons: `:stop_flag_nested`, a
+  lines 536 to 585), both `IllegalPortType` (`src/diagnostics.jl`, the struct at line
+  798, its `message` at 807), new reasons: `:stop_flag_nested`, a
   `StopFlag` leaf inside a port whose type is not `StopFlag` itself (a struct
   field or a static array of them), since the roster is per port; and
   `:stop_flag_at_root`, a root input declared `StopFlag`, since a request is
@@ -171,7 +172,7 @@ The user's ruling, 2026-10-08, to be recorded by stage 0 as D-316.
 ## Reading, in order
 
 - `docs/design/pending.md`, the increment 68 bullet stage 0 adds, and the
-  "Stop candidates" bullet it removes (lines 103 to 114 at f851a51).
+  "Stop candidates" bullet it removes (lines 93 to 104).
 - `docs/design/decisions.md` D-316 (stage 0's), then D-060 (line 1768),
   D-203 (7332), D-255 (9767), D-261 (10121), D-285 (11922), D-313 (13065),
   each with its 2026-10-08 annotation.
@@ -193,7 +194,7 @@ The user's ruling, 2026-10-08, to be recorded by stage 0 as D-316.
   to 80, 170 to 190, 265 to 330, 355 to 395, 1046 to 1100, 1157 to 1232,
   1284 to 1300, 1495 to 1540, 1698 to 1720; `src/localization.jl` 25 to 55
   and 160 to 172; `src/dataplane.jl` 110 to 120, 165 to 176, 218 to 227,
-  277, 522; `src/diagnostics.jl`, `StopFaceInvalid` (1199 to 1220) and
+  277, 522; `src/diagnostics.jl`, `StopFaceInvalid` (1202 to 1223) and
   `IllegalPortType`.
 - `test/test_lifecycle.jl` 1 to 25, 86 to 112, 186 to 200, 219 to 336, 405
   to 420; `test/test_failures.jl` 15 to 35 and 371 to 378;
@@ -259,7 +260,7 @@ rewritten.
   that names the old machinery.
 - **`docs/design/tools/gloss_table.md`** rows 162 and 214 follow the
   glossary.
-- **`docs/design/pending.md`.** Remove "Stop candidates" (103 to 114). Add
+- **`docs/design/pending.md`.** Remove "Stop candidates" (93 to 104). Add
   the increment 68 bullet at the head of the first section, in working
   order, stating what the code owes D-316: the vocabulary, the roster, the
   block, the policy and the retirement, by stage; stage 2 removes it.
