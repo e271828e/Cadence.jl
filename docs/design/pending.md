@@ -19,12 +19,10 @@ both add names.
   only a `Model{Float64}` can be run. Increment 70 delivered the first
   (`briefs/brief_increment_70_model_split_1.md`), and the code owes D-317
   the other two.
-  - Increment 71 is ruled as D-319, and its docs stage has landed. Its
-    brief is `briefs/brief_increment_71_model_split_2.md`, approved
-    2026-10-09. The code owes D-319 two stages.
-    - Stage 1 splits the checkpoint into `ModelState` and the
-      non-parametric `Checkpoint`, opens `checkpoint` and `restore!` on the
-      model, and adds the simulation's `restore!` of a bare state (§12.6).
+  - Increment 71 is ruled as D-319, and its docs stage and its first code
+    stage have landed. Its brief is
+    `briefs/brief_increment_71_model_split_2.md`, approved 2026-10-09. The
+    code owes D-319 one stage.
     - Stage 2 moves `trim!` and `linearize` onto `Model{Float64}`,
       re-raises the `:non_nominal` refusals on the model, and puts their
       two files above `sim.jl` in the include order (§14.8, §14.10).

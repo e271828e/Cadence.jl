@@ -227,11 +227,13 @@ D-289, D-315, D-316.
 
 ### `src/checkpoint.jl`
 
-- `Checkpoint{T}`, the executor's state at a frame top (D-274): the flat
+- `ModelState{T}`, a model's state as one value (D-274, D-319): the flat
   buffer, the `s` and `m` stores, the signal table with every cell buffer
   copied, the guard priors, the clock's `t` and `t₀` (a `Float64` like `h`),
-  the run's frame index and boundary ordinal (D-317), and the fingerprint, the
-  run's `Deployment` and the structural layout `Fingerprint`.
+  and the fingerprint, the `Deployment` and the structural layout
+  `Fingerprint`.
+- `Checkpoint`, a `ModelState{Float64}` beside the run's frame index and
+  boundary ordinal, with no scalar parameter (D-317, D-319).
 - `Fingerprint` holds the cell sizes, the root-input faces, the component
   paths and the store types, and what a copy by position relies on: each
   component's `x` type, every cell's address with its type and offsets, and
@@ -239,17 +241,16 @@ D-289, D-315, D-316.
 - What stays out: the derivative buffer, the arrival pair and the
   localization samples, which every frame rewrites before reading them, the
   cursor and the periphery.
-- `_restore_state!` on an executor, behind `linearize`'s default operating
-  point and under the model's restore door. It is strict about the scalar.
-  `_restore_stores!` is the part of it that writes the `s` and `m` stores,
-  shared with `linearize`'s seeded half.
-- `_check_checkpoint!`, the fingerprint check `restore!` and replay's entry
-  pass share, collecting `CheckpointMismatch`.
-- The model-level functions, `_fingerprint`, the one read `_take_checkpoint`
-  and the model's restore door `_restore_state!(model, cp)`, are model.jl's
-  (D-317).
+- `_restore_state!` on an executor, taking the state, behind `linearize`'s
+  default operating point and under the model's restore door. It is strict
+  about the scalar. `_restore_stores!` is the part of it that writes the `s`
+  and `m` stores, shared with `linearize`'s seeded half.
+- `_detach`'s two methods, the state's and the checkpoint's over it.
+- The model-level functions, `_fingerprint`, `checkpoint(model)`, the
+  fingerprint check `_check_checkpoint!` and the model's restore doors, are
+  model.jl's (D-317, D-319).
 
-Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274, D-317.
+Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274, D-317, D-319.
 
 ### `src/conditions.jl`
 
@@ -478,10 +479,12 @@ D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
 - `ArgumentInvalid`'s `:not_built` and `:claimed`, the `Simulation`
   constructor's refusals of its model, and `:claimed` on a claimed model's
   door (§9.2, D-318).
+- `CheckpointMismatch`'s `:scalar` arm naming a `Model`, and
+  `ServiceLifecycle`'s model arm, the refusal off `:consistent` (D-319).
 
 Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §13.5, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
-D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316, D-318.
+D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316, D-318, D-319.
 
 ### `src/executor.jl`
 
@@ -525,9 +528,11 @@ D-249, D-255, D-261, D-289, D-317.
 - The cursor's drain/arrival/validation/trial phases.
 - `settled!` at every `t*` boundary and at the frame top. A `true` abandons
   the frame's remainder and is `frame!`'s return (§13.5, D-261, D-317).
+- The grid arithmetic beside `_grid_time`: `_frame_slack`, `_frames_to` and
+  `_frame_at` (§12.4, §12.6, D-319).
 
-Spec: §10.2, §10.4, §11.8, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
-D-261, D-317, D-318.
+Spec: §10.2, §10.4, §11.8, §12.4, §12.6, §13.4, §13.5, D-018, D-059, D-133,
+D-255, D-260, D-261, D-317, D-318, D-319.
 
 ### `src/leaves.jl`
 
@@ -611,8 +616,10 @@ soon as nothing in it names a `Simulation` in a signature, and below
     hooks (§14.5, D-223);
   - `apply!` on a model, gated under `NoHooks` before the inner
     `_apply_plan!`, which `init!` and the simulation's forwarding method call;
-  - `_restore_state!` on a model, which settles the restored boundary through
-    the hooks and writes `:consistent` last (D-274).
+  - `restore!(model, model_state; hooks)`, whose fingerprint check
+    `_check_checkpoint!` precedes the ungated inner `_restore_state!`, which
+    the simulation's door body calls, with the scalar fallback on a state at
+    another scalar (D-274, D-319).
   `frame!` (frame.jl) is the fourth gated door. The stepping primitives
   `evaluate!`, `integrate!`, `boundary!`, `offtick_boundary!` and
   `boundary_zero!` stay ungated (D-318).
@@ -627,12 +634,13 @@ soon as nothing in it names a `Simulation` in a signature, and below
 - The one `StepError` constructor `_wrap_step`, which the model's `frame!` and
   `init!` call, and the species rule `_species` with the runtime bundle-field
   match (§13.2, §13.4, D-059, D-221, D-248).
-- The checkpoint's model-level half: `_fingerprint` and the one read
-  `_take_checkpoint`, on a model with the run's two counters passed in
-  (D-274).
+- The checkpoint's model-level half: `_fingerprint`, and `checkpoint(model)`
+  with its two refusals, `ServiceLifecycle` and `CheckpointMidFrame`
+  (D-274, D-319). `_check_checkpoint!`, the fingerprint check the restoring
+  doors and replay's entry pass share, collecting `CheckpointMismatch`.
 
 Spec: §9.2, §10.2, §10.6, §11.2, §11.8, §12.6, §13.2, §13.4, §13.5, §14.5,
-D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317, D-318.
+D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317, D-318, D-319.
 
 ### `src/readers.jl`
 
@@ -745,9 +753,11 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - `init!`, `restore!`, `run!`/`step!` and `replay!`, with the run body
   `_run_body!` and the door body `_enter_checkpoint!` (D-274). The
   simulation's `init!` is the gate and the run's bookkeeping around the
-  model's `init!`, and `_enter_checkpoint!` opens the run before it calls the
-  model's restore door. Both model doors are model.jl's (D-317).
-- `checkpoint(sim)`.
+  model's `init!`, and `_enter_checkpoint!`, over a `Checkpoint`, opens the
+  run before it calls the model's inner restore. Both are model.jl's (D-317).
+- `checkpoint(sim)`, the wrap of `checkpoint(sim.model)` with the run's two
+  counters, and `restore!`'s two forms, of a `Checkpoint` and of a bare
+  `ModelState{Float64}`, with the scalar fallback on a bare state (D-319).
 - `_reset_periphery!` and `_open_run!`.
 - `attach!`/`detach!`.
 - The pause verbs `pause!`/`resume!`/`paused`, beside `stop!(sim)` (§12.1,
@@ -789,7 +799,7 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.4–§13.6,
 §14, §14.5, §14.6, D-027, D-101, D-203, D-218, D-219,
 D-223, D-232, D-233, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
-D-268, D-269, D-270, D-274, D-316, D-317, D-318.
+D-268, D-269, D-270, D-274, D-316, D-317, D-318, D-319.
 
 ### `src/stepper.jl`
 
@@ -825,7 +835,7 @@ Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316, D-317.
     batch, and the length a replay reads its bound off, which is also the
     ordinal each record carries and which the drain advances at its top
     (D-255, D-260);
-  - the header is a `Checkpoint{Float64}`, the nominal simulation's (D-317),
+  - the header is a `Checkpoint`, nominal by type (D-317, D-319),
     written once. `init!` writes it after boundary zero's first publication,
     and `restore!` and `replay!` open their run with the checkpoint they
     restore. It is `nothing` only between
@@ -846,7 +856,7 @@ Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316, D-317.
   scopes by path and column (§12.7).
 
 Spec: §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218,
-D-254, D-255, D-260, D-261, D-274, D-317.
+D-254, D-255, D-260, D-261, D-274, D-317, D-319.
 
 ### `src/tracer.jl`
 

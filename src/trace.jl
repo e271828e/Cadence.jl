@@ -53,11 +53,11 @@ detached value of the same type, which no drain ever advances.
 A record is meaningless without its schema entry: the positions are against
 `schemas[batch.writer]`, and replay does not reconstruct claims (§12.7). The
 tags are §11.8's own writer names, `_who(entry)` and `"harness"`. The
-recording is the nominal simulation's, so the header is a `Checkpoint{Float64}`
-by type (D-317).
+recording is the nominal simulation's, and a `Checkpoint` is nominal by type
+(D-317, D-319).
 """
 mutable struct Trace
-    header::Union{Nothing,Checkpoint{Float64}}    # written once, by the door (D-274)
+    header::Union{Nothing,Checkpoint}             # written once, by the door (D-274)
     const schemas::Vector{Pair{String,Vector{Symbol}}}   # writer tag => face-name-by-position
     const batches::Vector{TraceBatch}              # in drain order: by frame, then by writer index
     frames::Int
@@ -172,7 +172,7 @@ end
 # "Validation is loud and up front" — the whole trace is checked and converted
 # before the first frame, so every refusal precedes every write and the replay
 # drain resolves no name. The pass is two-staged: the header's own disagreements
-# with the target build (`_check_checkpoint!`, checkpoint.jl) and the schemas'
+# with the target build (`_check_checkpoint!`, model.jl) and the schemas'
 # fail fast as a collection, and only then are the records
 # resolved through the schemas the first stage just validated. `sim` is untyped
 # throughout for include order alone; the scalar gate that dispatches into this

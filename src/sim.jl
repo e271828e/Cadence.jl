@@ -252,19 +252,6 @@ _margin_value(value, call::Symbol) = (value isa Real && value ≥ 0) ? Float64(v
     throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
                                           argument = :margin, value = value)))
 
-# Whole frames from the origin `t₀` until the grid boundary `t₀ + k·h` first
-# reaches the bound `t` (§12.4, §12.6), and its floor sibling, the last
-# boundary at or before `t`. Both carry a slack of a few ulps in frame units,
-# at the larger of `|t|` and `|t₀|`, since `t₀ + k·h` and `t - t₀` both round
-# at that magnitude. `0.3/0.1` is `2.9999999999999996`, and at `t₀ = -0.3` the
-# loop writes frame 3's time as `5.6e-17`, whose own ulps absorb none of that.
-# `t` and `t₀` are any reals; the step is `Float64` (D-260).
-_frame_slack(t::Real, t₀::Real, h::Float64) = 4 * eps(max(abs(t), abs(t₀))) / h
-function _frames_to(t::Real, t₀::Real, h::Float64)
-    isinf(t) && return typemax(Int)
-    max(0, ceil(Int, (t - t₀) / h - _frame_slack(t, t₀, h)))
-end
-_frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, t₀, h))
 _t_end_frame(sim::Simulation, t_end::Float64) =
     _frames_to(t_end, sim.model.exec.clock.t₀, sim.model.deployment.h)
 
@@ -621,16 +608,18 @@ function init!(sim::Simulation, condition = fragment(); t0::Real = 0.0, trace = 
     # §11.5's header: the checkpoint at the end of boundary zero, so a throw
     # inside it leaves no header and no trace to hand back (D-274)
     trc = sim.run.trace
-    trc === nothing || (trc.header = _take_checkpoint(sim.model, sim.run.frame, sim.run.boundary))
+    trc === nothing ||
+        (trc.header = Checkpoint(checkpoint(sim.model), sim.run.frame, sim.run.boundary))
     nothing
 end
 
 """
     checkpoint(sim) → Checkpoint
 
-The executor's state at a frame top as one value (§12.6, D-274): the flat
-buffer, the `s` and `m` stores, the whole signal table, the guard priors, the
-clock's `t` and `t₀`, the run's two counters and the fingerprint. A stopped-sim
+The model's state at a frame top beside the run's two counters (§12.6, D-274,
+D-319): `checkpoint(sim.model)`, the flat buffer, the `s` and `m` stores, the
+whole signal table, the guard priors, the clock's `t` and `t₀` and the
+fingerprint, wrapped with the frame index and the boundary ordinal. A stopped-sim
 service, legal in `initialized` and `stopped`, whose stores are committed and
 boundary-consistent; `built`, `running` and `errored` are one
 `ServiceLifecycle`. A stopped
@@ -660,12 +649,12 @@ function checkpoint(sim::Simulation)
         published.t == clock.t ||
         throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
                                                  frame = frame)))
-    _take_checkpoint(sim.model, frame, sim.run.boundary)
+    Checkpoint(checkpoint(sim.model), frame, sim.run.boundary)
 end
 
 # The door body `restore!` and `replay!` share (§12.6, §12.7, D-274): first
 # the periphery's opening, a fresh run with the checkpoint detached as its
-# header, and the boundary ordinal stepped back; then the model's restore door,
+# header, and the boundary ordinal stepped back; then the model's inner restore,
 # which copies the checkpoint's state back, publishes one snapshot through the
 # hooks and writes `:consistent` last. No boundary zero, no sweep, no guard, no
 # update, no prior reset. A checkpoint is taken after the publication of its
@@ -674,28 +663,28 @@ end
 # continue as the original's did (§12.3, D-230). The counters come with the
 # checkpoint into the run this opens (D-317). Nothing reads the hook's return,
 # so the mask is empty.
-function _enter_checkpoint!(sim::Simulation, cp::Checkpoint{Float64}, schemas, feed,
+function _enter_checkpoint!(sim::Simulation, cp::Checkpoint, schemas, feed,
                             trace_switch::Bool, log_switch::Bool, log_every::Int,
                             log_max)
     _reset_periphery!(sim)
     _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, cp.frame, cp.boundary,
                trace_switch, log_switch, log_every, log_max)
     sim.run.boundary -= 1
-    _restore_state!(sim.model, cp; hooks = LoopHooks(sim, sim.plane.roster, nothing, Bool[]))
+    _restore_state!(sim.model, cp.state; hooks = LoopHooks(sim, sim.plane.roster, nothing, Bool[]))
     nothing
 end
 
 """
     restore!(sim, cp; trace = true, log = true, log_every = 1, log_max = 65536)
+    restore!(sim, model_state; trace = true, log = true, log_every = 1, log_max = 65536)
 
 §12.6's warm restart: put a checkpoint back and open a fresh run from it. A
 door beside `init!` and `replay!`, legal where `init!` is and taking its four
 recording keywords for the run it builds (D-261). The checkpoint's fingerprint
 is checked against this simulation as replay checks a trace's header, the
-mismatches collected into one `CheckpointMismatch` throw before any write; a
-checkpoint taken on another activation is refused by dispatch with the same
-kind. Then the staged batches are dropped, the run is built with the
-checkpoint as its trace header, and the model's restore door copies the state
+mismatches collected into one `CheckpointMismatch` throw before any write. Then
+the staged batches are dropped, the run is built with the
+checkpoint as its trace header, and the model's inner restore copies the state
 back, publishes one snapshot at the checkpoint's `t` and writes `:consistent`
 last (D-274, D-318).
 
@@ -703,8 +692,17 @@ No boundary zero runs: no sweep, no guard, no update, and no prior reset, so a
 guard holding at the checkpoint does not fire again. The clock came with the
 checkpoint, so the next frame is the original lattice's next frame, and the
 boundary ordinal continues (§12.3, D-230). The mode returns to `:live`.
+
+`restore!(sim, model_state)` is the door a state prepared on a standalone model
+takes into a simulation (§9.2, D-319). It makes the same lifecycle, recording
+and fingerprint checks, then refuses a state whose `t` is off the grid as
+`CheckpointMidFrame` at the frame `k = round(Int, (t - t₀) / h)`. It opens a
+fresh trajectory at frame `k`: the restored boundary publishes under ordinal 0,
+as boundary zero's does, and the run's ordinal reads 1 after it. A standalone
+model published nothing, so there are no ordinals to continue. A state taken at
+another scalar is refused by dispatch with `CheckpointMismatch`.
 """
-function restore!(sim::Simulation, cp::Checkpoint{Float64}; trace = true, log = true,
+function restore!(sim::Simulation, cp::Checkpoint; trace = true, log = true,
                   log_every = 1, log_max = 65536)
     lifecycle_state = lifecycle(sim)
     lifecycle_state === :running && throw(DiagnosticError(
@@ -713,15 +711,39 @@ function restore!(sim::Simulation, cp::Checkpoint{Float64}; trace = true, log = 
         ServiceLifecycle(op = :restore!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     _check_recording(:restore!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     diags = Diagnostic[]
-    _check_checkpoint!(diags, sim, cp)
+    _check_checkpoint!(diags, sim.model, cp.state)
     isempty(diags) || throw(DiagnosticError(diags))
     _enter_checkpoint!(sim, cp, Pair{String,Vector{Symbol}}[], nothing, trace, log,
                        Int(log_every), log_max)
     nothing
 end
 
-# A checkpoint taken on a model at another scalar (D-317).
-restore!(::Simulation, cp::Checkpoint{T}; kw...) where {T} =
+function restore!(sim::Simulation, model_state::ModelState{Float64}; trace = true, log = true,
+                  log_every = 1, log_max = 65536)
+    lifecycle_state = lifecycle(sim)
+    lifecycle_state === :running && throw(DiagnosticError(
+        ServiceLifecycle(op = :restore!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    lifecycle_state === :errored && throw(DiagnosticError(
+        ServiceLifecycle(op = :restore!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
+    _check_recording(:restore!, trace, log, log_every, log_max)   # the run's keywords (D-261)
+    diags = Diagnostic[]
+    _check_checkpoint!(diags, sim.model, model_state)
+    isempty(diags) || throw(DiagnosticError(diags))
+    # the state's grid position, on its own origin: `_grid_time`'s arithmetic,
+    # the stride the fingerprint check just matched
+    h = model_state.deployment.h
+    k = round(Int, (model_state.t - model_state.t₀) / h)
+    t_frame = model_state.t₀ + k * h
+    model_state.t == t_frame || throw(DiagnosticError(
+        CheckpointMidFrame(t = model_state.t, t_frame = t_frame, frame = k)))
+    # a fresh trajectory at frame `k`, its restored boundary under ordinal 0
+    _enter_checkpoint!(sim, Checkpoint(model_state, k, 1), Pair{String,Vector{Symbol}}[],
+                       nothing, trace, log, Int(log_every), log_max)
+    nothing
+end
+
+# A state taken on a model at another scalar (D-319).
+restore!(::Simulation, ::ModelState{T}; kw...) where {T} =
     throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = T, found = Float64)))
 
 """
@@ -736,8 +758,8 @@ then collected in turn, so a trace with three bad entries reports three.
 comes back is the whole recording normalized to compiled scatters against *this*
 layout — the conversion paid once, off the loop (D-101).
 
-The scalar needs no check: a `Trace` holds a `Checkpoint{Float64}` and a
-simulation runs a `Model{Float64}`, both by type (D-317).
+The scalar needs no check: a `Trace` holds a `Checkpoint`, nominal by type, and
+a simulation runs a `Model{Float64}` (D-317, D-319).
 
 Under `restore = false` the clock joins the header's stage: the feed runs on
 the simulation's own clock, so its origin must be the recording's, and its
@@ -746,11 +768,11 @@ frame one the recording can feed from.
 function _compile_feed(sim::Simulation, trc::Trace, restore::Bool = true)
     faces = Symbol[f for (f, _) in sim.model.exec.act.layout.root_inputs]
     diags = Diagnostic[]
-    _check_checkpoint!(diags, sim, trc.header)
+    _check_checkpoint!(diags, sim.model, trc.header.state)
     if !restore
         clock = sim.model.exec.clock
-        trc.header.t₀ == clock.t₀ || push!(diags, CheckpointMismatch(
-            what = :clock, name = :t₀, expected = trc.header.t₀, found = clock.t₀))
+        trc.header.state.t₀ == clock.t₀ || push!(diags, CheckpointMismatch(
+            what = :clock, name = :t₀, expected = trc.header.state.t₀, found = clock.t₀))
         feedable = trc.header.frame:(trc.frames - 1)  # the frames the simulation may stand at
         sim.run.frame in feedable || push!(diags, CheckpointMismatch(
             what = :clock, name = :frame, expected = feedable, found = sim.run.frame))
@@ -889,11 +911,11 @@ function replay!(sim::Simulation, trc::Trace; to_boundary = nothing,
         # word about a time the recording covers). `_frame_at` carries the
         # slack: without it the plain floor would halt one boundary short of
         # the one named.
-        t₀ = trc.header.t₀
+        t₀ = trc.header.state.t₀
         to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
-        to_boundary = _frame_at(Float64(to_time), t₀, trc.header.deployment.h)
+        to_boundary = _frame_at(Float64(to_time), t₀, trc.header.state.deployment.h)
         first_frame ≤ to_boundary ≤ trc.frames || throw(DiagnosticError(   # outside the feed
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
@@ -908,7 +930,7 @@ function replay!(sim::Simulation, trc::Trace; to_boundary = nothing,
     # Under this call's `trace`, the new trace inherits the checkpoint detached
     # and the recording's own schema entries, so neither the growth below nor a
     # continuation's writes ever reach the `Trace` the caller holds.
-    cp = restore ? trc.header : _take_checkpoint(sim.model, sim.run.frame, sim.run.boundary)
+    cp = restore ? trc.header : Checkpoint(checkpoint(sim.model), sim.run.frame, sim.run.boundary)
     _enter_checkpoint!(sim, cp, trace ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[],
                        feed, trace, log, Int(log_every), log_max)
     # the records at or before the frame the feed starts from are behind it: a

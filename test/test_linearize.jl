@@ -118,16 +118,16 @@ function test_linearize()
         at_rest = combine(at("c", fragment(x = state(sim, "c"))),
                           fragment(u = (τ = port(sim, "", :τ), d = port(sim, "", :d))))
         linearization = linearize(sim, lin_taps())
-        @test same_linearization(linearization, linearize(sim, lin_taps(); about = at_rest, t0 = before.t))
+        @test same_linearization(linearization, linearize(sim, lin_taps(); about = at_rest, t0 = before.state.t))
 
         after = checkpoint(sim)
-        @test after.x == before.x && after.s == before.s && after.m == before.m &&
-              after.prior == before.prior && same_table(after.table, before.table)
-        @test (after.t, after.frame, after.boundary, after.t₀) ==
-              (before.t, before.frame, before.boundary, before.t₀)
-        @test after.deployment === before.deployment &&
-              all(getfield(after.layout, f) == getfield(before.layout, f)
-                  for f in fieldnames(typeof(before.layout)))
+        @test after.state.x == before.state.x && after.state.s == before.state.s && after.state.m == before.state.m &&
+              after.state.prior == before.state.prior && same_table(after.state.table, before.state.table)
+        @test (after.state.t, after.frame, after.boundary, after.state.t₀) ==
+              (before.state.t, before.frame, before.boundary, before.state.t₀)
+        @test after.state.deployment === before.state.deployment &&
+              all(getfield(after.state.layout, f) == getfield(before.state.layout, f)
+                  for f in fieldnames(typeof(before.state.layout)))
         @test latest(sim) === snapshot && lifecycle(sim) === :stopped
     end
 

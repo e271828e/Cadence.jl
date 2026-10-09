@@ -1204,6 +1204,9 @@ message(d::ServiceLifecycle) =
     d.status === :stopped ?
     "`$(d.op)` on a stopped simulation: re-running is the `stopped → init! → run!` cycle " *
     "— `init!` re-runs boundary zero and opens a fresh trajectory (§12.6)" :
+    d.legal == [:consistent] ?
+    "`$(d.op)` on a model whose status is `$(d.status)` — a model's state is read at " *
+    "`:consistent`, after `init!` or a restore and before any throw (§12.6, D-319)" :
     "`$(d.op)` is legal in $(_namelist(d.legal)), and this simulation is `$(d.status)` " *
     "(§12.6, §14)"
 
@@ -2180,10 +2183,9 @@ _checkpoint_deployment(d::CheckpointMismatch) =
 
 message(d::CheckpointMismatch) =
     d.what === :scalar ?
-    "the checkpoint was taken on a `Simulation{$(d.expected)}` and this one is a " *
-    "`Simulation{$(d.found)}` — the scalar is a structural fact of the deployment, and a " *
-    "checkpoint, a trace's header included, goes back into the activation it was taken " *
-    "on (§12.6, §12.7)" :
+    "the checkpoint was taken on a `Model{$(d.expected)}` and the target is a " *
+    "`Model{$(d.found)}` — the scalar is a structural fact of the activation, and a " *
+    "model's state goes back into a model at the scalar it was taken at (§9.2, §12.6)" :
     d.what === :deployment ? _checkpoint_deployment(d) :
     d.what === :clock ?
     (d.name === :t₀ ?

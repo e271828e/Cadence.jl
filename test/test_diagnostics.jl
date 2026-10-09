@@ -413,6 +413,7 @@ function diagnostics_kind_set()
             ServiceLifecycle(op = :checkpoint, status = :errored, legal = [:initialized, :stopped]),
             ServiceLifecycle(op = :run!, status = :stopped, legal = [:initialized]),
             ServiceLifecycle(op = :checkpoint, status = :built, legal = [:initialized, :stopped]),
+            ServiceLifecycle(op = :checkpoint, status = :built, legal = [:consistent]),
             StopRequestInvalid(path = "a", site = :step!, candidates = ["a/stop", "b"]),
             DeploymentInvalid(parameter = :firing_budget, reason = :range, value = 0),
             DeploymentInvalid(parameter = :h, reason = :inexact, value = 0.01),
@@ -992,8 +993,8 @@ function diagnostics_kind_set()
         # pass, since the kind carries no operation (D-274): the checkpoint, never
         # the replay, is the subject of every arm both doors raise.
         rendered = message(CheckpointMismatch(what = :scalar, expected = Float64, found = D8))
-        @test startswith(rendered, "the checkpoint was taken on a `Simulation{Float64}`")
-        @test occursin("a trace's header included", rendered) && !occursin("replay:", rendered)
+        @test startswith(rendered, "the checkpoint was taken on a `Model{Float64}`")
+        @test occursin("the target is a `Model{", rendered) && !occursin("replay:", rendered)
         rendered = message(CheckpointMismatch(what = :deployment, name = :h, expected = 0.1,
                                               found = 0.05))
         @test startswith(rendered, "the checkpoint was taken at `h` = 0.1 and this " *
@@ -1051,6 +1052,11 @@ function diagnostics_kind_set()
                                    "which was never published")
         @test occursin("an interrupt thrown from model code abandons the frame unpublished",
                        rendered)
+        # A model's state is read at `:consistent` alone, and the refusal says so.
+        rendered = message(ServiceLifecycle(op = :checkpoint, status = :built,
+                                            legal = [:consistent]))
+        @test startswith(rendered, "`checkpoint` on a model whose status is `built` — a " *
+                                   "model's state is read at `:consistent`")
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
         rendered = message(UninitializedInputs(op = :init!, faces = [:u, :e]))

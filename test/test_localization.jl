@@ -299,6 +299,7 @@ function test_localization()
             @test state(model, path) == state(sim, path)
         end
         @test modes(model, "s") == modes(sim, "s")
+        @test checkpoint(model).t == 1.0
 
         # Ten tops, and the frame with the t* settles twice: at t* and at its top.
         model = Model(deployment)
@@ -322,6 +323,9 @@ function test_localization()
         @test model.exec.clock.t == t_star
         @test state(model, "src").q ≈ t_star atol = 1e-12
         @test modes(model, "s").count == 1
+        # The clock inside the frame is no state to take (§12.6, D-319).
+        d = carried(@test_throws DiagnosticError{CheckpointMidFrame} checkpoint(model))
+        @test d.frame == 4 && d.t_frame == 4 * deployment.h && d.t == model.exec.clock.t
 
         # A `true` at the frame top is `frame!`'s return too, in a frame with no t*.
         model = Model(deployment)

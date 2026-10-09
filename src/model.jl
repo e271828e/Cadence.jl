@@ -2,8 +2,9 @@
 # scalar, and everything done to it with no simulation around it — the frame's
 # hooks, the doors, evaluation, the boundaries, the stepper seam's framework
 # side, the reads, the one `StepError` constructor and the checkpoint's
-# model-level half. Every door that writes the model's status lives here; the
-# one other writer is `frame!`'s catch site (frame.jl).
+# model-level half, with its two doors `checkpoint(model)` and `restore!(model,
+# model_state)`. Every door that writes the model's status lives here; the one
+# other writer is `frame!`'s catch site (frame.jl).
 
 """
     Model(deployment::Deployment, T = Float64; chunk_size = 16)
@@ -519,27 +520,119 @@ function _fingerprint(model::Model)
                 copy(exec.events.names))   # the priors' own index, empty off the nominal activation
 end
 
-# The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
-# The stores are copied by value, being isbits (D-231). The counters are the
-# run's, passed in, so a standalone model checkpoints too (D-317).
-function _take_checkpoint(model::Model, frame::Int, boundary::Int)
+"""
+    checkpoint(model) → ModelState
+
+The model's state at a frame top as one value (§12.6, D-274, D-319): the flat
+buffer, the `s` and `m` stores, the whole signal table, the guard priors, the
+clock's `t` and `t₀`, and the fingerprint. The stores are copied by value,
+being isbits (D-231). Legal at `:consistent`, after `init!` or a restore and
+before any throw; `:built` and `:inconsistent` are one `ServiceLifecycle`. A
+clock off the grid is refused too (`CheckpointMidFrame`, naming the frame the
+clock sits inside). A `t*` abandon leaves the clock inside the frame, and the
+model steps whole frames, so a state taken there would have no next frame to
+continue on. `checkpoint(sim)` wraps this state with the run's two counters.
+
+A model's state is not a condition and has no algebra (D-273). `restore!` puts
+it back.
+"""
+function checkpoint(model::Model{T}) where {T}
+    model_status = @atomic :acquire model.status
+    model_status === :consistent || throw(DiagnosticError(ServiceLifecycle(
+        op = :checkpoint, status = model_status, legal = [:consistent])))
     exec = model.exec
     clock = exec.clock
-    T = eltype(exec.xbuf)      # the model's scalar, off the buffer that carries it
+    # a frame top is exactly the time the loop writes there, `_grid_time` in the
+    # clock's scalar, and `_frames_to` names the frame the clock sits inside
+    k = _frames_to(clock.t, clock.t₀, model.deployment.h)
+    t_frame = _grid_time(model, k)
+    clock.t == oftype(clock.t, t_frame) ||
+        throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
+                                                 frame = k)))
     s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
     m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
     checkpoint_stepper(exec.stepper)   # empty for a one-step method (stepper.jl)
-    Checkpoint{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
-                  clock.t, frame, boundary, clock.t₀, model.deployment,
-                  _fingerprint(model))
+    ModelState{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
+                  clock.t, clock.t₀, model.deployment, _fingerprint(model))
 end
 
-# The same restore as a model door (D-317), in `init!`'s shape: the state
-# copied back, the restored boundary settled through `settled!(hooks)`, whose
-# return nothing reads here, and the status written `:consistent` last.
-function _restore_state!(model::Model, cp::Checkpoint; hooks::FrameHooks = NoHooks())
+# The fingerprint check the restoring doors and replay's entry pass share (§12.6,
+# §12.7): the structural fingerprint compared field for field, then the two
+# deployments as *values*, one `==` as D-254 asks, with `_walk_deployment!`
+# (trace.jl) as its explanation. The clock is restored, never compared.
+function _check_checkpoint!(diags::Vector{Diagnostic}, model::Model, model_state::ModelState)
+    target = _fingerprint(model)
+    recorded = model_state.layout
+    recorded.sizes == target.sizes ||
+        push!(diags, CheckpointMismatch(what = :store, name = :sizes,
+                                        expected = recorded.sizes, found = target.sizes))
+    recorded.paths == target.paths ||
+        push!(diags, CheckpointMismatch(what = :store, name = :paths,
+                                        expected = recorded.paths, found = target.paths))
+    recorded.root_faces == target.root_faces ||
+        push!(diags, CheckpointMismatch(what = :root_input,
+                                        expected = recorded.root_faces,
+                                        found = target.root_faces))
+    # the per-component store types, only where the path lists agree on what a
+    # component *index* means — otherwise the comparison would be by position
+    # between two different models, and the path mismatch above is the honest fact
+    if recorded.paths == target.paths
+        for (i, path) in enumerate(target.paths)
+            # the `x` type fixes the block's width and what each position holds
+            recorded.xtypes[i] === target.xtypes[i] ||
+                push!(diags, CheckpointMismatch(what = :store, path = path, name = :x,
+                                                expected = recorded.xtypes[i],
+                                                found = target.xtypes[i]))
+            recorded.stypes[i] === target.stypes[i] ||
+                push!(diags, CheckpointMismatch(what = :store, path = path, name = :s,
+                                                expected = recorded.stypes[i],
+                                                found = target.stypes[i]))
+            recorded.mtypes[i] === target.mtypes[i] ||
+                push!(diags, CheckpointMismatch(what = :store, path = path, name = :m,
+                                                expected = recorded.mtypes[i],
+                                                found = target.mtypes[i]))
+        end
+        recorded.addrs == target.addrs || _check_addresses!(diags, recorded.addrs, target.addrs)
+        recorded.events == target.events ||
+            push!(diags, CheckpointMismatch(what = :store, name = :events,
+                                            expected = recorded.events, found = target.events))
+    end
+    model_state.deployment == model.deployment ||
+        _walk_deployment!(diags, model_state.deployment, model.deployment)
+    nothing
+end
+
+"""
+    restore!(model, model_state; hooks = NoHooks())
+
+The model's door back to a state `checkpoint(model)` took (§12.6, D-318, D-319).
+A claimed model refuses it as `ArgumentInvalid` `:claimed`. The state's
+fingerprint is checked against this model, the mismatches collected into one
+`CheckpointMismatch` throw before any write. Then the state is copied back, the
+restored boundary settles through `settled!(hooks)`, and the status is written
+`:consistent` last. No boundary zero runs and no prior resets. The door has no
+status gate, since restoring into a `:built` twin is its use. A state taken at
+another scalar is refused by dispatch with the same kind.
+"""
+function restore!(model::Model{T}, model_state::ModelState{T};
+                  hooks::FrameHooks = NoHooks()) where {T}
     _claimed_gate(model, hooks, :restore!)
-    _restore_state!(model.exec, cp)
+    diags = Diagnostic[]
+    _check_checkpoint!(diags, model, model_state)
+    isempty(diags) || throw(DiagnosticError(diags))
+    _restore_state!(model, model_state; hooks)
+end
+
+# A state taken on a model at another scalar (D-319).
+restore!(::Model{T}, ::ModelState{S}; kw...) where {T,S} =
+    throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = S, found = T)))
+
+# The inner restore, ungated, which the door above and the simulation's door
+# body call (D-318, D-319), in `init!`'s shape: the state copied back, the
+# restored boundary settled through `settled!(hooks)`, whose return nothing
+# reads here, and the status written `:consistent` last.
+function _restore_state!(model::Model, model_state::ModelState; hooks::FrameHooks = NoHooks())
+    _restore_state!(model.exec, model_state)
     settled!(hooks)                   # the restored boundary's snapshot (§11.2, §12.6)
     @atomic :release model.status = :consistent
     nothing

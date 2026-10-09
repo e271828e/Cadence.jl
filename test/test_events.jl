@@ -159,7 +159,7 @@ function test_events()
         step!(sim; frames = 3)                       # fired at frame 1, holding since
         @test modes(sim, "c") === (state = :fired, count = 1)
         cp = checkpoint(sim)
-        @test cp.prior == [true]
+        @test cp.state.prior == [true]
 
         # The restore resets no prior, so the next boundary sees no edge.
         twin = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)

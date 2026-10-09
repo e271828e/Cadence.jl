@@ -16,6 +16,20 @@ The origin and the stride are both `Float64`, so the top is one too, and the
 clock write below converts it into the deployment's scalar (D-260)."""
 _grid_time(model::Model, k::Int) = model.exec.clock.t₀ + k * model.deployment.h
 
+# Whole frames from the origin `t₀` until the grid boundary `t₀ + k·h` first
+# reaches the bound `t` (§12.4, §12.6), and its floor sibling, the last
+# boundary at or before `t`. Both carry a slack of a few ulps in frame units,
+# at the larger of `|t|` and `|t₀|`, since `t₀ + k·h` and `t - t₀` both round
+# at that magnitude. `0.3/0.1` is `2.9999999999999996`, and at `t₀ = -0.3` the
+# loop writes frame 3's time as `5.6e-17`, whose own ulps absorb none of that.
+# `t` and `t₀` are any reals; the step is `Float64` (D-260).
+_frame_slack(t::Real, t₀::Real, h::Float64) = 4 * eps(max(abs(t), abs(t₀))) / h
+function _frames_to(t::Real, t₀::Real, h::Float64)
+    isinf(t) && return typemax(Int)
+    max(0, ceil(Int, (t - t₀) / h - _frame_slack(t, t₀, h)))
+end
+_frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, t₀, h))
+
 """
     frame!(model, k, hooks = NoHooks()) → Bool
 

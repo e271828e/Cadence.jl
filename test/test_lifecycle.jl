@@ -190,7 +190,7 @@ function test_lifecycle()
         other = Simulation(deployment)
         init!(other, fragment(u = (ref = 0.0,)))
         cp = checkpoint(other)
-        d = carried(@test_throws DiagnosticError{ArgumentInvalid} _restore_state!(model, cp))
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} restore!(model, cp.state))
         @test d.reason === :claimed && d.call === :restore! && lifecycle(sim) === :built
         # The simulation's own doors pass the gate.
         init!(sim, fragment(u = (ref = 0.0,)))

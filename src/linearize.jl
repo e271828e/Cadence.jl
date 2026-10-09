@@ -130,7 +130,7 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
     legal = about === nothing ? [:initialized, :stopped] : collect(STOPPED_SIM_LEGAL)
     status in legal ||
         throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = status, legal = legal)))
-    cp = about === nothing ? checkpoint(sim) : nothing
+    operating_point = about === nothing ? checkpoint(sim).state : nothing
     build = sim.model.deployment.build
     T = ForwardDiff.Dual{LinearizeTag,Float64,width}
     (x_entries, u_entries, y_entries) = _resolve_taps(tap_set, build, T)
@@ -138,7 +138,7 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
     # --- the nominal half (D-213) ------------------------------------------------
     nominal_exec = _scratch(sim, Float64).exec
     if about === nothing
-        _restore_state!(nominal_exec, cp)            # the held cells are the frozen tier's (D-274)
+        _restore_state!(nominal_exec, operating_point)   # the held cells are the frozen tier's (D-274)
     else
         t = Float64(something(t0, 0.0))
         _set_clock!(nominal_exec, t, t)
@@ -152,8 +152,8 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
     act = activation(build, T)
     seeded_exec = _scratch(sim, T).exec
     if about === nothing
-        copyto!(seeded_exec.xbuf, cp.x)              # zero partials throughout
-        _restore_stores!(seeded_exec, cp)
+        copyto!(seeded_exec.xbuf, operating_point.x)   # zero partials throughout
+        _restore_stores!(seeded_exec, operating_point)
         # each root input converted to its seeded cell's type, as an authored
         # value is at resolution (conditions.jl)
         for face in build.structure.root_inputs
@@ -161,7 +161,7 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
             scatter_cell!(seeded_exec.store, addr, convert(_port_type(addr),
                 gather_cell(nominal_exec.store, nominal_exec.act.layout.addr[("", face)])))
         end
-        _set_clock!(seeded_exec, cp.t, cp.t₀)
+        _set_clock!(seeded_exec, operating_point.t, operating_point.t₀)
     else
         _set_clock!(seeded_exec, t, t)
         apply!(seeded_exec, resolve_condition(about, build, T))
