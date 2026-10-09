@@ -3773,12 +3773,13 @@ produced any error throws before the next begins ([§13.1][s13-1]).
 | the nominal evaluation | `Structure` | [`Outputs`](#g-outputs), [`Events`](#g-events), the nominal `Float64` [activation](#g-activation) | every user function once, at `Float64` ([§9.3][s9-3]) |
 | activation at `T` | `Structure`, `Outputs`, the nominal activation, a scalar `T` | `Activation{T}` | the continuous [tier](#g-tier)'s functions at `T` |
 | deployment | the `Build`, the grid parameters | [`Deployment`](#g-deployment) with its [`Schedule`](#g-schedule) | none |
-| materialization | the `Deployment`, a scalar `T` | `Simulation{T}` | none |
+| materialization | the `Deployment`, a scalar `T` | [`Model{T}`](#g-model) | none |
+| the simulation | a `Model{Float64}` | `Simulation` | none |
 
 The first three are the build, and `build(world)` runs them. The
-[`Build`](#g-build) bundles their products ([§9.2][s9-2]). The last two are
-the `Deployment` constructor and the `Simulation` constructor, both in
-[§9.2][s9-2].
+[`Build`](#g-build) bundles their products ([§9.2][s9-2]). The last three are
+the `Deployment` constructor, the `Model` constructor and the `Simulation`
+constructor, all in [§9.2][s9-2].
 
 #### The structure step
 
@@ -3952,10 +3953,12 @@ The build's three steps ([§9.1][s9-1]) leave their products on a
 [`Build`](#g-build). Deploying a build at grid parameters leaves a second
 artifact, the [`Deployment`](#g-deployment) (the scalar-free artifact the grid
 parameters fix). The `Deployment` carries the [`Schedule`](#g-schedule) (the
-typed per-component `(D, Φ, Δt)` tick table). A `Simulation` then materializes
-a `Deployment` at a scalar type. This section states what each artifact holds,
-how a `Deployment` binds, how each artifact prints, how a `Deployment` explains
-its grid, and where the warnings raised on the way live.
+typed per-component `(D, Φ, Δt)` tick table). A [`Model`](#g-model) (the
+deployment and its executor at one scalar) then materializes a `Deployment` at
+a scalar type, and a `Simulation` runs a `Model{Float64}`. This section states
+what each artifact holds, how a `Deployment` binds, how each artifact prints,
+how a `Deployment` explains its grid, and where the warnings raised on the way
+live.
 
 #### The `Build`
 
@@ -3971,14 +3974,21 @@ the structure step and the nominal evaluation ([§9.1][s9-1]).
 
 **Deploying and materializing are two steps**, with two sugar forms over them
 ([D-254][d-254]). The `Deployment` constructor (below) is the first step.
-The `Simulation` constructor has three forms, the materialization step and the
-two sugar forms:
+The `Model` constructor is the materialization step, and the `Simulation`
+constructor runs its product. The two sugar forms are `Simulation`'s:
 
 ```julia
-Simulation(deployment, T)   # materializes a deployment at a scalar type
-Simulation(build; kw...)    # composes the two steps
+Model(deployment, T)        # materializes a deployment at a scalar type
+Simulation(model)           # runs a Model{Float64}
+Simulation(build; kw...)    # composes the steps through a Float64 model
 Simulation(world; kw...)    # calls build first
 ```
+
+**A `Simulation` runs a `Model{Float64}` and nothing else** ([D-317][d-317]). The
+nominal activation is the only one that runs in real time ([§9.4][s9-4]), so the
+constraint sits as a type on the one constructor that owns a loop. A `Model`
+at another scalar is a service's scratch, written to, evaluated and stepped
+frame by frame with no ticks and no events.
 
 The artifact deployed is the very build that CI checked, that an acceptance
 test targeted, and that a [face](#g-face)-route table was printed from, never
@@ -4048,7 +4058,8 @@ the grid parameters. It binds the grid parameters, the algorithm and the three
 event parameters, runs harmonic-grid validation, and builds the `Schedule`. The
 `Deployment` it returns holds the build, the grid parameters, the algorithm,
 the three event parameters, the `Schedule`, the grid diagnostics below and its
-own `warnings`. `Simulation` materializes it at a scalar type `T`. Two
+own `warnings`. `Model` materializes it at a scalar type `T`, and
+`Simulation` runs a `Model{Float64}`. Two
 `Deployment`s compare as values, which is what replay's header check reads
 ([§12.7][s12-7]).
 
@@ -4483,9 +4494,10 @@ activation is cached never changes a result** ([D-052][d-052]).
 
 **Every buffer set has exactly one owner** ([D-282][d-282]).
 
-- The `Simulation` owns its nominal activation's buffers. They are
-  materialized from the cached layouts at construction. The loop's
-  zero-allocation stepping runs on them.
+- A [`Model`](#g-model) (the deployment and its executor at one scalar) owns
+  its activation's buffers. They are materialized from the cached layouts
+  at construction. A `Simulation` owns its `Model{Float64}`, and the loop's
+  zero-allocation stepping runs on that model's buffers ([D-317][d-317]).
 - Every service invocation owns the scratch set it instantiates from those
   same layouts. [§14.8][s14-8] states this for `trim!`. It is the general rule,
   not one local to trim.
@@ -7161,8 +7173,10 @@ end of [boundary zero](#g-boundary-zero)**, after the first
 [snapshot](#g-snapshot) is published ([§12.6][s12-6], [D-274][d-274]). A
 [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
 value) holds the flat buffer `x`, the `s` and `m` stores, the whole signal
-table, the guard [priors](#g-prior), the clock in full and the fingerprint.
-The clock is `t`, the frame index, the boundary ordinal and `t₀`. The header
+table, the guard [priors](#g-prior), `t` and `t₀`, the frame and boundary
+counters, and the fingerprint. The executor's clock holds `t` and `t₀`, and
+the [run](#g-run) (the state one run owns) holds the frame index and the
+boundary ordinal ([D-317][d-317]). The header
 holds the stores and the [root-input](#g-root-input) cells as values, never
 the sparse authored overlay. Replay must survive edits to declared defaults,
 the primary-data doctrine ([D-038][d-038]).
@@ -7187,8 +7201,10 @@ rather than restores ([§12.7][s12-7]).
   advance ([§13.5][s13-5]), and only the terminating advance's policy explains the
   stop, so the [termination record](#g-termination-record) carries that one.
 
-**`Trace{T}` is that fixed header plus two append-only lists**, `schemas` and
-`batches`, and its length ([D-255][d-255]). The header is written once, by the door that
+**`Trace` is that fixed header plus two append-only lists**, `schemas` and
+`batches`, and its length ([D-255][d-255]). A trace records a `Simulation`,
+which runs only a `Model{Float64}`, so `Trace` takes no scalar parameter
+([D-317][d-317]). The header is written once, by the door that
 builds the run, and never again, which is what makes it an artifact. The lists
 grow in place, the batches at every drain and the schemas at every roster
 change. The length is the drain's count on the live trace, frozen into the value
@@ -7780,8 +7796,9 @@ are written at staging by whichever task stages (`OutOfClaimEntry`,
 `ClaimedFaceEntry` and `EntryTypeMismatch`, [§11.4][s11-4], on a
 [device](#g-device) task or through the harness writer, [D-200][d-200]).
 They are written by the device tasks (`MalformedDatum` from the author's loop
-body via `report!(handle, …)`, [§11.6][s11-6]), and by the loop itself
-(`ChatteringBudget`, `FiringBudget`, `DebtReanchor`, `UnboundedRun`).
+body via `report!(handle, …)`, [§11.6][s11-6]), by the loop itself
+(`DebtReanchor`, `UnboundedRun`), and by the frame the loop runs
+(`ChatteringBudget`, `FiringBudget`).
 They are written at `attach!` too, into the roster entry being created
 (`EmptyGreedyClaim`, [§11.3][s11-3]). `attach!` mutates the roster, so its
 warning lives in the roster's status rather than on an artifact
@@ -7795,8 +7812,12 @@ established, not one of its own.
 
 **One [diagnostic cell](#g-diagnostic-cell) per writer: one per rostered
 device, one for the harness writer, one for the loop itself
-([D-200][d-200]).** A device's [cell](#g-diagnostic-cell) and the loop's have
-a single writer, the same ownership argument as the
+([D-200][d-200]).** The [`Model`](#g-model) (the deployment and its
+executor at one scalar) owns one more. Its frame writes the chattering and
+firing-budget reports there, and the drain folds that cell into the loop's
+account beside the loop's own ([D-317][d-317]). A device's
+[cell](#g-diagnostic-cell), the loop's and the `Model`'s each have a single
+writer, the same ownership argument as the
 [staging cells](#g-staging-cell). There is no locking, no arbitration and no
 new primitive. The harness writer's cell is written from whichever task
 stages, exactly as its staging cell is, and the same CAS append arbitrates.
@@ -7944,10 +7965,12 @@ policy is what the caller declares for one advance ([§13.5][s13-5]); the stop
 word is what anyone can issue at any moment.
 
 **Beside pause, pace and `margin`, `Control` keeps the stop word, the
-lifecycle state, the wait and the shutdown tail's `join_timeout`**
-([§12.4][s12-4], [D-256][d-256]). A run's outcome is not a control surface, so
-`termination` belongs to the [`Run`](#g-run) (the state one run owns)
-([§12.6][s12-6], [D-255][d-255]) and not here. The control plane is what anyone may poke.
+running flag, the wait and the shutdown tail's `join_timeout`**
+([§12.4][s12-4], [D-256][d-256], [D-317][d-317]). The lifecycle state is not
+stored, and `lifecycle(sim)` derives it ([§12.6][s12-6]). A run's outcome is
+not a control surface, so `termination` belongs to the [`Run`](#g-run) (the
+state one run owns) ([§12.6][s12-6], [D-255][d-255]) and not here. The control
+plane is what anyone may poke.
 
 **Control is not staging, structurally.** Staged writes apply at
 [drains](#g-drain), and a paused loop drains nothing, so un-pause via staging
@@ -8191,9 +8214,10 @@ task or the loop itself ends first.
    point interruptible. The wrapper's `finally shutdown!(device)` is
    guaranteed on every exit path.
 5. **Join under the `join_timeout` cap.** The cap lives on `Control`, the
-   tail's own owner ([§12.1][s12-1], [D-256][d-256]). It is a materialization
-   keyword, a positive real in seconds of wall clock, defaulting to 5
-   ([Appendix B][sB]). A device task exceeding it is reported *by name*,
+   tail's own owner ([§12.1][s12-1], [D-256][d-256]). It is a keyword of the
+   `Simulation` constructor, a positive real in seconds of wall clock,
+   defaulting to 5 ([Appendix B][sB]). A device task exceeding it is reported
+   *by name*,
    through the [§12.2][s12-2] heartbeat. It is then abandoned with a
    `DeviceJoinTimeout` diagnostic ([Appendix C][sC]) rather than left to hang
    `run!`. The diagnostic is written to the loop's own cell, collected by the
@@ -8561,42 +8585,49 @@ thrown exception.
 
 ### 12.6 Run lifecycle and partial advance
 
-**[`Run{T}`](#g-run) is what one run owns** ([D-255][d-255], [D-260][d-260]).
-It is a mutable struct of four fields. Two are `const` and last the run's whole
+**[`Run`](#g-run) is what one run owns** ([D-255][d-255], [D-260][d-260], [D-317][d-317]).
+It is a mutable struct of six fields. Two are `const` and last the run's whole
 life, the log and the [trace](#g-trace) (`nothing` under the trace switch).
 The door that builds the run takes the four recording keywords, `trace`,
 `log`, `log_every` and `log_max` ([Appendix B][sB], [D-261][d-261]), so a
 run's recording is that door's declaration and the next door may declare
 otherwise.
-Two evolve during it, `feed`, the recording `replay!` attached or `nothing`,
-and `termination`. `init!`, `restore!` and `replay!` construct one, and
-nothing else rebinds it. `live!` and the halt at a recording's end write
-`feed`. The loop's tail writes `termination` once, and `closed(run)` is
-`termination !== nothing`.
-The origin `t₀` is not a run field. `init!` sets it on the clock before
-boundary zero ([§14.5][s14-5]), and a [checkpoint](#g-checkpoint) (the
-executor's state at a frame top, as one value) carries it with the clock
-([§11.5][s11-5], [D-273][d-273]). It is a `Float64`, as `h` and `t_end`
-are.
+Four evolve during it. `feed` is the recording `replay!` attached, or
+`nothing`. `termination` is the record the loop's tail writes. `frame` and
+`boundary` are the trajectory's counters, the frame index and the boundary
+ordinal. `init!`, `restore!` and `replay!` construct one, and nothing else
+rebinds it. `live!` and the halt at a recording's end write `feed`. The
+loop's tail writes `termination` once, and `closed(run)` is
+`termination !== nothing`. Each door sets the two counters as it builds the
+run, `init!` to zero and `restore!` and `replay!` to the checkpoint's, and
+the loop advances them ([D-317][d-317]).
+The origin `t₀` is not a run field. The executor's clock holds it beside `t`.
+`init!` sets it on the clock before boundary zero ([§14.5][s14-5]), and a
+[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+value) carries it with the clock ([§11.5][s11-5], [D-273][d-273]). It is a
+`Float64`, as `h` and `t_end` are.
 
-A `Simulation{T}` is constructed with a **placeholder run**, an empty log, no
+A `Simulation` is constructed with a **placeholder run**, an empty log, no
 trace, no feed and no termination, which `init!`, `restore!` and `replay!`
-replace ([D-255][d-255]). The field is always a `Run{T}` and never `nothing`, so every
+replace ([D-255][d-255]). The field is always a `Run` and never `nothing`, so every
 accessor has a run to read, and the lifecycle state below says whether that run
 ever started. The placeholder carries no configuration and no compiled state
 ([D-261][d-261]). `init!` allocates fresh objects rather than clearing them.
 
-**`Simulation` is a mutable struct of five fields**, the
-[deployment](#g-deployment) (the scalar-free artifact the grid parameters
-fix, carrying the build), the [executor](#g-executor), the run, the data
-plane and the [control plane](#g-control-plane) ([D-256][d-256]). Every other
-value belongs to one of the five. The build is reached through the
+**`Simulation` is a mutable struct of four fields**, the
+[`Model`](#g-model) (the deployment and its executor at one scalar), the run, the
+data plane and the [control plane](#g-control-plane) ([D-317][d-317]). The `Model`
+holds the [deployment](#g-deployment) (the scalar-free artifact the grid
+parameters fix, carrying the build), the [executor](#g-executor), its status
+and its diagnostic cell. Every other value belongs to one of the four
+([D-256][d-256]). The build is reached through the
 deployment, never held twice. The grid parameters, the [schedule](#g-schedule) (the typed
 per-component `(D, Φ, Δt)` tick table) and the event parameters are the
 deployment's ([§9.2][s9-2]). `chunk_size`, the stepper and the arrival buffers
 are the executor's. `join_timeout` is `Control`'s ([§12.1][s12-1]). The loop's
 [diagnostic cell](#g-diagnostic-cell), its account and the published holder
-are the plane's ([§11.8][s11-8]). The log and the trace are the run's. The
+are the plane's, and the frame's own cell is the `Model`'s ([§11.8][s11-8]).
+The log, the trace and the two counters are the run's. The
 stop policy, with its `t_end` and ignored requesters, is the advance's argument, and
 the [termination record](#g-termination-record) keeps the terminating one
 ([D-260][d-260]). The pacer's schedule and counters are `run!`'s own, created
@@ -8616,6 +8647,19 @@ returns the simulation to ([§13.4][s13-4]). **Initialized** means `init!`
 has completed boundary zero, the initialization boundary run as the ordinary
 macro-sequence with an empty integrate ([§14.5][s14-5]), or `restore!` or
 `replay!` has restored a checkpoint.
+
+**`lifecycle(sim)` derives the state rather than storing it** ([D-317][d-317]). It
+reads three facts, the control plane's running flag, the `Model`'s status
+and whether the run is closed. The status is `:built`, `:consistent` or
+`:inconsistent`, and only the `Model`'s own doors and catch sites write it.
+
+| running flag | `Model` status | run closed | state |
+|---|---|---|---|
+| set | any | any | running |
+| clear | `:built` | any | built |
+| clear | `:inconsistent` | any | errored |
+| clear | `:consistent` | no | initialized |
+| clear | `:consistent` | yes | stopped |
 
 Beside the state, the run carries an **[input mode](#g-input-mode)**,
 `:live` or `:replay`, read as `mode(sim)`. It is read off the run's `feed`:
@@ -9363,14 +9407,18 @@ The result is one splitter and one did-you-mean site.
 
 ### 13.4 Runtime failures: one catch site, an execution cursor
 
-**Where caught.** The loop wraps each execution of the [boundary](#g-boundary)
-macro-sequence (integrate → project → event iteration → [ticks](#g-tick) →
-publication) in a single `try`. It never wraps per stage or per
-[component](#g-component) ([D-059][d-059]). Framing information does not need
+**Where caught.** The frame of the [`Model`](#g-model) (the deployment and
+its executor at one scalar) wraps each execution of the
+[boundary](#g-boundary) macro-sequence (integrate → project → event
+iteration → [ticks](#g-tick) → publication) in a single `try`. It never
+wraps per stage or per [component](#g-component) ([D-059][d-059]). The loop
+wraps each frame in a `try` of its own, which decides the failure's
+disposition (below) and builds no carrier ([D-317][d-317]). Framing
+information does not need
 to be *caught* into existence. The [executor](#g-executor) (the compiled
 form of the stage [execution order](#g-execution-order)) maintains an
-**[execution cursor](#g-execution-cursor)**, a plain mutable field in the loop
-state recording where execution stands in the compiled order. The cursor records three facts. The first is the component path, an index into
+**[execution cursor](#g-execution-cursor)**, a plain mutable field of the
+executor recording where execution stands in the compiled order. The cursor records three facts. The first is the component path, an index into
 the execution order that [`Outputs`](#g-outputs) (the nominal evaluation's product, the port
 classes and the execution order) carries ([D-253][d-253]). The second is which function is running:
 `y_state`, `y_direct`, `x_deriv`, `s_update`, a [guard](#g-guard), a handler,
@@ -9383,7 +9431,7 @@ evaluations at interior RK stage points, the guard evaluations at ITP/Brent
 trial points, and the environment closures.
 
 ```julia
-# the cursor: one mutable field of the loop state, overwritten per dispatch
+# the cursor: one mutable field of the executor, overwritten per dispatch
 mutable struct ExecutionCursor
     …    # what it records, per the prose above: component path
          # (execution-order index), which function, and the boundary phase
@@ -9454,14 +9502,18 @@ step!(sim2; frames = 1)               # re-execute the failing frame, instrument
 ```
 
 **Boundary zero is caught too, under the service's disposition.** Boundary zero
-runs inside `init!`, a stopped-sim service, not inside the loop. Its
-macro-sequence executes the same user-code surfaces the loop's does, with the
-cursor maintained through them, so the service hosts the same catch. A throw
-inside boundary zero arrives as a `StepError` from the one constructor. Its
-frame comes from the cursor, its time is `t₀`, and the species rule applies. An
-`InterruptException` inside boundary zero is not model code failing, and it has
-no stop path to take in a service. The host therefore moves the lifecycle to
-`built` and lets it propagate raw. The pointer is `0`. A throw inside boundary
+runs inside `init!`, a stopped-sim service, not inside the loop. The
+simulation's `init!` calls `init!` on its `Model`, which runs boundary zero.
+Its macro-sequence executes the same user-code surfaces the frame's does,
+with the cursor maintained through them, so the `Model`'s `init!` hosts the
+same catch ([D-317][d-317]). A throw inside boundary zero arrives as a
+`StepError` from the one constructor. Its frame comes from the cursor, its
+time is `t₀`, and the species rule applies. Any throw inside boundary zero
+writes the `Model`'s status back to `:built`, which returns the simulation's
+lifecycle to `built` ([§12.6][s12-6]). An `InterruptException` inside
+boundary zero is not model code failing, and it has no stop path to take in a
+service. The host therefore lets it propagate raw, unwrapped. The pointer is
+`0`. A throw inside boundary
 zero leaves no trace and no [checkpoint](#g-checkpoint) (the executor's state
 at a frame top, as one value). The run `init!` opened stays
 behind, empty and with no trace header, and the run before it is gone. Nothing
@@ -9599,8 +9651,10 @@ loop through declared machinery.
   argument ([D-261][d-261]). The value lives as long as the
   call, and afterwards only on the termination record of the advance that
   ended the run ([§12.6][s12-6], [D-260][d-260]). A `t*` hit reaches the
-  loop as `frame!`'s return value, never as a field of the policy or of the
-  [execution cursor](#g-execution-cursor) ([D-261][d-261]).
+  loop as `frame!`'s return value, a `Bool` saying whether the frame was
+  abandoned, never as a field of the policy or of the
+  [execution cursor](#g-execution-cursor) ([D-261][d-261], [D-317][d-317]). The loop
+  then reads the requester off the snapshot it just published.
   After *every* published boundary the loop scans the `StopFlag` block of
   the snapshot it just published, in roster order. Grid boundaries, `t*`
   ([§10.4][s10-4]) and [boundary zero](#g-boundary-zero) ([§14.5][s14-5]) all count. The first
@@ -10565,7 +10619,8 @@ follow one by one.
   [harmonic grid](#g-harmonic-grid) (every discrete period an integer multiple
   of `Δt_base`) anchors at whatever `t₀` boundary zero runs at. Both
   init-service entry points carry the argument, with the same default. They
-  are `init!(sim, condition; t0)` and `trim!`'s commit
+  are `init!(model, condition; t0)`, which the simulation's
+  `init!(sim, condition; t0)` forwards to, and `trim!`'s commit
   (`trim!(sim, problem; baseline, t0, backend)`, [§14.8][s14-8]). Conditions
   are time-free. Nothing after boundary zero sets the origin. A restore
   inherits the clock and takes no `t0` ([D-273][d-273]).
@@ -11729,7 +11784,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
-  | `algorithm` | `RK4` | the stepper, selected by type here and materialized against the state buffer at `Simulation` construction ([D-227][d-227]) | [§10.2][s10-2] |
+  | `algorithm` | `RK4` | the stepper, selected by type here and materialized against the state buffer at `Model` construction ([D-227][d-227]) | [§10.2][s10-2] |
   | `h` | — | required. A domain rate is not a framework default | [§10.2][s10-2] |
   | `N_base` | `1` | steps per base tick. Absent the `Δt_base` keyword, the `N_base·h` product is the base tick period (the default path). Given it, `N_base` is instead derived and validated an integer ≥ 1 | [§9.2][s9-2] |
   | `Δt_base` | `nothing` | the base tick period as a `Rational`, `Period` or `Hz` value, or `:derive` to request GCD derivation (all-anchored models only); one of three binding sources | [§9.2][s9-2] |
@@ -11759,14 +11814,21 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   (`DeploymentInvalid`) and carried on the `Deployment` the trace header
   records, where replay compares the two deployments as values
   ([§11.5][s11-5], [§12.7][s12-7]).
-- `Simulation(deployment, T; join_timeout = 5.0, chunk_size = 16) →
-  Simulation{T}`. Materializes a deployment at a scalar type, allocating the
-  buffers and the stopped-sim services.
+- `Model(deployment, T = Float64; chunk_size = 16) → Model{T}`. Materializes a
+  deployment at a scalar type, allocating the buffers ([§9.2][s9-2], [D-317][d-317]).
+
+  | keyword | default | meaning | owning section |
+  |---|---|---|---|
+  | `chunk_size` | `16` | the executor's unroll width, a performance knob that never moves the trajectory | [§9.7][s9-7], [§12.6][s12-6] |
+
+- `Simulation(model; join_timeout = 5.0) → Simulation`. Runs a
+  `Model{Float64}` beside the data plane, the control plane and the run, and
+  offers the stopped-sim services. A `Model` at another scalar is a
+  `MethodError` ([§9.2][s9-2]).
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
   | `join_timeout` | `5.0` | the shutdown tail's join cap, in seconds of wall clock | [§12.4][s12-4] |
-  | `chunk_size` | `16` | the executor's unroll width, a performance knob that never moves the trajectory | [§9.7][s9-7], [§12.6][s12-6] |
 
   `join_timeout`, the shutdown tail's join cap, lives on `Control` rather than
   the deployment ([§12.1][s12-1]). It moves no trajectory, so replay neither
@@ -11776,7 +11838,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 - `Simulation(build; kw...)` and `Simulation(world; kw...)`. The two
   convenience forms. The first composes the `Deployment` constructor with the
   materialization, and the second calls `build` first. They take the
-  deployment keywords and the materialization keywords above ([§9.2][s9-2]).
+  deployment keywords and the `Model` and `Simulation` keywords above, and
+  build a `Model{Float64}` ([§9.2][s9-2]).
 - `attach!(sim, dev::AbstractDevice, binding::AbstractBinding; should_abort = false)`.
   The roots are mandatory, and the signature is the gate.
 
@@ -11899,10 +11962,11 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   recorded verbatim. Non-convergence reports, never throws ([§14.7][s14-7], [§14.8][s14-8]).
 - `checkpoint(sim) → Checkpoint`. The executor's state at a frame top as one
   value: the flat buffer, the `s` and `m` stores, the whole signal table, the
-  guard priors, the clock in full and the fingerprint. Legal in `initialized`
-  and `stopped`, refused after a `t*` stop and after an abandoned frame
-  (`CheckpointMidFrame`). A checkpoint is not a condition and has no algebra
-  ([§12.6][s12-6], [§14.1][s14-1], [D-274][d-274]).
+  guard priors, `t` and `t₀`, the frame and boundary counters, and the
+  fingerprint. Legal in `initialized` and `stopped`, refused after a `t*`
+  stop and after an abandoned frame (`CheckpointMidFrame`). A checkpoint is
+  not a condition and has no algebra ([§12.6][s12-6], [§14.1][s14-1],
+  [D-274][d-274]).
 - `restore!(sim, cp; trace = true, log = true, log_every = 1,
   log_max = 65536)`. A door beside `init!` and `replay!`, legal where `init!`
   is. It checks the checkpoint's fingerprint (`CheckpointMismatch`), copies
@@ -12279,8 +12343,9 @@ activation):
   parameter is one of `h`, `N_base`, `Δt_base`, algorithm,
   `localization_tol`, `localization_budget`, `firing_budget`, the
   harmonic-grid relation, or a non-dividing anchor period or offset (the
-  anchor named with its declaring scope and key). The materialization's
-  keywords validate under `ArgumentInvalid` ([Appendix B][sB]).
+  anchor named with its declaring scope and key). The `Model` and
+  `Simulation` constructors' keywords validate under `ArgumentInvalid`
+  ([Appendix B][sB]).
 - **`AttachUnknownFace`** ([§11.3][s11-3]). Error · service · fail-fast. The
   device (by type, since its roster id is assigned only at admission),
   binding entry, face name, the root input-face list.
@@ -12388,7 +12453,7 @@ activation):
 - **`ArgumentInvalid`** ([§10.5][s10-5], [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4],
   [§12.6][s12-6], [§14.7][s14-7]). Error · service, or build in a `sample_times`
   declaration · fail-fast, but collected over a `TableBinding`'s entry table
-  and over the materialization's keywords. The call
+  and over the `Model` and `Simulation` constructors' keywords. The call
   (`Simulation`, `run!`, `step!`, `replay!`, `pace!`, `margin!`, `trim!`,
   `TableBinding`, a period constructor), the argument, the value in hand,
   the violated constraint. The twin of
@@ -12980,8 +13045,8 @@ from superlinear in body size to linear in entry count ([§9.7][s9-7]).
 <a id="g-deployment"></a>**`Deployment`** — the artifact the grid parameters fix: the build plus `h`,
 `N_base`, `Δt_base`, the algorithm and the three event parameters, carrying
 the `Schedule`, the grid diagnostics and its own `warnings`. It is
-scalar-free, it compares as a value, and a `Simulation` materializes it at a
-scalar type ([§9.2][s9-2], [D-254][d-254]).
+scalar-free, it compares as a value, and a `Model` materializes it at a
+scalar type ([§9.2][s9-2], [D-254][d-254], [D-317][d-317]).
 
 <a id="g-events"></a>**`Events`** — the nominal evaluation's other product, built last, after the nominal
 stage probes: per component the event names, their detection policies and the
@@ -13020,6 +13085,13 @@ interior and tick-indexed boundary), `ticks`, plus per-event guards and
 handlers and per-component `x_projection`. Its one promise is identity
 with what the loop runs, which is what makes the allocation assertions
 ([§7.5][s7-5]) honest ([§9.7][s9-7]).
+
+<a id="g-model"></a>**`Model`** — a deployment materialized at one scalar type: the deployment,
+its executor, a status of `:built`, `:consistent` or `:inconsistent`, and the
+diagnostic cell its frame writes. It can be written to, evaluated and stepped
+frame by frame. A `Simulation` runs only a `Model{Float64}`, and a `Model` at
+another scalar is a service's scratch, with no ticks and no events
+([§9.2][s9-2], [§12.6][s12-6], [D-317][d-317]).
 
 <a id="g-nominal"></a>**nominal** — the `Float64` activation, and of a declaration its `Float64`
 face (for a continuous producer's output declaration, its evaluation at
@@ -13118,7 +13190,7 @@ per-face ZOH). Its outbound mirror is newest-wins snapshot delivery
 ([§11.4][s11-4], [§12.3][s12-3]).
 
 <a id="g-control-plane"></a>**control plane** — the separate few-word atomic surface carrying pause,
-un-pause, pace, `margin`, the stop word, the lifecycle state, the wait and
+un-pause, pace, `margin`, the stop word, the running flag, the wait and
 `join_timeout`, consulted at frame top, a change during a wait landing at
 the next one. A run's outcome is the `Run`'s, not its. It is structurally not
 staging, since a paused loop drains nothing ([§12.1][s12-1]).
@@ -13135,9 +13207,9 @@ output-only are degenerate uses, and the GUI is an ordinary device
 ([§11.6][s11-6]).
 
 <a id="g-diagnostic-cell"></a>**diagnostic cell** — the per-writer cell each rostered device, the harness
-writer and the loop itself own for runtime diagnostics and liveness. It
-holds a bounded ring (capacity 16) of diagnostic values plus per-kind
-suppressed counts, the bound being the rate limit itself, and an atomic
+writer, the loop itself and the `Model` own for runtime diagnostics and
+liveness. It holds a bounded ring (capacity 16) of diagnostic values plus
+per-kind suppressed counts, the bound being the rate limit itself, and an atomic
 heartbeat timestamp. The loop takes it with `atomicswap` at the frame-top
 drain and freezes it into the published status ([§11.8][s11-8]).
 
@@ -13209,11 +13281,12 @@ once at `run!`, since `attach!`/`detach!` are stopped-sim operations
 ([§11.3][s11-3]).
 
 <a id="g-run"></a>**`Run`** — the state one run owns, a `Simulation` field beside the control
-plane. Two `const` fields, the log and the trace; two writable ones, `feed`
-and `termination`. `init!`, `restore!` and `replay!` construct one, the
-flips write `feed`, the loop's tail writes `termination` once, and
+plane. Two `const` fields, the log and the trace; four writable ones, `feed`,
+`termination` and the trajectory's counters `frame` and `boundary`. `init!`,
+`restore!` and `replay!` construct one, the flips write `feed`, the loop
+advances the counters, the loop's tail writes `termination` once, and
 `closed(run)` is `termination !== nothing` ([§12.6][s12-6], [D-255][d-255],
-[D-260][d-260]).
+[D-260][d-260], [D-317][d-317]).
 
 <a id="g-scenario-component"></a>**scenario component** — the home of a sim-time script under the mid-run
 mutation doctrine: an ordinary periodic discrete component executed
@@ -13257,10 +13330,11 @@ pass ([§11.7][s11-7]).
 requester paths it ignores. `run!`, `replay!` and `step!` build
 and validate it per call and pass it to the loop, an ignore mask (one
 `Bool` per requester) beside it as the loop's own argument; afterwards only
-the termination record keeps one. A `t*` hit is `frame!`'s return value.
+the termination record keeps one. A `t*` hit is `frame!`'s `Bool` return,
+and the loop reads the requester off the snapshot it just published.
 `ControlRequestedStop` is outside it, since the policy is what the caller
 declares and the stop word is what anyone can issue ([§13.5][s13-5],
-[D-255][d-255], [D-260][d-260], [D-316][d-316]).
+[D-255][d-255], [D-260][d-260], [D-316][d-316], [D-317][d-317]).
 
 <a id="g-unattended-run"></a>**unattended run** — a run with empty staging and no snapshot readers. It is
 the same loop, fully synchronous on the calling task, rethrowing after the
@@ -13278,9 +13352,9 @@ unclaimed complement. It is static per run and enforced entirely at staging,
 <a id="g-checkpoint"></a>**checkpoint** — the executor's state at a frame top, taken by
 `checkpoint(sim)` and by `init!`, restored by `restore!` with no boundary
 zero; the trace's header. It holds the flat buffer, the `s` and `m` stores,
-the whole signal table, the guard priors, the clock in full and the
-fingerprint. It is not a condition and has no algebra ([§11.5][s11-5],
-[§12.6][s12-6], [D-274][d-274]).
+the whole signal table, the guard priors, `t` and `t₀`, the frame and
+boundary counters, and the fingerprint. It is not a condition and has no
+algebra ([§11.5][s11-5], [§12.6][s12-6], [D-274][d-274], [D-317][d-317]).
 
 <a id="g-decimation"></a>**decimation** — the log's keep-every-kth retention policy (`log_every`),
 admissible on the log alone because it is derived data. Every boundary still
@@ -13815,6 +13889,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-314]: decisions.md#d-314--rename-inner_wires-to-local_wires
 [d-315]: decisions.md#d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
 [d-316]: decisions.md#d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
+[d-317]: decisions.md#d-317--split-the-model-from-the-simulation-and-run-only-the-nominal-one
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

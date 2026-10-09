@@ -341,6 +341,7 @@ were derived.
 | [D-314][d-314] | Rename `inner_wires` to `local_wires` | ratified |
 | [D-315][d-315] | Hold the declared wiring on `Structure` and resolve it by function | ratified |
 | [D-316][d-316] | Stop requests are structural: a `StopFlag` port ends the run unless the advance ignores it | ratified |
+| [D-317][d-317] | Split the `Model` from the `Simulation`, and run only the nominal one | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -9766,6 +9767,10 @@ one deployment backs many activations at different `T`. The convenience
 constructors stay because every existing call site deploys and materializes
 in one call, and nothing in the artifact is lost by composing.
 
+Annotation (2026-10-09): amended by [D-317][d-317]. A `Model` materializes a
+deployment at `T`, and a `Simulation` runs a `Model{Float64}`. The two
+convenience constructors compose through a `Float64` model.
+
 **Rejected.**
 - *Binding inside the `Simulation` constructor, as today:* the products
   have no type, cannot be compared or printed on their own, and the
@@ -9903,6 +9908,12 @@ buffers because it is the one thing that writes them. `join_timeout` is the
 shutdown tail's parameter and the tail runs on `Control`. The loop's
 diagnostic cell and account are one more writer's, and the plane holds the
 writers. The five that remain are the five things a simulation is.
+
+Annotation (2026-10-09): amended by [D-317][d-317]. `Simulation` keeps four fields,
+the model, the run, the plane and the control, and the model holds the
+deployment and the executor. The model also owns a diagnostic cell for its
+frame, which the drain folds into the loop's account beside the plane's
+loop cell. `chunk_size` follows its field to the `Model` constructors.
 
 **Rejected.**
 - *Leaving the fields flat:* every reader of a grid parameter or a buffer
@@ -11848,6 +11859,9 @@ cached.
 stores, warn-but-assign reborn. Single ownership is also what lets the `Build`
 back any number of `Simulation`s concurrently ([D-135][d-135]).
 
+Annotation (2026-10-09): amended by [D-317][d-317]. The `Model` owns its
+activation's buffers, and a `Simulation` owns its `Model{Float64}`.
+
 **Rejected.**
 - *Cached shared buffers:* [D-070][d-070]'s aliasing — warn-but-assign reborn — and it
   makes the `Build` mutable in exactly the way multi-`Simulation` sharing
@@ -13448,6 +13462,164 @@ framework never will.
   `Blocks`, which is included last, and a reason confined to one block type
   would leave every direct publisher without one.
 
+
+### D-317 — Split the `Model` from the `Simulation`, and run only the nominal one
+
+**Status.** ratified
+
+**Position.** A `Model{T}` is a deployment materialized at one scalar, the
+`Deployment` and its `Executor`, and a `Simulation` runs a `Model{Float64}`
+beside the data plane, the control plane and the run.
+
+- `Model{T}` holds the deployment, the executor, its status and its
+  diagnostic cell. `Simulation` is a mutable struct of four fields, the
+  model, the run, the data plane and the control plane. Every field of each
+  type is used by every instance of it.
+- Only a `Model{Float64}` is run, and the rule is a type on the one
+  constructor that owns a loop. `Simulation(model::Model{Float64};
+  join_timeout = 5.0)` refuses a model at any other scalar as a
+  `MethodError`, and `Simulation`, `Run`, `Trace` and `TerminationRecord`
+  lose their scalar parameter. `Model(deployment, T = Float64; chunk_size =
+  16)` is the materialization, and `Simulation(deployment; …)`,
+  `Simulation(build; …)` and `Simulation(root; …)` compose through a
+  `Float64` model. `_frozen` and the event compile guard in `build.jl` stay
+  as they are, and no `AbstractFloat` heuristic exists anywhere.
+- A `Model` at another scalar is public, and it is a service's scratch. It
+  can be written to, evaluated and stepped frame by frame, with no ticks and
+  no events. Activations stay cached on the `Build` by scalar type, and
+  executors are instantiated per use and never cached ([D-282][d-282]).
+- The clock keeps `t` and `t₀` on the executor, and `init!` on the model
+  sets both. The frame index and the boundary ordinal are the run's
+  counters. Every door sets them as it builds the run, the loop advances
+  them, and every snapshot publishes them.
+- The model owns the frame. `frame!(model, k, hooks) → Bool` runs
+  `frame_top!(hooks)` before it touches any state and `settled!(hooks)` at
+  every settled boundary, `t*` boundaries and the frame top's included. A
+  `true` from `settled!` abandons the frame's remainder and is `frame!`'s
+  return. The hooks are one `FrameHooks` struct with concrete fields, built
+  once per advance, and `NoHooks` does nothing and returns `false`. `init!`
+  on the model takes the hooks too, so boundary zero publishes through
+  `settled!`. The frame's chattering and firing-budget reports go to the
+  model's diagnostic cell, and the drain folds it into the loop's account
+  beside the loop's own cell.
+- The execution cursor is the model's. It stays on the executor, and
+  `frame!` writes every phase, the drain's included, before `frame_top!`
+  runs.
+- The model's status is `:built`, `:consistent` or `:inconsistent`, written
+  only by the model's own doors and catch sites. `Control` holds a running
+  flag in place of the lifecycle state, and `lifecycle(sim)` derives the
+  five states from the flag, the status and whether the run is closed. A
+  set flag reads `running`. With the flag clear, `:built` reads `built`,
+  `:inconsistent` reads `errored`, and `:consistent` reads `initialized`
+  while the run is open and `stopped` once it is closed.
+- The model's `frame!` and `init!` host the catch and build the
+  `StepError` through the one constructor. A throw inside a frame writes
+  `:inconsistent`, and a throw inside boundary zero writes `:built`. An
+  `InterruptException` is never wrapped and writes no status inside a
+  frame. The simulation's catch keeps the disposition alone, the mask, the
+  interrupt arms and the termination.
+- The model's doors are `init!`, `apply!`, `evaluate!`, `integrate!`,
+  `boundary!`, `offtick_boundary!`, `boundary_zero!`, `frame!`,
+  `phase_bodies`, `warnings`, `port`, `state` and `modes`. The simulation's
+  are `run!`, `step!`, `replay!`, `restore!`, `checkpoint`, `live!`, the
+  devices, the recording and its accessors. `init!` on a simulation
+  forwards to the model's after the operational gate and does the loop's
+  bookkeeping around it. The seven model doors a simulation already had
+  keep a forwarding method on it, and no model door carries a gate.
+
+Supersedes [D-254][d-254]'s "`Simulation` materializes a deployment at `T`" clause;
+[D-255][d-255]'s clause keeping the lifecycle on `Control`; [D-256][d-256]'s five-field
+roster and its placement of the loop's diagnostic cell on the plane alone;
+[D-260][d-260]'s four-field `Run`; [D-261][d-261]'s clause typing a `t*` stop hit as a face or
+`nothing`, and its clause keeping `chunk_size` on `Simulation(deployment,
+T)`; and D-282's "the `Simulation` owns its nominal activation's buffers"
+bullet. The materialization, the buffers and the frame's cell are now the
+`Model`'s, and the two counters the run's. [D-260][d-260]'s clause that the clock
+holds `t₀` stands.
+
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§9.4][s9-4], [§11.5][s11-5], [§11.8][s11-8], [§12.1][s12-1], [§12.6][s12-6], [§13.4][s13-4], [§13.5][s13-5], [§14.5][s14-5], [Appendix C][sC]
+
+**Rationale.** A `Simulation` built at any scalar other than `Float64` ran
+without discrete ticks and without state events. Two rules in `build.jl` do
+it. `_frozen` gates a discrete component off at every non-`Float64` scalar,
+and the event system compiles only under `T === Float64`. Both rules are
+correct, since they transcribe [§9.4][s9-4] and the glossary's `nominal`. The
+`Float64` activation is the only one that runs in real time, and every
+other activation evaluates the model at a frozen instant. A `Dual`
+simulation stepped through `run!` was that evaluation, and the suite
+exercised it on purpose. The defect was that `Simulation(deployment,
+Float32)` was accepted, so a request that reads as a precision choice was
+answered with a frozen-instant evaluator, silently.
+
+The deeper defect was that `Simulation` fused two things. The model's
+structure and behaviour lived in the deployment and the executor, and the
+runtime that steps it through time and talks to devices lived in the plane,
+the control and the run. The stopped-sim services and `init!` need only the
+first pair. `apply!` on a simulation was `apply!` on its executor,
+`boundary_zero!` read the executor and nothing else, and `port`, `state`
+and `modes` read the executor and the build. `trim!`'s `_scratch` already
+built the pair anonymously, as `compile(build, activation, schedule)` with
+no plane, control or run around it. A `Dual` simulation therefore allocated
+a data plane, a control block and a placeholder run it could never use, and
+exposed a loop whose semantics at that scalar were an accident of
+genericity. Naming the pair puts the scalar rule on the one constructor
+that owns a loop, as a type.
+
+The model owns the frame because a hybrid trajectory is defined by where
+its events fire. The `t*` boundaries are model behaviour, and whether
+anyone publishes them is the runtime's business. The frame computes its
+target as `t₀ + k·h`, so the model needs `t₀`. The origin is time, not a
+count, and it stays on the clock beside `t`. The frame index and the
+boundary ordinal are counts the trajectory owns, reset at every door, so
+they are the run's. The model's `frame!` and `init!` host the catch because
+they hold every fact a `StepError` carries, the cursor, `t`, the entry
+boundary `k - 1` and the host. The status takes three values because a
+model never initialized and one whose sequence threw are unusable for
+different reasons, which `lifecycle(sim)` reports as `built` and `errored`.
+With `frame!` writing the drain phase and its `comp = 0; fn = :none` reset,
+no writer of the cursor remains outside the model.
+
+**Rejected.**
+- *Widening the two `build.jl` rules to `AbstractFloat`:* an unspecified
+  third mode, the continuous tier at `Float32` beside a discrete tier
+  pinned at `Float64` ([§9.4][s9-4], [D-263][d-263]), with [D-053][d-053]'s embedding rounding at
+  every wire and nothing in CI pinning any of it.
+- *A type heuristic refusing `AbstractFloat` scalars at the `Simulation`
+  door:* it refuses the symptom and keeps the fusion, so a `Dual`
+  simulation would still carry a plane, a control and a run it cannot use.
+- *Refusing only the advance doors at a non-nominal simulation:* the same
+  fusion, and a lifecycle whose legal doors depend on the scalar.
+- *`t₀` on the `Deployment`:* the deployment is a value shared by many
+  simulations and compared as one at replay and restore. The origin is
+  chosen per trajectory at every door, two runs of one deployment start at
+  different origins, and replay checks the header's `t₀` as a clock
+  mismatch, not a deployment one.
+- *`t₀` on the run, with the counters:* the frame computes its target from
+  `t₀` and the model owns the frame, so a standalone model would need a run
+  to step.
+- *The model rethrowing raw and the simulation wrapping:* a standalone
+  model's failure would reach its caller without the cursor frame, and the
+  facts the wrap reads are the frame's own.
+- *Ad hoc closures as hooks:* a reassigned capture becomes a `Core.Box` and
+  an abstract captured field makes the return abstract, either one turning
+  the hook call into dynamic dispatch. A struct with concrete fields
+  specializes `frame!` as a closure would.
+- *A boolean model status:* it cannot tell a model never initialized from
+  one whose sequence threw.
+- *Two cursors, one the model's and one the loop's:* once `frame!` writes
+  the drain phase no foreign writer remains, so a second cursor has nothing
+  to record.
+- *Absorbing the drain into the frame:* the writers' cells, the trace record
+  and the replay feed are the simulation's, and a model that drained them
+  would hold the runtime again. The top hook keeps the ordering rule that a
+  batch taken at the top of frame `k` is recorded at `k`, because the run's
+  counter advances where the simulation chooses.
+- *Caching executors:* a cached buffer set has two owners, which is [D-282][d-282]'s
+  aliasing.
+- *Superseded position — the five-field `Simulation` ([D-256][d-256]):* it held the
+  model's pair beside the runtime, so every simulation carried a loop
+  whatever its scalar.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -13765,6 +13937,7 @@ framework never will.
 [d-314]: #d-314--rename-inner_wires-to-local_wires
 [d-315]: #d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
 [d-316]: #d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
+[d-317]: #d-317--split-the-model-from-the-simulation-and-run-only-the-nominal-one
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

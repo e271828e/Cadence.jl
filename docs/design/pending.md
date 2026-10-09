@@ -13,17 +13,29 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The model split**, three increments in working order, ruled 2026-10-09:
-  a `Model{T}` holding the `Deployment` and the `Executor`, wrapped by the
-  `Simulation` beside the plane, the control and the run; the clock dissolved
-  into a time cell on the executor and a trajectory cursor on the run; the
-  model owning the frame with a top hook and a boundary hook; a three-valued
-  model status under a derived `lifecycle(sim)`; the services taking a
-  `Model{Float64}`; and the spec's "model" vocabulary moved off the component
-  tree. It closes the silent frozen run at a non-`Float64` scalar by type:
-  only a `Model{Float64}` can be run. The register and the staging are
-  `briefs/roadmap_model_split.md`; it touches §9.2, §11.5, §11.8, §12.1,
-  §12.6, §13.4, §14.8 and D-254, D-256, D-260, D-282.
+- **The model split**, ruled 2026-10-09 in D-317, three increments in
+  working order. It closes the silent frozen run at a non-`Float64` scalar
+  by type, since only a `Model{Float64}` can be run. Increment 70 delivers
+  D-317 in four stages, and the code owes it each stage's part.
+  - Stage 1, the split. `Model{T,E}` holds the deployment and the executor,
+    `Simulation` wraps one, and the simulation's model doors forward.
+  - Stage 2, the clock and the lifecycle. The clock keeps `t` and `t₀`, the
+    frame and boundary counters move onto the run, and `lifecycle(sim)` is
+    derived from the model's status, the running flag and the closed run.
+  - Stage 3, the hooked frame. `frame!(model, k, hooks)` with `FrameHooks`,
+    `NoHooks` and the loop's `LoopHooks`, the model's catch building the
+    `StepError`, and the model's diagnostic cell.
+  - Stage 4, the nominal-only simulation. `Simulation(model::Model{Float64})`,
+    and the `Dual` fixtures moved onto `Model`.
+  - Increment two moves `trim!` and `linearize` onto `Model{Float64}`, with
+    their `Dual` scratch a `Model`, and splits the checkpoint (§14.8,
+    §14.10, D-282).
+  - Increment three sweeps the spec's and the companions' "model" vocabulary
+    off the component tree, and gives the glossary's `nominal` the sentence
+    that only a `Model{Float64}` can be run.
+
+  The brief is `briefs/brief_increment_70_model_split_1.md`, and the register
+  and the staging are `briefs/roadmap_model_split.md`.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment
