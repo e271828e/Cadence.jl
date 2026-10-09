@@ -13,6 +13,17 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
+- **The model split**, three increments in working order, ruled 2026-10-09:
+  a `Model{T}` holding the `Deployment` and the `Executor`, wrapped by the
+  `Simulation` beside the plane, the control and the run; the clock dissolved
+  into a time cell on the executor and a trajectory cursor on the run; the
+  model owning the frame with a top hook and a boundary hook; a three-valued
+  model status under a derived `lifecycle(sim)`; the services taking a
+  `Model{Float64}`; and the spec's "model" vocabulary moved off the component
+  tree. It closes the silent frozen run at a non-`Float64` scalar by type:
+  only a `Model{Float64}` can be run. The register and the staging are
+  `briefs/roadmap_model_split.md`; it touches §9.2, §11.5, §11.8, §12.1,
+  §12.6, §13.4, §14.8 and D-254, D-256, D-260, D-282.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment
