@@ -210,7 +210,11 @@ fixtures; the frozen-tier testset reads products after `init!` on the model;
 the D-260 `Dual` clock assertion goes. Spec edits for what changes: §9.2's
 pipeline table and `Simulation(deployment, T)` listing, §12.1 and §12.6's
 field roster, §11.5 and §13.4 where `Run{T}` and the clock appear, §11.8's
-loop cell, D-260's `t₀` clause and D-256's five fields. The allocation canary
+loop cell. One new decision entry states the split and supersedes the clauses
+of D-254, D-256, D-260 and D-282 that the split retires, because
+`spec_style.md` has every bolded ruling cite the entry that rules it and
+`decisions_style.md` rule 1 amends the log by a later entry; the entry lands
+docs-commit-first, in this increment's docs stage. The allocation canary
 guards the hooks.
 
 **Increment two: the services onto the model.** `trim!` and `linearize` take
@@ -219,9 +223,9 @@ checkpoint split (R6); `restore!` on both levels. Spec: §14.8, §14.10, D-282's
 owner roster.
 
 **Increment three: the vocabulary.** The "model" sweep over the spec and the
-companions (R2); the decision entries that supersede the current wording of
-D-254, D-256, D-260 and D-282; the glossary's `nominal` entry gains the
-sentence that only a `Model{Float64}` can be run.
+companions (R2), and the glossary's `nominal` entry gains the sentence that
+only a `Model{Float64}` can be run. The decision entries are increment one's
+and two's, each with the spec text it rules.
 
 ## Facts the briefs will cite
 
