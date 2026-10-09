@@ -180,6 +180,8 @@ function test_lifecycle()
         # refused on its own call, and the simulation stays `built`.
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} init!(model, fragment(u = (ref = 0.0,))))
         @test d.reason === :claimed && d.call === :init! && lifecycle(sim) === :built
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} init!(model))   # the claim before the condition
+        @test d.reason === :claimed && d.call === :init!
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} frame!(model, 1))
         @test d.reason === :claimed && d.call === :frame! && lifecycle(sim) === :built
         plan = resolve_condition(fragment(u = (ref = 0.0,)), model.deployment.build)

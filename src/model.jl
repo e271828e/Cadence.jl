@@ -125,6 +125,7 @@ to `:built`. An interrupt is not model code failing and has no stop path here,
 so it writes the status and propagates raw.
 """
 function init!(model::Model{T}, condition = fragment(); kw...) where {T}
+    _claimed_gate(model, get(kw, :hooks, NoHooks()), :init!)       # the claim is said first (D-318)
     plan = resolve_condition(condition, model.deployment.build, T)   # both refusals precede every write
     assert_total(plan, model.deployment.build.structure, :init!)     # (§14.6): all-or-nothing
     init!(model, plan; kw...)

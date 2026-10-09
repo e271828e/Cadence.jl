@@ -694,9 +694,10 @@ recording keywords for the run it builds (D-261). The checkpoint's fingerprint
 is checked against this simulation as replay checks a trace's header, the
 mismatches collected into one `CheckpointMismatch` throw before any write; a
 checkpoint taken on another activation is refused by dispatch with the same
-kind. Then the state is copied back, the staged batches dropped, the run built
-with the checkpoint as its trace header, and one snapshot published at the
-checkpoint's `t` (D-274).
+kind. Then the staged batches are dropped, the run is built with the
+checkpoint as its trace header, and the model's restore door copies the state
+back, publishes one snapshot at the checkpoint's `t` and writes `:consistent`
+last (D-274, D-318).
 
 No boundary zero runs: no sweep, no guard, no update, and no prior reset, so a
 guard holding at the checkpoint does not fire again. The clock came with the
