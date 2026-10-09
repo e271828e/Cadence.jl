@@ -8610,7 +8610,9 @@ rebinds it. `live!` and the halt at a recording's end write `feed`. The
 loop's tail writes `termination` once, and `closed(run)` is
 `termination !== nothing`. Each door sets the two counters as it builds the
 run, `init!` to zero and `restore!` and `replay!` to the checkpoint's, and
-the loop advances them ([D-317][d-317]).
+the loop advances them ([D-317][d-317]). `restore!` of a bare state sets the
+frame index to the state's frame and the boundary ordinal to zero, as `init!`
+does ([D-319][d-319]).
 The origin `t₀` is not a run field. The executor's clock holds it beside `t`.
 `init!` sets it on the clock before boundary zero ([§14.5][s14-5]), and a
 [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
@@ -8769,14 +8771,22 @@ replaying simulation live where it stands ([§12.7][s12-7]). A terminal state
 makes the mode moot. Nothing advances until one of those doors is taken
 ([D-218][d-218], [D-219][d-219]).
 
-**`checkpoint(sim)` takes the executor's state at a frame top, and
-`restore!(sim, cp)` puts it back** ([D-274][d-274]). `checkpoint` is a stopped-sim
+**`checkpoint` and `restore!` exist on the `Model` and on the `Simulation`,
+and a `Checkpoint` is the `Model`'s state beside the run's cursor** ([D-319][d-319]).
+`checkpoint(model)` returns the state alone, a `ModelState`. It holds the
+flat buffer, the `s` and `m` stores, the whole signal table, the guard
+priors, `t`, `t₀` and the fingerprint. It is legal at `:consistent` with the
+clock on a grid top. `checkpoint(sim)` wraps that state with the run's frame
+index and boundary ordinal ([D-274][d-274]). It is a stopped-sim
 service, legal in `initialized` and `stopped` ([§14][s14]). It is refused wherever the
 executor is not at the rest a published frame top leaves (`CheckpointMidFrame`,
 [Appendix C][sC]). That is after a `t*` stop, which leaves the clock mid-frame with
 the remainder abandoned, and after a frame abandoned unpublished ([§12.4][s12-4]). The
 test is that the clock sits on a grid time and that the latest snapshot is of
-that very boundary. `restore!` takes the four recording keywords `init!` takes.
+that very boundary. `restore!(model, model_state)` checks the state's
+fingerprint against the model and copies the state back. It then settles the
+restored boundary through the hooks and writes `:consistent` last
+([D-318][d-318]). `restore!(sim, cp)` takes the four recording keywords `init!` takes.
 It checks the checkpoint's fingerprint against the simulation as replay checks
 the trace header, and a mismatch is `CheckpointMismatch` ([§12.7][s12-7]). It then copies
 the state back, opens a fresh run with the checkpoint as its trace header, and
@@ -8786,8 +8796,16 @@ lattice's next frame, because the clock came with the checkpoint. The boundary
 ordinal continues, being the trajectory's ([§12.3][s12-3], [D-230][d-230]). The snapshot
 `restore!` publishes is a re-publication. It carries the ordinal of the boundary
 the checkpoint was taken at, and the next frame publishes under the next
-ordinal, as it did in the original run. A checkpoint taken on another activation
-is refused by dispatch with the same `CheckpointMismatch`, as a trace is.
+ordinal, as it did in the original run. `restore!(sim, model_state)` is the
+door a state prepared on a standalone model takes into a simulation
+([§9.2][s9-2]). It takes the same keywords and makes the same fingerprint
+check, and it refuses a state whose `t` is off the grid as
+`CheckpointMidFrame`. It opens a fresh trajectory at the state's frame, and
+the restored boundary publishes under ordinal 0, as boundary zero's does. A
+standalone model published nothing, so the trajectory has no ordinals to
+continue. A `Checkpoint` holds a `ModelState{Float64}`, so it is nominal by
+type. A state taken at another scalar is refused by dispatch with the same
+`CheckpointMismatch`, on either `restore!` that takes a bare state.
 
 **Device attachments persist across re-initialization**, because attachment
 is orthogonal to the run lifecycle ([§11.3][s11-3]). Persistence means
@@ -10160,6 +10178,14 @@ Within the stopped-sim states, legality follows each service's inputs.
 | `linearize`, operating point defaulted to `checkpoint(sim)` | error | legal | legal | inherits `checkpoint`'s precondition, its refusals included |
 | `linearize`, explicit `about` ([§14.10][s14-10]) | legal | legal | legal | inherits `init!`'s legality — legal wherever `init!` is |
 
+Each row's service also has a form on a [`Model`](#g-model) (a deployment
+materialized at one scalar type), gated by the model's status rather than
+by the lifecycle ([D-319][d-319]). `checkpoint` and the default `linearize` are
+legal at `:consistent`. `init!`, `restore!`, `trim!` and `linearize` with an
+explicit `about` are legal at any status. A model a simulation has claimed
+refuses each form that writes, `init!`, `restore!` and `trim!`
+([D-318][d-318]).
+
 **`errored` is terminal for every row** ([D-059][d-059], [D-108][d-108]).
 Post-mortem inspection of an errored sim's stores, log and [trace](#g-trace)
 stays available as a diagnostic read. It may not become a checkpoint.
@@ -10638,9 +10664,11 @@ follow one by one.
   init-service entry points carry the argument, with the same default. They
   are `init!(model, condition; t0)`, which the simulation's
   `init!(sim, condition; t0)` forwards to, and `trim!`'s commit
-  (`trim!(sim, problem; baseline, t0, backend)`, [§14.8][s14-8]). Conditions
-  are time-free. Nothing after boundary zero sets the origin. A restore
-  inherits the clock and takes no `t0` ([D-273][d-273]).
+  ([§14.8][s14-8], [D-319][d-319]). `trim!(model, problem; baseline, t0, backend)`
+  commits through the model's `init!`, and
+  `trim!(sim, problem; baseline, t0, backend)` through the simulation's.
+  Conditions are time-free. Nothing after boundary zero sets the origin. A
+  restore inherits the clock and takes no `t0` ([D-273][d-273]).
 - **Trim is untouched by all of this.** Optimizer iterations are raw
   write → sweep → read cycles on the activation, with no boundaries, no events
   and no `s_update`. Only the committed solution executes boundary zero.
@@ -10902,7 +10930,10 @@ returns a report.
 #### The backend seam
 
 The signature is
-`trim!(sim, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt())`. The
+`trim!(model, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt())`,
+where `model` is a [`Model`](#g-model) (a deployment materialized at one
+scalar type) at `Float64` ([D-319][d-319]). `trim!(sim, problem; …)` gates on the
+simulation's lifecycle and commits through the simulation's `init!`. The
 default backend is an in-house dense Levenberg–Marquardt. For decision
 dimensions ~10 with exact Jacobians, the core is ~100 lines: a damping loop, a
 small linear solve, a convergence test. That is the [§10.2][s10-2] stepper
@@ -10988,7 +11019,9 @@ mysterious residuals.
 
 #### Scratch stores, stated without type luck
 
-Every `trim!` invocation instantiates a fresh working store set. It holds the
+Every `trim!` invocation instantiates a fresh working store set. Each half of
+it (below) is a scratch `Model` of its own, materialized from the deployment
+the service was called on ([D-317][d-317], [D-319][d-319]). The set holds the
 `x` backing, the `s` and `m` stores, the [root input](#g-root-input) and
 [signal tables](#g-signal-table), and the derivative [buffer](#g-buffer). The
 set is built from the [activation](#g-activation)'s *layout* (the build's typed
@@ -11410,12 +11443,15 @@ It works on scratch buffers only, and nothing it computes becomes
 authoritative. Today's restore-the-trim dance, the re-`assign!` after
 `FiniteDiff` dirtied the model, has no successor. The default operating point
 is the [checkpoint](#g-checkpoint) (the executor's state at a frame top, as
-one value) of the simulation as it stands. It is `checkpoint(sim)`
-([§12.6][s12-6], [D-274][d-274]), restored into the scratch world with no
-boundary zero. The frozen tier's cells are the checkpoint's held cells.
-After a `trim!` commit, `linearize(sim, taps)` is about the trim point with
-nothing re-specified. `about = <condition>`, with `t0` beside it as in
-`trim!`, linearizes anywhere else without touching the sim.
+one value) of the simulation or the model as it stands. It is
+`checkpoint(sim)` on a simulation and `checkpoint(model)` on a
+[`Model`](#g-model) (a deployment materialized at one scalar type), each
+restored into the scratch world with no boundary zero ([§12.6][s12-6],
+[D-274][d-274], [D-319][d-319]). The frozen tier's cells are the checkpoint's held cells.
+After a `trim!` commit, `linearize(sim, taps)` or `linearize(model, taps)` is
+about the trim point with nothing re-specified. `about = <condition>`,
+with `t0` beside it as in `trim!`, linearizes anywhere else without
+touching the sim.
 
 **The returned object and `LinearizedSS`.** `linearize` returns a
 `Linearization` value: `ẋ₀`, `x₀`, `u₀` and `y₀` as NamedTuples under the tap
@@ -11838,6 +11874,50 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   |---|---|---|---|
   | `chunk_size` | `16` | the executor's unroll width, a performance knob that never moves the trajectory | [§9.7][s9-7], [§12.6][s12-6] |
 
+- `Model`'s own doors, for a model stepped on its own or used as a service's
+  scratch ([§9.2][s9-2], [D-317][d-317], [D-318][d-318], [D-319][d-319]). Each writing door is refused
+  on a model a simulation has claimed, as `ArgumentInvalid` with reason
+  `:claimed`.
+
+  - `init!(model, condition; t0 = 0.0, hooks = NoHooks())`. The model's door
+    into `:consistent`. It checks root-input totality before any write and
+    runs boundary zero at `t0`, which settles through the hooks
+    ([§14.5][s14-5], [§14.6][s14-6]). A writing door.
+  - `frame!(model, k, hooks = NoHooks()) → Bool`. Advances the model through
+    frame `k` and settles its frame-top boundary ([§10.4][s10-4]). It returns
+    `true` when a hook abandoned the frame's remainder ([§13.5][s13-5]).
+    `FrameHooks` is the hooks' contract. `frame_top!(hooks)` runs before the
+    frame touches any state, and `settled!(hooks) → Bool` runs at every
+    settled boundary. `NoHooks()` is the no-op, and its `settled!` returns
+    `false`. A writing door.
+  - `port(model, path, name)`, `state(model, path)` and `modes(model, path)`.
+    The reads of a port's value, a component's state from whichever home
+    owns it, and its modes ([§7.3][s7-3]).
+  - `warnings(model) → Vector`. The build's list and the deployment's,
+    concatenated ([§9.2][s9-2]).
+  - `checkpoint(model) → ModelState`. The model's state alone, legal at
+    `:consistent` with the clock on a grid top. Any other status is
+    `ServiceLifecycle`, and a clock off the grid is `CheckpointMidFrame`
+    ([§12.6][s12-6]).
+  - `restore!(model, model_state; hooks = NoHooks())`. Checks the state's
+    fingerprint (`CheckpointMismatch`), copies the state back, settles
+    through the hooks and writes `:consistent` last. It takes no status
+    gate ([§12.6][s12-6]). A writing door.
+  - `trim!(model, problem; baseline, t0 = 0.0, backend) → TrimReport`. The
+    trim service on a `Model{Float64}`, committing through the model's
+    `init!` ([§14.8][s14-8]). A writing door.
+  - `linearize(model, taps; about, t0, width = 8) → Linearization`. The
+    query on a `Model{Float64}`, its default operating point
+    `checkpoint(model)` ([§14.10][s14-10]).
+
+  `trim!` and `linearize` on a `Model` at another scalar are
+  `ArgumentInvalid` with reason `:non_nominal`. The stepping primitives
+  `evaluate!`, `integrate!`, `boundary!`, `offtick_boundary!` and
+  `boundary_zero!` are framework internals the spec names only as
+  mechanisms, outside this API and outside the claim's gate. `apply!` is an
+  internal outside this API too, and the claim's gate refuses it on a
+  claimed model ([D-318][d-318]).
+
 - `Simulation(model; join_timeout = 5.0) → Simulation`. Runs a
   `Model{Float64}` beside the data plane, the control plane and the run, and
   offers the stopped-sim services. A `Model` at another scalar is a
@@ -11971,7 +12051,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   order is the declared side's. The problem itself closes at seven fields
   ([§14.7][s14-7]). Setup and commit both carry the root-input-totality check ([§14.6][s14-6]).
   The commit is `init!` with `override(baseline, solution)`, boundary zero
-  anchored at `t0` and recordings cleared ([§12.6][s12-6]). `converged` is the service's
+  anchored at `t0` and recordings cleared ([§12.6][s12-6]). On a `Model{Float64}`,
+  `trim!(model, problem; …)` is the same service, its commit the model's
+  `init!` ([D-319][d-319]). `converged` is the service's
   per-residual box test at the backend's returned point. It is
   backend-independent and the commit's gate, and the backend's status and counts
   are recorded diagnostically. The backend seam is a pinned one-method
@@ -11980,13 +12062,14 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   The in-place `eval!(r, J, d)` fills `J` only when it is not `nothing`, the
   packed vectors are in the declared orders, and `status` is an open `Symbol`
   recorded verbatim. Non-convergence reports, never throws ([§14.7][s14-7], [§14.8][s14-8]).
-- `checkpoint(sim) → Checkpoint`. The executor's state at a frame top as one
-  value: the flat buffer, the `s` and `m` stores, the whole signal table, the
-  guard priors, `t` and `t₀`, the frame and boundary counters, and the
-  fingerprint. Legal in `initialized` and `stopped`, refused after a `t*`
-  stop and after an abandoned frame (`CheckpointMidFrame`). A checkpoint is
-  not a condition and has no algebra ([§12.6][s12-6], [§14.1][s14-1],
-  [D-274][d-274]).
+- `checkpoint(sim) → Checkpoint`. The `Model`'s state at a frame top beside
+  the run's two counters, the frame index and the boundary ordinal. The state
+  is a `ModelState`, as `checkpoint(model)` reads it, holding the flat
+  buffer, the `s` and `m` stores, the whole signal table, the guard priors,
+  `t` and `t₀`, and the fingerprint. Legal in `initialized` and `stopped`,
+  refused after a `t*` stop and after an abandoned frame
+  (`CheckpointMidFrame`). A checkpoint is not a condition and has no algebra
+  ([§12.6][s12-6], [§14.1][s14-1], [D-274][d-274], [D-319][d-319]).
 - `restore!(sim, cp; trace = true, log = true, log_every = 1,
   log_max = 65536)`. A door beside `init!` and `replay!`, legal where `init!`
   is. It checks the checkpoint's fingerprint (`CheckpointMismatch`), copies
@@ -11994,12 +12077,19 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   and publishes one snapshot at the checkpoint's `t`. It runs no boundary
   zero, and the boundary ordinal continues. The warm restart is
   `checkpoint` → `restore!` → `run!` ([§12.6][s12-6], [D-274][d-274]).
+
+  `restore!(sim, model_state; kw...)` takes a `ModelState` prepared on a
+  standalone model, with the same keywords and the same fingerprint check. A
+  state off the grid is `CheckpointMidFrame`. It opens a fresh trajectory at
+  the state's frame, and the restored boundary publishes under ordinal 0
+  ([§9.2][s9-2], [§12.6][s12-6], [D-319][d-319]).
 - `linearize(sim, taps; about, t0, width = 8) → Linearization`. A pure
   query, seeded Dual passes on scratch, `width` directions per pass. The
   operating point defaults to the checkpoint of the simulation, restored
   with no boundary zero, and `about` with `t0` (default `0.0`) places it
   anywhere else. `t0` is admitted only beside `about`, never silently
-  ignored.
+  ignored. On a `Model{Float64}`, `linearize(model, taps; …)` is the same
+  query, its default point `checkpoint(model)` ([D-319][d-319]).
   `taps(x = (…), u = (…), y = (…))` builds the tap set, three
   labeled selector lists with closed membership (`x`: `get_state`; `u`:
   `get_input`; `y`: `get_output`, `get_face`), every tap a
@@ -12443,12 +12533,12 @@ activation):
 - **`CheckpointMismatch`** ([§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7]).
   Error · service · collected. One kind for the replay entry pass and for
   `restore!`, raised when a checkpoint's fingerprint disagrees with the
-  target simulation. The mismatch, discriminated. It is a store or root
+  target simulation or model. The mismatch, discriminated. It is a store or root
   input (component path, store, expected vs. found layout/type), a
   component's `x` type, a cell's address or type, the event list, a recorded
   root-input value that does not convert to its declared type, the scalar
   type (the
-  recorded one vs. the simulation's), a deployment parameter
+  recorded one vs. the target model's), a deployment parameter
   (`Δt_base`/`h`/`N_base`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`,
   recorded vs. bound value), a [schedule](#g-schedule) row whose column
   differs (the component path, the column, recorded vs. bound value), a rate
@@ -12460,10 +12550,12 @@ activation):
   recording's (the one that differs, the clock's `t₀` or the run's frame, the
   recording's value or legal range, the simulation's).
 - **`CheckpointMidFrame`** ([§12.6][s12-6], [§14][s14]). Error · service ·
-  fail-fast. `checkpoint` on a simulation that is not at the rest a published
-  frame top leaves. Either the clock is past a frame top after a `t*` stop,
-  or a frame was abandoned unpublished ([§12.4][s12-4]). The clock's `t`, the
-  frame top `t_frame`, the frame index `frame`.
+  fail-fast. `checkpoint` on a simulation or a model that is not at the rest
+  a frame top leaves. Either the clock is past a frame top after a `t*` stop,
+  or a simulation's frame was abandoned unpublished ([§12.4][s12-4]).
+  `restore!` raises it too for a `ModelState` whose `t` is off the grid
+  ([§12.6][s12-6]). The clock's or the state's `t`, the frame top `t_frame`,
+  the frame index `frame`.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face
@@ -12477,8 +12569,9 @@ activation):
   and over the `Model` and `Simulation` constructors' keywords and the claim
   on the model ([D-318][d-318]). The call
   (`Simulation`, `run!`, `step!`, `replay!`, `pace!`, `margin!`, `trim!`,
-  `TableBinding`, a period constructor), the argument, the value in hand,
-  the violated constraint. The twin of
+  `linearize`, `TableBinding`, a period constructor), the argument, the value
+  in hand, the violated constraint. `trim!` and `linearize` on a `Model` at
+  another scalar raise it with reason `:non_nominal` ([D-319][d-319]). The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
   offending argument's type, the selector kinds in hand. Or an empty prefix
@@ -13114,7 +13207,8 @@ diagnostic cell its frame writes. It can be written to, evaluated and stepped
 frame by frame. A `Simulation` runs only a `Model{Float64}`, and a `Model` at
 another scalar is a service's scratch, with no ticks and no events. A
 `Simulation` claims it at construction and never shares it
-([§9.2][s9-2], [§12.6][s12-6], [D-317][d-317], [D-318][d-318]).
+([§9.2][s9-2], [§12.6][s12-6], [D-317][d-317], [D-318][d-318]). Its doors are listed
+in the `Model` block of [Appendix B][sB].
 
 <a id="g-nominal"></a>**nominal** — the `Float64` activation, and of a declaration its `Float64`
 face (for a continuous producer's output declaration, its evaluation at
@@ -13372,12 +13466,14 @@ unclaimed complement. It is static per run and enforced entirely at staging,
 
 ### D.7 Recording and replay
 
-<a id="g-checkpoint"></a>**checkpoint** — the executor's state at a frame top, taken by
-`checkpoint(sim)` and by `init!`, restored by `restore!` with no boundary
-zero; the trace's header. It holds the flat buffer, the `s` and `m` stores,
-the whole signal table, the guard priors, `t` and `t₀`, the frame and
-boundary counters, and the fingerprint. It is not a condition and has no
-algebra ([§11.5][s11-5], [§12.6][s12-6], [D-274][d-274], [D-317][d-317]).
+<a id="g-checkpoint"></a>**checkpoint** — the `Model`'s state at a frame top as one value, a
+`ModelState`, beside the run's two counters, the frame index and the
+boundary ordinal. `checkpoint(model)` reads the state alone and
+`checkpoint(sim)` the whole `Checkpoint`, which `init!` takes too as the
+trace's header. `restore!` puts either back with no boundary zero. The state
+holds the flat buffer, the `s` and `m` stores, the whole signal table, the
+guard priors, `t` and `t₀`, and the fingerprint. It is not a condition and
+has no algebra ([§11.5][s11-5], [§12.6][s12-6], [D-274][d-274], [D-317][d-317], [D-319][d-319]).
 
 <a id="g-decimation"></a>**decimation** — the log's keep-every-kth retention policy (`log_every`),
 admissible on the log alone because it is derived data. Every boundary still
@@ -13914,6 +14010,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-316]: decisions.md#d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
 [d-317]: decisions.md#d-317--split-the-model-from-the-simulation-and-run-only-the-nominal-one
 [d-318]: decisions.md#d-318--a-simulation-claims-its-model
+[d-319]: decisions.md#d-319--split-the-checkpoint-into-the-models-state-and-the-runs-cursor-and-put-the-services-on-the-model
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

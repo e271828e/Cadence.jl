@@ -19,14 +19,15 @@ both add names.
   only a `Model{Float64}` can be run. Increment 70 delivered the first
   (`briefs/brief_increment_70_model_split_1.md`), and the code owes D-317
   the other two.
-  - Increment 71 moves `trim!` and `linearize` onto `Model{Float64}`,
-    their files above `sim.jl`, and re-raises the `:non_nominal` refusals
-    on the model; splits the checkpoint into the model's inner value and
-    the run's cursor, with `checkpoint` and `restore!` on both levels; and
-    gives Appendix B the `Model` block that lists the model's API and
-    places the primitives outside it (§14.8, §14.10, Appendix B, D-282,
-    D-318). Its brief is `briefs/brief_increment_71_model_split_2.md`,
-    approved 2026-10-09 and not yet launched.
+  - Increment 71 is ruled as D-319, and its docs stage has landed. Its
+    brief is `briefs/brief_increment_71_model_split_2.md`, approved
+    2026-10-09. The code owes D-319 two stages.
+    - Stage 1 splits the checkpoint into `ModelState` and the
+      non-parametric `Checkpoint`, opens `checkpoint` and `restore!` on the
+      model, and adds the simulation's `restore!` of a bare state (§12.6).
+    - Stage 2 moves `trim!` and `linearize` onto `Model{Float64}`,
+      re-raises the `:non_nominal` refusals on the model, and puts their
+      two files above `sim.jl` in the include order (§14.8, §14.10).
   - Increment 72 sweeps the spec's and the companions' "model" vocabulary
     off the component tree, and gives the glossary's `nominal` the sentence
     that only a `Model{Float64}` can be run.

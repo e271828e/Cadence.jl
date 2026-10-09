@@ -343,6 +343,7 @@ were derived.
 | [D-316][d-316] | Stop requests are structural: a `StopFlag` port ends the run unless the advance ignores it | ratified |
 | [D-317][d-317] | Split the `Model` from the `Simulation`, and run only the nominal one | ratified |
 | [D-318][d-318] | A `Simulation` claims its `Model` | ratified |
+| [D-319][d-319] | Split the checkpoint into the `Model`'s state and the run's cursor, and put the services on the `Model` | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -11459,6 +11460,13 @@ also the on-disk unit the persistence deferral of [§11.5][s11-5] waited for, an
 long run becomes seekable, a checkpoint at boundary `k` plus the batches
 from frame `k+1`.
 
+Annotation (2026-10-09): amended by [D-319][d-319]. The state the first bullet lists
+is now a `ModelState`, the clock's `t` and `t₀` among its fields, and the
+frame index and the boundary ordinal are the run's counters, which a
+`Checkpoint` carries beside it. A `Checkpoint` is nominal by type, so the
+refusal by dispatch of a state from another activation sits on the two
+`restore!` methods that take a bare state.
+
 **Rejected.**
 - *Two header kinds, the pre-sequence resolved condition for an authored
   opening and the checkpoint for a restored one:* one fingerprint, but a
@@ -11862,6 +11870,10 @@ back any number of `Simulation`s concurrently ([D-135][d-135]).
 
 Annotation (2026-10-09): amended by [D-317][d-317]. The `Model` owns its
 activation's buffers, and a `Simulation` owns its `Model{Float64}`.
+
+Annotation (2026-10-09): amended by [D-319][d-319]. Every service invocation owns a
+scratch `Model` for each half of its working set, materialized from the
+deployment of the `Model{Float64}` it was called on.
 
 **Rejected.**
 - *Cached shared buffers:* [D-070][d-070]'s aliasing — warn-but-assign reborn — and it
@@ -13532,6 +13544,13 @@ Annotation (2026-10-09): amended by [D-318][d-318]. The constructor claims the m
 refusing one already claimed or not at `:built`, and restore of a
 checkpoint's state joins the model's doors.
 
+Annotation (2026-10-09): amended by [D-319][d-319]. The model's doors gain
+`checkpoint`, `restore!`, `trim!` and `linearize`. `checkpoint` on the model
+refuses a status other than `:consistent`, a status gate the default
+`linearize` inherits. The simulation's `trim!` and `linearize` gate on the
+lifecycle and compose the model's, each committing or reading at its own
+level.
+
 Supersedes [D-254][d-254]'s "`Simulation` materializes a deployment at `T`" clause;
 [D-255][d-255]'s clause keeping the lifecycle on `Control`; [D-256][d-256]'s five-field
 roster and its placement of the loop's diagnostic cell on the plane alone;
@@ -13681,6 +13700,10 @@ hooks because the simulation's doors are the only callers that hold a
 no check at all, so the frame's allocation and inference results stand. A
 standalone model, claimed by nobody, keeps every door.
 
+Annotation (2026-10-09): amended by [D-319][d-319]. The restore door is
+`restore!(model, model_state; hooks)`, public and checking the fingerprint
+before any write, and `trim!` joins the doors the claim refuses.
+
 **Rejected.**
 - *Deriving `built` from "no door of this simulation has published":* it
   reads a used or shared model correctly but leaves sharing possible, so two
@@ -13695,6 +13718,116 @@ standalone model, claimed by nobody, keeps every door.
 - *A nested `finally` clearing the running flag when the termination record
   throws:* with the gate that path has no caller, and a flag left set keeps
   a framework fault loud rather than quiet.
+
+### D-319 — Split the checkpoint into the `Model`'s state and the run's cursor, and put the services on the `Model`
+
+**Status.** ratified
+
+**Position.** A `ModelState{T}` is a `Model`'s state as one value, and a
+`Checkpoint` is a nominal `ModelState` beside the run's frame index and
+boundary ordinal. `checkpoint`, `restore!`, `trim!` and `linearize` are doors
+of the `Model`, and their simulation methods gate on the lifecycle and
+compose the model's.
+
+- `ModelState{T}` holds every field the former `Checkpoint{T}` held but
+  the two counters, nine in all, `x`, `s`, `m`, `table`, `prior`, `t`, `t₀`,
+  `deployment` and `layout`. `Checkpoint` holds `state::ModelState{Float64}`, `frame::Int`
+  and `boundary::Int`, and it has no scalar parameter. A cursor belongs to a
+  trajectory, and only a nominal model has one, so a `Checkpoint` is nominal
+  by type, as `Trace` and `Run` are ([D-317][d-317]).
+- `checkpoint(model) → ModelState` is legal at `:consistent` with the clock
+  on a grid top. At `:built` or `:inconsistent` it is refused as
+  `ServiceLifecycle` with `op = :checkpoint` and `legal = [:consistent]`,
+  and with the clock off the grid as `CheckpointMidFrame`, naming the frame
+  the clock sits inside. `restore!(model, model_state; hooks = NoHooks())`
+  takes the claim's gate, then checks the fingerprint and collects every
+  mismatch into one `CheckpointMismatch` throw before any write. It then
+  copies the state back, calls `settled!(hooks)` and writes `:consistent`
+  last. It has no status gate.
+- `checkpoint(sim) → Checkpoint` keeps its lifecycle gate and its mid-frame
+  test, and wraps `checkpoint(sim.model)` with the run's frame index and
+  boundary ordinal. `restore!(sim, cp::Checkpoint; kw…)` is unchanged.
+  `restore!(sim, model_state::ModelState{Float64}; kw…)` is the door a state
+  prepared on a standalone model takes into a simulation ([§9.2][s9-2], [D-318][d-318]). It
+  makes the checkpoint form's lifecycle, recording and fingerprint checks.
+  It then takes `k = round(Int, (t - t₀) / h)` and refuses a state with
+  `t ≠ t₀ + k·h` as `CheckpointMidFrame` at frame `k`. It opens a fresh
+  trajectory at frame `k`, the restored boundary published under ordinal 0
+  and the run's ordinal reading 1 after it, as `init!` leaves it.
+- A bare state taken at another scalar is refused by dispatch.
+  `restore!(::Simulation, ::ModelState{T})` and
+  `restore!(::Model{T}, ::ModelState{S})` throw `CheckpointMismatch` with
+  `what = :scalar`, the state's scalar expected and the target's found, and
+  the message names a `Model`.
+- `trim!(model, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt())`
+  and `linearize(model, taps; about = nothing, t0 = nothing, width = 8)`
+  take a `Model{Float64}`, and each scratch half is a `Model` materialized
+  from its deployment ([D-282][d-282]). `trim!` takes the claim's gate before any
+  check, since it commits, and commits through the model's own `init!`.
+  `linearize` is a read and takes no claim gate, and its default operating
+  point is `checkpoint(model)` behind a `ServiceLifecycle` that names
+  `linearize`. The simulation's `trim!` and `linearize` keep their lifecycle
+  gates and compose the model's solve and query. `trim!(sim, …)` commits
+  through `init!(sim, …)`, and `linearize(sim, …)` takes its default point
+  from `checkpoint(sim)`.
+- `trim!` and `linearize` on a `Model{T}` at any `T` other than `Float64`
+  throw `ArgumentInvalid` with reason `:non_nominal` and the value
+  `Model{T}`. The `Model{Float64}` methods are more specific and win.
+- `trim.jl` and `linearize.jl` name no `Simulation` once their methods take
+  a model, so they are included after `frame.jl` and before `sim.jl`.
+- The grid arithmetic the model layer reads, `_frame_slack`, `_frames_to`
+  and `_frame_at`, lives in `frame.jl` beside `_grid_time`.
+
+**Spec.** [§9.2][s9-2], [§12.6][s12-6], [§14][s14], [§14.5][s14-5], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB], [Appendix C][sC]
+
+**Rationale.** The checkpoint fused the model's state with the trajectory's
+cursor. A `Model{Dual}` can checkpoint and restore without ever having a
+cursor, since only a simulation's run counts frames and boundaries. The
+services likewise need only the model's pair, the deployment and the
+executor, so they take the `Model{Float64}` that holds the operating point,
+and a simulation is one holder of it among others. A cursor exists only on a
+nominal trajectory, so the type that carries one needs no scalar parameter.
+
+The two refusals of `checkpoint(model)` mirror the simulation's. [§12.6][s12-6] makes
+a checkpoint the state at a frame top, and [§14][s14] says an errored state may not
+become one. A model's `:inconsistent` is the simulation's `errored`, and a
+model at `:built` has run no boundary zero. The model's `restore!` takes no
+status gate, because restoring into a `:built` twin is the door's use.
+
+The simulation's `trim!` cannot forward whole to the model's. Its commit is
+`init!(sim, …)`, whose run opening and trace header bracket the model's
+`init!`, and the commit's outcome is decided only after the solve. So the
+solve is factored out of the commit, and each level hands the verdict its
+own `init!`. `linearize` splits the same way, so the simulation's default
+point and its mid-frame refusal stay the simulation's.
+
+A standalone model publishes nothing, so a state carried from one has no
+trajectory whose ordinals could continue. The bare-state door opens a fresh
+trajectory at the state's grid position, in `init!`'s shape. The restored
+boundary publishes under ordinal 0, and the run's counter reads 1 after it.
+
+`checkpoint(model)` reads the frame the clock sits inside, so the grid
+arithmetic moves beside `_grid_time`. A call resolves at runtime whatever the
+include order, but arithmetic the model layer reads belongs with the frame.
+The `Model` block of [Appendix B][sB] places the stepping primitives outside
+the API and outside the claim's gate, and `apply!` outside the API but inside the
+gate, since [D-318][d-318] refuses it on a claimed model.
+
+**Rejected.**
+- *A parametric `Checkpoint{T}`:* a cursor is a nominal trajectory's, and a
+  model at another scalar has none to carry.
+- *A `getproperty` forward from `Checkpoint` to its state:* it hides the
+  split the type exists to show.
+- *`ModelState` carrying the counters:* a model has no trajectory.
+- *The simulation's `trim!` forwarding whole to the model's:* the commit
+  would run through the model's `init!` with no run opened and no header
+  taken, the wedge [D-318][d-318] closed.
+- *A status gate on the model's `restore!`:* restoring into a `:built` twin
+  is its use.
+- *The carried state's boundary ordinal continuing from its frame index:*
+  nothing published those boundaries.
+- *A claim gate on `linearize`:* a pure query reads the model as `port`
+  does.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -14015,6 +14148,7 @@ standalone model, claimed by nobody, keeps every door.
 [d-316]: #d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
 [d-317]: #d-317--split-the-model-from-the-simulation-and-run-only-the-nominal-one
 [d-318]: #d-318--a-simulation-claims-its-model
+[d-319]: #d-319--split-the-checkpoint-into-the-models-state-and-the-runs-cursor-and-put-the-services-on-the-model
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
