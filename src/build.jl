@@ -734,7 +734,7 @@ other; the rest are derived at first request (§9.4). The schedule the structure
 carries is anchor-relative — each component entry's `timing` against
 `structure.anchors` — because final divisors for anchored entries do not exist
 until `Δt_base` binds.
-The `Build` is immutable and backs any number of deployments and `Simulation`s,
+The `Build` is immutable and backs any number of deployments and `Model`s,
 each materializing its own stores and buffers, so nothing writable lives here;
 the one mutable thing is the activation dictionary, whose insertion the lock
 makes torn-state-free (§9.4).
@@ -979,8 +979,8 @@ end
 
 The warnings the build raised (§9.2, D-250). The build produces artifacts, so
 its warnings live on them; the log line each one got at return is presentation,
-never the home. `Deployment` and `Simulation` answer the same generic
-(`deployment.jl`, `sim.jl`).
+never the home. `Deployment`, `Model` and `Simulation` answer the same generic
+(`deployment.jl`, `model.jl`, `sim.jl`).
 """
 warnings(build::Build) = build.warnings
 
@@ -997,7 +997,7 @@ function _nominal(structure::Structure)
 
     # Probe-scoped mode stores and workspaces (§9.3): the probes need `m` and
     # `ws` to build bundles, and everything these hold is garbage once the
-    # build finishes — each `Simulation` materializes its own.
+    # build finishes — each `Model` materializes its own.
     mstores = _mstores(structure)
     workspaces = _workspaces(structure, Float64)
 
@@ -1042,7 +1042,7 @@ _mstores(structure::Structure) =
         for entry in structure.components]
 
 # Declaration by allocation (§7.3, D-077): sizes from the instance, eltypes from
-# the activation. Called once per probe and once per `Simulation`.
+# the activation. Called once per probe and once per `Model`.
 _workspaces(structure::Structure, ::Type{T}) where {T} =
     Any[_workspace(entry, T) for entry in structure.components]
 
@@ -1343,7 +1343,7 @@ end
 # What moves behind deployment binding: `Δt`, `D` and `Φ` are entry data (§9.7),
 # so the executor cannot exist until `Δt_base` does. Each call materializes its
 # own stores and buffers — the `Build` stays immutable and backs many
-# `Simulation`s (§9.2). No user stage runs here: every check already ran at the
+# `Model`s (§9.2). No user stage runs here: every check already ran at the
 # probe, and what compiles is the checked shape.
 
 """
@@ -1378,7 +1378,7 @@ its own buffers, at one scalar — the entries' concretely-typed tuples closed
 into the phase bodies, beside the store set they read and write.
 
 Buffers are never cached, because every buffer set has exactly one owner
-(§9.2): a `Simulation` owns its nominal executor, and every service invocation
+(§9.2): a `Model` owns its executor, and every service invocation
 instantiates its own from the same cached layouts.
 
 The stepper, the arrival buffers, `chunk_size` and the localized-event key are

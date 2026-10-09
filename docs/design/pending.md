@@ -13,18 +13,6 @@ The bullets stand in working order, the first one next. The audit comes
 last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
-- **The model split**, ruled 2026-10-09 in D-317, three increments in
-  working order, their register and staging `briefs/roadmap_model_split.md`.
-  It closes the silent frozen run at a non-`Float64` scalar by type, since
-  only a `Model{Float64}` can be run. Increment 70 delivered the first
-  (`briefs/brief_increment_70_model_split_1.md`) and increment 71 the
-  second, so only increment 72, the docs sweep, remains owed.
-  - Increment 71 is ruled as D-319, and its docs stage and its two code
-    stages have landed. Its brief is
-    `briefs/brief_increment_71_model_split_2.md`, approved 2026-10-09.
-  - Increment 72 sweeps the spec's and the companions' "model" vocabulary
-    off the component tree, and gives the glossary's `nominal` the sentence
-    that only a `Model{Float64}` can be run.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment

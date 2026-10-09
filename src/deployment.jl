@@ -1,5 +1,5 @@
 # Deployment binding (§9.1, §9.2, D-254): the artifact the grid parameters fix,
-# standing between the `Build` and the `Simulation`. Everything here post-dates
+# standing between the `Build` and the `Model`. Everything here post-dates
 # the build's three steps and precedes materialization: it exists per
 # `Deployment`, not per `Build` and not per scalar type. Grid arithmetic is
 # exact — GCD over `Rational{Int}` — and floats are refused at the door.
@@ -286,7 +286,7 @@ The artifact the grid parameters fix (§9.1, §9.2, D-254): the build plus the
 grid parameters, the algorithm and the three event parameters, scalar-free,
 carrying the `Schedule` the constructor built, the grid attribution of §9.2 and
 its own `warnings`.
-`Simulation` materializes it at a scalar type, and one deployment backs many
+A `Model` materializes it at a scalar type, and one deployment backs many
 (§9.2). Two deployments compare as values, which is what replay's header check
 reads (§12.7).
 
@@ -298,7 +298,7 @@ or GCD derivation over the anchors' constraint pool, requested as
 
 `algorithm` selects the integration backend across the stepper seam (§10.2): a
 stepper type — `RK4`, the default, or `Heun` — selected here and materialized
-against the flat buffer at `Simulation` construction (D-227). The algorithm is
+against the flat buffer at `Model` construction (D-227). The algorithm is
 trajectory-determining and grid-independent, exactly like the keywords below;
 nothing outside the backend's own struct knows which one ran.
 
@@ -322,7 +322,7 @@ struct Deployment
     h::Float64                    # the continuous step (§10.2)
     N_base::Int                   # steps per base tick: Δt_base = N_base·h (§10.5)
     Δt_base::Float64
-    algorithm::Type               # <: AbstractStepper, materialized at Simulation construction (D-227)
+    algorithm::Type               # <: AbstractStepper, materialized at `Model` construction (D-227)
     firing_budget::Int            # per-event firings per boundary (§10.6)
     localization_tol::Float64     # relative bracket-width stop (§10.4)
     localization_budget::Int      # t* boundaries permitted per frame (§10.4)

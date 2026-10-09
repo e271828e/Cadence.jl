@@ -240,8 +240,8 @@ end
 
 function discrete_deployment()
     # The artifact deployment binding produces (§9.1, §9.2, D-254): the build plus
-    # the grid parameters, scalar-free, carrying the typed `Schedule`. The
-    # `Simulation` materializes it, and the two convenience forms compose the two.
+    # the grid parameters, scalar-free, carrying the typed `Schedule`. A
+    # `Model` materializes it, and the two convenience forms compose the two.
     @testset "the Deployment is the artifact the grid parameters fix (§9.1, D-254)" begin
         multirate_build = build(MultiRate())
         deployment = Deployment(multirate_build; h = 1//500)
@@ -353,7 +353,7 @@ function discrete_deployment()
         @test Δt_base_sim.model.deployment == n_base_sim.model.deployment == period_sim.model.deployment
         @test hash(Δt_base_sim.model.deployment) == hash(period_sim.model.deployment)
 
-        # Nothing writable is shared: each Simulation materializes its own buffers.
+        # Nothing writable is shared: each `Model` materializes its own buffers.
         init!(default_sim); run!(default_sim; t_end = 0.02)
         init!(n_base_sim)
         @test port(default_sim, "fcs/inner", :out) ≈ 1.02

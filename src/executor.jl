@@ -254,7 +254,7 @@ _event_chunks(entries::Vector, chunk_size::Int) =
            for lo in 1:chunk_size:length(entries))...)
 
 """
-The per-`Simulation` compiled event set: the entry chunks plus the §10.6
+The per-`Model` compiled event set: the entry chunks plus the §10.6
 registers. The executor holds it by reference, as it holds each chunk, so no
 walk's call site copies it (§9.7). `entries` and `projects` hold the event and
 projection entries in `EventChunk`s, so `length` of either counts chunks; the
