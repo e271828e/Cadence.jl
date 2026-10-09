@@ -256,6 +256,16 @@ no longer write the status, and R9's "the model rethrows raw" was revised
 in the brief before launch. The facts below are as of `dd4d092` and every
 brief re-checks them.
 
+**After increment three (2026-10-10).** It landed as 72c6214 to 61c0f2b
+under D-317, with no new entry: the spec, the companions and the README
+swept by the seven classes `brief_increment_72_model_vocabulary.md` states,
+the checkpoint gloss refreshed at every site, the glossary's `nominal`
+sentence, and the authoring rule in `tools/spec_style.md`. The sweep was
+smaller than R2 anticipated: nine spec sentences and two README sentences
+collided, and everything else read true of the `Model` as well. The
+rulings and the open points are `notes_increment_72.md`. The queue bullet
+is retired; this file is the record.
+
 ## Facts the briefs will cite
 
 As of `dd4d092`. Every one is re-checked against the tree before it enters a

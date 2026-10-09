@@ -91,7 +91,84 @@ true of the `Model` as well as of the tree, so it stands.
    own shape before the edit. Routed to the reviewer under
    `spec_style.md`'s "Sentences".
 
-## Open points for the user
+## Stage 2 (f185ba9): accepted deviations
+
+Gate 6068 of 6068, unchanged, as a comments-only commit should leave it.
+
+1. Two of the brief's phrases wrapped across two lines (`build.jl` 1345 to
+   1346, `test_discrete.jl` 243 to 244); edited at the line the word sits
+   on, reading as the brief's.
+2. `deployment.jl` 325, a struct field's trailing comment, stays at 100
+   columns beside its siblings; wrapping it would re-lay the field block.
+
+## The cold review
+
+Gate 6068 of 6068 on Julia 1.13.1, battery clean, claim inventory with no
+loss and only the brief's allowed gains, all thirteen source comments true
+of the code, the queue bullet gone whole. Four findings, three of them in
+sentences the brief itself dictated, and two open points raised into fixes.
+Probe scripts are in this session's scratchpad under `review/`.
+
+### Rulings made in the user's absence
+
+1. **Appendix B's termination bullet** had become "A component's state
+   ends a run", against §13.5 and the glossary ("termination is model
+   state"; a stop request is a port whoever publishes it). Ruled: "The
+   model's state ends a run", the S5 treatment §10.6 got.
+2. **§7.1's parenthetical** grew to twelve words. Ruled: "(the scalar `T`
+   at which the build types the tree)", ten.
+3. **§1's new sentence** carried two burdens and said the build compiles,
+   which happens at `Model` construction. Ruled: "The build checks the
+   tree. A simulation runs a `Model` (the tree compiled at one scalar type,
+   ready to step) (§9)."
+4. **`linearization_walkthrough.md`'s gloss sentence** kept a colon joining
+   two clauses. Ruled: split into two sentences.
+5. **§14.10's "Today's restore-the-trim dance"** names no owner, the reason
+   §14.9's sentence received "Flight.jl's" in stage 0. Ruled the same.
+6. **§9.7's "from constructing the model to the end of its first `run!`"**:
+   the report harness's total (`probes/measure.jl` 63 to 65) starts at
+   `t_build` and leaves the tree's construction out, so "constructing the
+   model" read as `Model(...)` understates the interval. Ruled: "from
+   calling `build`". The user may prefer another spelling.
+7. **Two spec sentences D-317 falsified and the earlier sweeps missed**,
+   §9.7's "At `Simulation` construction, and per activation, that data is
+   compiled" and §10.2's "Materialization at `Simulation` construction
+   binds the stepper": both say `Model` now, the twins of the
+   `deployment.jl` comments stage 2 fixed.
+8. The §9.4 `component` link moved to the first use (ruling 2 under stage
+   0).
+
+### The fix and its verification
+
+61c0f2b, "Fix increment 72's review findings", `spec.md` and
+`linearization_walkthrough.md`. The reviewer verified every site on the
+delta, the claim inventory (the moved link, two `Simulation` to `Model`
+swaps and one gained `build`, nothing else), the style rules and the
+battery at 61c0f2b. No code changed after f185ba9, whose gate was the last.
+
+### Open points from the review
+
+- **Appendix C claims a check no code makes.** The `ArgumentInvalid` row
+  says the `Model` constructor's keywords validate under the kind, and
+  `Model` now heads its call list, but nothing validates `chunk_size` in
+  `Model(deployment, T)` or in the sugar forms. Pre-existing (the sentence
+  predates this increment); the increment made it visible. A code fix or a
+  spec retraction is the user's call.
+- §13's "parameterized model types make rendered output unreadable" (9120)
+  is FlightCore's lesson and reads as S4 with the owner plain; it now sits
+  beside §13.2's rewritten "component types". Kept.
+- `sample_time_proposal.md` 303 still reads "At `Simulation` construction";
+  a historical proposal, left.
+- The §7.1 re-wrap leaves one 66-column line; cosmetic.
+
+## Not pushed
+
+Seven commits on 7caec22: 65262d8 (the brief and these notes), 72c6214,
+82c7ace, 4ae873b (notes), f185ba9, 61c0f2b and this notes commit, which
+also adds the roadmap's landing paragraph. The user diff-verifies the arc,
+rules on the open points, and pushes.
+
+## Open points for the user, from the brief
 
 - §9.7, 4953: "from constructing the model to the end of its first `run!`".
   If the measured interval starts at `build`, "constructing the model" now
