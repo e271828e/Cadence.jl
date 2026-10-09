@@ -145,8 +145,10 @@ directed ports). Its home domain is aircraft guidance, navigation and control:
 vehicle dynamics, sensors and avionics, simulated offline or interactively in
 real time. The formalism itself is domain-neutral.
 
-**Capabilities.** A model is a tree of [components](#g-component) written in
-plain Julia. The framework provides these capabilities.
+**Capabilities.** A model is written as a tree of [components](#g-component) in plain Julia. The
+build checks the tree and compiles it, and a [`Model`](#g-model) (the compiled tree at one
+scalar type, ready to step) is what a simulation runs ([§9][s9]). The framework
+provides these capabilities.
 
 - Continuous dynamics with algebraic outputs, integrated on a fixed step, with
   events either located by root-finding or checked at step boundaries
@@ -172,7 +174,7 @@ capability it does not build, that capability is weighed against them as a
   wall clock, with devices and a GUI attached ([§10.7][s10-7], [§11][s11]).
 - **Live introspection.** Every published signal can be inspected by path,
   during a run and after it ([§11.2][s11-2]).
-- **Compositional flexibility.** Models compose hierarchically, and a
+- **Compositional flexibility.** Components compose hierarchically, and a
   component substitutes for another behind the same declared contract
   ([§6][s6], [§8][s8]).
 - **Rigor and error locality.** Structure is declared and checked at build
@@ -1597,10 +1599,10 @@ the condition apply converts authored values through ordinary `convert` methods
 
 With the leaf vocabulary closed, the shape of `Ẋ` takes one line to state. `Ẋ`
 has exactly `X`'s shape at the [activation](#g-activation) scalar (the scalar type `T` at which
-the build types the model). A scalar leaf's derivative is a `T`, and an `SArray`
-leaf's is the same `SArray` at `T`. This is what the closed vocabulary buys. An
-invariant-carrying leaf like a unit quaternion has a derivative off its own
-type, and `Ẋ` would need a separate derivation. Here the attitude leaf is an
+the build types the component tree). A scalar leaf's derivative is a `T`, and an
+`SArray` leaf's is the same `SArray` at `T`. This is what the closed vocabulary
+buys. An invariant-carrying leaf like a unit quaternion has a derivative off its
+own type, and `Ẋ` would need a separate derivation. Here the attitude leaf is an
 `SVector{4,T}`, and so is its rate. The conformance predicate is structural.
 *Each field of `x_deriv`'s return scatters into its field's block at `T`* ([§9.5][s9-5]
 states the check). That makes derivative completeness a property of the layout
@@ -1962,9 +1964,9 @@ Julia has no per-object freeing, so these are the honest levers.
 # Part II — Authoring and build
 
 Part II covers everything that happens before a simulation runs: an author
-declares a model, and the build turns that declaration into an executable
-artifact. [§8][s8] is the declaration layer. It fixes the closed inventory of
-well-known functions a component defines, the visibility each declaration
+declares a component tree, and the build turns that declaration into an
+executable artifact. [§8][s8] is the declaration layer. It fixes the closed inventory
+of well-known functions a component defines, the visibility each declaration
 carries, and the shapes an assembly adds on top: children, paths, faces, rate
 scopes and computed connections. [§9][s9] is the build pipeline that consumes them.
 It fixes the build's three steps, the `Build` artifact they produce, the probe
@@ -3963,10 +3965,9 @@ live.
 #### The `Build`
 
 **`build(world) → Build` is a standalone entry point** ([D-049][d-049]). CI
-checks a model by calling `build`, the acceptance tests target `build` errors
-directly, and `attach!` validates [device](#g-device) [bindings](#g-binding)
-against the `Build`. Build living only inside the `Simulation` constructor was
-rejected.
+checks a component tree by calling `build`, the acceptance tests target `build`
+errors directly, and `attach!` validates [device](#g-device) [bindings](#g-binding) against the `Build`.
+Build living only inside the `Simulation` constructor was rejected.
 
 **A `Build` is structure, outputs, events, the [activations](#g-activation)
 and `warnings`** ([D-253][d-253]). The first three are the products of
@@ -4148,7 +4149,7 @@ derived from the rows at `compile`, never stored beside them
 ([§10.5][s10-5]). It is also the substrate of the grid diagnostics below, and
 the table that answers "when does what run, and what coincides with what".
 
-The model worked in [§10.5][s10-5] has three discrete components under two
+The example worked in [§10.5][s10-5] has three discrete components under two
 scopes, and that section's code block gives their `sample_times`. The root holds
 a flight-control scope `fcs` and a discrete GNSS component `gnss`, declared as
 `fcs = Relative(1)` and `gnss = Absolute(Hz(50))`. Deploy
@@ -4395,8 +4396,8 @@ probe-fed data.
 
 ### 9.4 Activations: executable sets, laziness, caching
 
-By default, the build types the model only at `Float64`. Linearization and
-gradient trim need the same model at another scalar type, a `Dual`. An
+By default, the build types the component tree only at `Float64`. Linearization
+and gradient trim need the same tree at another scalar type, a `Dual`. An
 [activation](#g-activation) (the build's typed products at a given scalar
 type) supplies that typing. This section states what an activation re-runs,
 which functions it probes, when it runs, and what the `Build` caches.
@@ -4763,9 +4764,8 @@ service loop and linearization in turn.
   the framework, and only the assignment's *output* is framework vocabulary.
 - The generic service loop handles vectorization, optimizer setup, bounds
   packing and the solved-condition write-back, [root inputs](#g-root-input)
-  included ([§14.8][s14-8]). It takes the [trace header](#g-trace-header)
-  after the write-back. A failed trim leaves the simulation's stores untouched
-  ([D-070][d-070]).
+  included ([§14.8][s14-8]). On a simulation it takes the [trace header](#g-trace-header) after the
+  write-back. A failed trim leaves the model's stores untouched ([D-070][d-070]).
 - Linearization is a `Dual` activation plus seeded sweeps
   ([§14.10][s14-10]). Gather and scatter over the canonical layout replace the
   hand-written per-aircraft state-space mapping layer. That replacement
@@ -5134,7 +5134,7 @@ The seam contract has four clauses.
   Multistep methods are excluded ([D-017][d-017]).
 - The seam carries what a backend needs across a frame top through a
   checkpoint hook, empty for a single-step method. A
-  [checkpoint](#g-checkpoint) is the executor's state at a frame top
+  [checkpoint](#g-checkpoint) is the `Model`'s state at a frame top
   ([§12.6][s12-6], [D-274][d-274]).
 
 #### Models with no continuous state
@@ -5954,9 +5954,9 @@ boundary.
 
 Under a single pass, a cascade of N logically simultaneous transitions
 (supervisor FSM → subordinate FSM → …, where an FSM is a finite-state machine)
-takes N steps to complete, at latency N·h. Model semantics would then depend on
-the integrator's step size, and `h` is an execution parameter. This is the same
-class of footgun [§2.2][s2-2] cited when killing `f_step!`, an unconditional
+takes N steps to complete, at latency N·h. The model's semantics would then
+depend on the integrator's step size, and `h` is an execution parameter. This is
+the same class of footgun [§2.2][s2-2] cited when killing `f_step!`, an unconditional
 per-step hook ([D-020][d-020]). Cascades are not a corner case either.
 Externalized FSM components are blessed ([§3.1][s3-1]), which makes
 cross-component cascades the expected idiom.
@@ -6019,7 +6019,7 @@ makes the θ = 0 discriminator ([§10.4][s10-4]) conclusive.
 
 All three registers are detection bookkeeping, not model memory. They are
 correctly absent from every state store ([D-082][d-082]). A
-[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one value)
+[checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as one value)
 carries the prior, the one register that crosses a boundary ([§12.6][s12-6],
 [D-274][d-274]). The [trace header](#g-trace-header) (the trace's fixed
 preamble) is such a checkpoint. `restore!` copies a checkpoint's prior back
@@ -6523,7 +6523,7 @@ remedy of being declared public and returned from `y_state`, at a cost of one
 cell per [sweep](#g-sweep) ([§5.3][s5-3]). Post-run continuation reads the live stores directly.
 Periodic full-state checkpoints, which would allow warm restart without replay
 from zero, are a [guarded addition](#g-guarded-addition) shaped as an opt-in log policy. Each would
-retain a [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one value), the
+retain a [checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as one value), the
 value `checkpoint(sim)` returns ([§12.6][s12-6]). A dev-mode flag that reads every state
 field out of the stores is a possible future diagnostic. It would be a reader
 over the stores, never a port class ([D-252][d-252]).
@@ -7181,7 +7181,7 @@ replay path exactly as they are.
 **The [trace header](#g-trace-header) is the checkpoint `init!` takes at the
 end of [boundary zero](#g-boundary-zero)**, after the first
 [snapshot](#g-snapshot) is published ([§12.6][s12-6], [D-274][d-274]). A
-[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+[checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as one
 value) holds the flat buffer `x`, the `s` and `m` stores, the whole signal
 table, the guard [priors](#g-prior), `t` and `t₀`, the frame and boundary
 counters, and the fingerprint. The executor's clock holds `t` and `t₀`, and
@@ -8615,7 +8615,7 @@ frame index to the state's frame and the boundary ordinal to zero, as `init!`
 does ([D-319][d-319]).
 The origin `t₀` is not a run field. The executor's clock holds it beside `t`.
 `init!` sets it on the clock before boundary zero ([§14.5][s14-5]), and a
-[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+[checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as one
 value) carries it with the clock ([§11.5][s11-5], [D-273][d-273]). It is a
 `Float64`, as `h` and `t_end` are.
 
@@ -8857,7 +8857,7 @@ second loop. That is what keeps every property proved of the loop true of
 reads the trace:
 
 - **Restore from the header.** `replay!` restores the trace's
-  [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+  [checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as one
   value), the state the recording opened from. It runs no
   [boundary zero](#g-boundary-zero). The drain then reads the trace.
   `replay!` stands in the `init!` position of the lifecycle
@@ -9269,7 +9269,7 @@ therefore pure presentation.
 Two rendering rules are doctrine, not style.
 
 - **Strings, never instances.** Diagnostics carry paths and names as strings,
-  never component instances and never model types. This is the
+  never component instances and never component types. This is the
   `compact_backtrace` lesson. Expected and observed *[port](#g-port)* types are
   the one payload exception, and they are small. Examples are a `Float64`
   against a `Bool`, and a NamedTuple field diff.
@@ -9550,8 +9550,8 @@ lifecycle to `built` ([§12.6][s12-6]). An `InterruptException` inside
 boundary zero is not model code failing, and it has no stop path to take in a
 service. The host therefore lets it propagate raw, unwrapped. The pointer is
 `0`. A throw inside boundary
-zero leaves no trace and no [checkpoint](#g-checkpoint) (the executor's state
-at a frame top, as one value). The run `init!` opened stays
+zero leaves no trace and no [checkpoint](#g-checkpoint) (the `Model`'s state
+at a frame top as one value). The run `init!` opened stays
 behind, empty and with no trace header, and the run before it is gone. Nothing
 can use it, since `trace(sim)` and the advances refuse a `built` simulation.
 `init!` takes the trace header only after boundary zero publishes ([§11.5][s11-5]). The
@@ -10160,8 +10160,8 @@ sequence and [root-input totality](#g-root-input-totality) (the requirement
 that an application establishing a complete world cover every root input).
 [§14.7][s14-7]–[§14.9][s14-9] cover the trim service in full.
 [§14.10][s14-10] covers linearization. A fourth stopped-sim service,
-`checkpoint`, returns a [checkpoint](#g-checkpoint) (the executor's state at
-a frame top, as one value). A checkpoint is not a condition and has no
+`checkpoint`, returns a [checkpoint](#g-checkpoint) (the `Model`'s state at
+a frame top as one value). A checkpoint is not a condition and has no
 algebra, and `restore!` puts it back ([§12.6][s12-6], [D-273][d-273]).
 
 **Lifecycle preconditions.** Every service requires a non-running simulation.
@@ -10219,8 +10219,8 @@ has a declared initial value (declaration-by-initial-value, [§8.2][s8-2]), so
 conditions are naturally sparse. Applying one means "fresh run from the
 `init_*` defaults, with these overrides" ([D-063][d-063]). A condition is an
 initial condition and nothing else ([D-273][d-273]). A simulation's state
-past its initial instant is a [checkpoint](#g-checkpoint) (the executor's
-state at a frame top, as one value), not a condition, and it has no algebra
+past its initial instant is a [checkpoint](#g-checkpoint) (the `Model`'s
+state at a frame top as one value), not a condition, and it has no algebra
 ([§12.6][s12-6], [D-274][d-274]).
 
 **Doctrine.** Addressing conditions by path does not reopen the
@@ -10595,7 +10595,7 @@ macro-sequence with an empty integrate), [§14.5][s14-5].
 project → [[sweep](#g-sweep) → [guards](#g-guard) → handlers]\* →
 [due](#g-due) `s_update` calls → first [snapshot](#g-snapshot). After the
 first snapshot `init!` takes the [trace header](#g-trace-header), the
-[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+[checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as one
 value) of the state the sequence leaves ([§11.5][s11-5], [D-274][d-274]).
 The parity with an ordinary boundary is exact, not approximate. The pieces
 follow one by one.
@@ -11112,7 +11112,7 @@ A fresh recording starting at its own anchor is unattended mode's
 natural shape. A trim at a point reached by flying is not offered. Trim
 takes an authored baseline. Fly-then-retrim is `checkpoint` the flight,
 then author the trim's baseline from what the [checkpoint](#g-checkpoint)
-(the executor's state at a frame top, as one value) shows
+(the `Model`'s state at a frame top as one value) shows
 ([D-273][d-273]).
 
 #### The report, not an exception
@@ -11308,7 +11308,7 @@ an environment face would therefore be applicable only to those rigs where
 that face happens to be unconnected. The relocatability this section exists to
 guarantee would be lost.
 
-**The world wrapper dissolves.** Today's `f_init!(::Model{<:SimpleWorld})`
+**The world wrapper dissolves.** Flight.jl's `f_init!(::Model{<:SimpleWorld})`
 (initialize environment, then call the aircraft's trim) has no successor
 method. The environment, the other aircraft and all root inputs are covered by
 the `baseline` condition ([§14.6][s14-6]), applied once at setup. The commit
@@ -11447,7 +11447,7 @@ initialization boundary: the ordinary macro-sequence with an empty integrate).
 It works on scratch buffers only, and nothing it computes becomes
 authoritative. Today's restore-the-trim dance, the re-`assign!` after
 `FiniteDiff` dirtied the model, has no successor. The default operating point
-is the [checkpoint](#g-checkpoint) (the executor's state at a frame top, as
+is the [checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as
 one value) of the simulation or the model as it stands. It is
 `checkpoint(sim)` on a simulation and `checkpoint(model)` on a
 [`Model`](#g-model) (a deployment materialized at one scalar type), each
@@ -12164,8 +12164,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `margin!(sim, m)` set the two knobs and `pace(sim)` and `margin(sim)` read
   them ([D-269][d-269]); a device stops through `stop!(handle)` ([§11.6][s11-6]). The
   tail clears the pause, never a run's start ([D-268][d-268]).
-- Termination. Model state ends a run via stop requests, `StopFlag` ports
-  read at every published boundary unless the advance ignores them
+- Termination. A component's state ends a run via stop requests, `StopFlag`
+  ports read at every published boundary unless the advance ignores them
   ([§13.5][s13-5]). Shutdown completes a boundary,
   publishes the final snapshot, then joins ([§12.4][s12-4]).
 - Post-run. The log is the retained snapshots. `trace(sim) → trc` retrieves
@@ -12576,11 +12576,12 @@ activation):
   declaration · fail-fast, but collected over a `TableBinding`'s entry table
   and over the `Model` and `Simulation` constructors' keywords and the claim
   on the model ([D-318][d-318]). The call
-  (`Simulation`, `run!`, `step!`, `replay!`, `pace!`, `margin!`, `trim!`,
-  `linearize`, `TableBinding`, a period constructor), the argument, the value
-  in hand, the violated constraint. `trim!` and `linearize` on a `Model` at
-  another scalar raise it with reason `:non_nominal` ([D-319][d-319]). The twin of
-  `DeploymentInvalid` for arguments that are not deployment parameters.
+  (`Model`, `Simulation`, `init!`, `frame!`, `apply!`, `restore!`, `run!`,
+  `step!`, `replay!`, `pace!`, `margin!`, `trim!`, `linearize`, `TableBinding`,
+  a period constructor), the argument, the value in hand, the violated
+  constraint. `trim!` and `linearize` on a `Model` at another scalar raise it
+  with reason `:non_nominal` ([D-319][d-319]). The twin of `DeploymentInvalid` for
+  arguments that are not deployment parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
   offending argument's type, the selector kinds in hand. Or an empty prefix
   handed to `at` on a read set ([§14.9][s14-9]). The read side's twin of
@@ -13222,7 +13223,8 @@ in the `Model` block of [Appendix B][sB].
 face (for a continuous producer's output declaration, its evaluation at
 `Float64`). It is the only activation that runs in real time, and the one
 where the conformance check demands exact type match ([§9.4][s9-4],
-[§9.5][s9-5]).
+[§9.5][s9-5]). Only a `Model{Float64}` can be run, and a `Model` at another scalar is a
+service's scratch ([§9.2][s9-2], [D-317][d-317]).
 
 <a id="g-outputs"></a>**`Outputs`** — the nominal evaluation's product: per component the output
 port names each stage produces, and the execution order over the components.
@@ -13617,8 +13619,9 @@ declaration-ordered, leaving the simulation untouched ([§14.6][s14-6]).
 
 <a id="g-service-lifecycle"></a>**service lifecycle** — the `Simulation` states `built` / `initialized` /
 `running` / `stopped` / `errored` ([§12.6][s12-6]) and each service's
-legality against them. A violation is `ServiceLifecycle`, and `errored` is
-terminal for all four services ([§14][s14]).
+legality against them, and on a `Model` the statuses `:built`, `:consistent` and
+`:inconsistent` that its own service forms gate on ([§14][s14], [D-319][d-319]). A violation is
+`ServiceLifecycle`, and `errored` is terminal for all four services ([§14][s14]).
 
 <a id="g-taps"></a>**taps** — the three selector lists (`x`, `u`, `y`), built by `taps`,
 declaring what linearization seeds and reports. Every tap names one scalar,
@@ -13673,7 +13676,7 @@ message text ([§13.2][s13-2]). Not a component *class* ([§D.1][sD-1]) or a
 *function family* ([§D.1][sD-1]).
 
 <a id="g-payload"></a>**payload** — the structured data a diagnostic carries beside its kind:
-paths and names as strings (never instances or model types),
+paths and names as strings (never instances or component types),
 expected/observed port types, the list-in-hand ([§13.2][s13-2],
 [Appendix C][sC]). Severity is the kind's, not the payload's.
 

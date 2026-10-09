@@ -42,6 +42,13 @@ in pedagogy is not.
   moves to a companion, or the spec says what it is. An aerospace example
   gets one introducing clause that claims nothing its source does not.
   FlightCore named as the predecessor needs nothing.
+- **`Model` is the type; the authored tree is "the component tree" or "the
+  root".** Lowercase "model" names a `Model` or the modeled system as a whole
+  ("model code", "model state", "a model with no continuous state"). A sentence
+  about declaring, wiring, building or checking what the user wrote says the
+  component tree or the root, since `build` takes the tree and a `Model` is
+  downstream of it (D-317). FlightCore's and Flight.jl's own `Model` keeps its
+  spelling, with its owner named at first use in a section.
 - Coinages are governed by `tools/coinage_inventory.md`: a term used in three
   or more places, or far from its definition, gets a glossary entry; a local
   one- or two-use coinage gets an inline gloss only. New coinages join the
