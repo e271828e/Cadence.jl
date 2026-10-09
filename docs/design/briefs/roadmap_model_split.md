@@ -231,7 +231,14 @@ overwritten the service method, are raised on the model's doors, and the
 model takes the hooks, publishes through `settled!` and writes `:consistent`
 last, in `init!`'s shape (D-318). A state carried from a standalone model
 into a simulation goes through that door, never through the constructor.
-Spec: §14.8, §14.10, D-282's owner roster.
+Appendix B gains a `Model` block beside the `Simulation` one: the
+constructor, `init!(model, condition; t0, hooks)`, `frame!(model, k, hooks)`
+with `FrameHooks` and `NoHooks`, the reads `port`, `state` and `modes`, and
+the doors this increment adds, each writing door marked as refused on a
+claimed model; one closing sentence says the stepping primitives and
+`apply!` are framework internals the spec names only as mechanisms, outside
+the API and outside the gate. The glossary's `Model` entry points at the
+block. Spec: §14.8, §14.10, Appendix B, D-282's owner roster.
 
 **Increment three: the vocabulary.** The "model" sweep over the spec and the
 companions (R2), and the glossary's `nominal` entry gains the sentence that
