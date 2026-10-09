@@ -153,7 +153,10 @@ The simulation around a materialized `Model{Float64}` (§9.2, D-317): the data
 plane, the control plane and the run beside it. Only the nominal model runs,
 since the `Float64` activation is the only one that runs in real time (§9.4);
 a model at any other scalar is a `MethodError` here, and is a service's
-scratch, stepped frame by frame with no ticks and no events. The three other
+scratch, stepped frame by frame with no ticks and no events. A model already
+claimed by a simulation, or whose status is not `:built`, is refused as
+`ArgumentInvalid` before anything is allocated, since a simulation claims its
+model once and never shares it (D-318). The three other
 forms are *defined as* the compositions through a `Float64` model:
 `Simulation(deployment; join_timeout, chunk_size)` is
 `Simulation(Model(deployment; chunk_size); join_timeout)`,
@@ -188,12 +191,24 @@ function Simulation(model::Model{Float64,E}; join_timeout = 5.0) where {E}
     # This call's own keyword is not a deployment parameter, so it is an
     # `ArgumentInvalid` (D-256, Appendix C), collected as the call's one throw
     # (§9.1, D-229). The stop policy and the recording keywords are not among
-    # them (D-255, D-261).
+    # them (D-255, D-261). The model's two refusals join them, a status other
+    # than `:built` and a claim already taken. The claim itself is a
+    # compare-and-swap after the collection, so a race lost there throws
+    # `:claimed` alone, and nothing is allocated before it succeeds (§9.2, D-318).
     diags = Diagnostic[]
     join_timeout isa Real && join_timeout > 0 ||
         push!(diags, ArgumentInvalid(call = :Simulation, reason = :range,
                                      argument = :join_timeout, value = join_timeout))
+    model_status = @atomic :acquire model.status
+    model_status === :built ||
+        push!(diags, ArgumentInvalid(call = :Simulation, reason = :not_built,
+                                     argument = :model, value = model_status))
+    (@atomic :acquire model.claimed) &&
+        push!(diags, ArgumentInvalid(call = :Simulation, reason = :claimed, argument = :model))
     isempty(diags) || throw(DiagnosticError(diags))
+    (@atomicreplace model.claimed false => true).success ||
+        throw(DiagnosticError(ArgumentInvalid(call = :Simulation, reason = :claimed,
+                                              argument = :model)))
     # §12.6's placeholder run (D-255, D-261): an empty log at the defaults that
     # nothing reads and no trace, so every accessor has a run to read. It
     # carries no configuration; the first door builds the run that records.

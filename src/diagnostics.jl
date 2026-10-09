@@ -2021,6 +2021,14 @@ function message(d::ArgumentInvalid)
     d.reason === :expo &&
         return "TableBinding: entry `$(d.entry)`'s expo must lie in [0, 1], got " *
                "$(d.value) (§11.6)"
+    d.reason === :not_built &&
+        return "`Simulation` was given a model whose status is $(repr(d.value)), and a " *
+               "simulation runs only a model it initializes itself — build a fresh `Model` " *
+               "from the same deployment, or call `Simulation(deployment)` (§9.2, D-318)"
+    d.reason === :claimed &&
+        return "`Simulation` was given a model that already belongs to a simulation, and a " *
+               "model is never shared — build another `Model` from the same deployment " *
+               "(§9.2, D-318)"
     # The materialization's `join_timeout` (D-256) and the doors' four recording
     # keywords (D-261): each carries the constraint text and section its
     # `DeploymentInvalid` row carried before the keywords moved off the

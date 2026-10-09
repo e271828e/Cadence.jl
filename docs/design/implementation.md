@@ -475,10 +475,12 @@ D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
   `restore` arm.
 - `StopRequestInvalid`, the refusal of an `ignore_stop_requests` path (§13.5,
   D-316).
+- `ArgumentInvalid`'s `:not_built` and `:claimed`, the `Simulation`
+  constructor's refusals of its model (§9.2, D-318).
 
 Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §13.5, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
-D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316.
+D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316, D-318.
 
 ### `src/executor.jl`
 
@@ -592,10 +594,11 @@ door that writes the model's status lives here. A file sits above `sim.jl` as
 soon as nothing in it names a `Simulation` in a signature, and below
 `model.jl` as soon as something in it names a `Model`.
 
-- `Model{T,E}`, the deployment and its executor at one scalar, its status and
-  its frame's diagnostic cell, with the materialization `Model(deployment, T)`
-  and `Model(::Build)` and `Model(::AbstractComponent)` over it (§9.2, §11.8,
-  §12.6, D-254, D-317).
+- `Model{T,E}`, the deployment and its executor at one scalar, its status,
+  its claim flag and its frame's diagnostic cell, with the materialization
+  `Model(deployment, T)` and `Model(::Build)` and `Model(::AbstractComponent)`
+  over it (§9.2, §11.8, §12.6, D-254, D-317). `Simulation(model)` sets the
+  claim flag once and nothing clears it (D-318).
 - The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, and the
   no-op `NoHooks` (§11.2, §13.5, D-317).
 - The model's doors (D-317):
@@ -621,7 +624,7 @@ soon as nothing in it names a `Simulation` in a signature, and below
   (D-274).
 
 Spec: §9.2, §10.2, §10.6, §11.2, §11.8, §12.6, §13.2, §13.4, §13.5, §14.5,
-D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317.
+D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317, D-318.
 
 ### `src/readers.jl`
 
@@ -721,7 +724,8 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   and the run, its model a `Model{Float64}` by type (§12.1, D-256, D-317).
   `Model` and its materialization are model.jl's.
 - `Simulation(model::Model{Float64})`, the one constructor every simulation
-  goes through (D-317).
+  goes through (D-317). It claims the model by compare-and-swap, and refuses
+  one already claimed or not at `:built` as `ArgumentInvalid` (D-318).
 - The doors' recording keywords, checked by `_check_recording`.
 - The three sugar forms `Simulation(::Deployment)`, `Simulation(::Build)`
   and `Simulation(::AbstractComponent)`, each a composition through a
@@ -774,7 +778,7 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.4–§13.6,
 §14, §14.5, §14.6, D-027, D-101, D-203, D-218, D-219,
 D-223, D-232, D-233, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
-D-268, D-269, D-270, D-274, D-316, D-317.
+D-268, D-269, D-270, D-274, D-316, D-317, D-318.
 
 ### `src/stepper.jl`
 

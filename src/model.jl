@@ -39,6 +39,9 @@ chunk_size)`, and `Model(root; kw…)` calls `build` first.
   throw inside a frame. A throw inside boundary zero writes `:built`. Only the
   model's own doors and catch sites write it, and `lifecycle(sim)` reads it
   (§12.6, D-317).
+- `claimed`: set once by `Simulation(model)` through a compare-and-swap and
+  never cleared, so a simulation owns its model and never shares it (§9.2,
+  §12.6, D-318).
 - `frame_diag`: the frame's own diagnostic cell, where the chattering and
   firing-budget reports go. A simulation's drain folds it into the loop's
   account beside the loop's own cell (§11.8, D-317).
@@ -47,6 +50,7 @@ mutable struct Model{T,E}
     const deployment::Deployment
     const exec::E
     @atomic status::Symbol
+    @atomic claimed::Bool
     const frame_diag::DiagCell
 end
 
@@ -54,7 +58,7 @@ function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size::Int = 16
     act = activation(deployment.build, T)
     exec = compile(deployment.build, act, deployment.schedule; chunk_size,
                    algorithm = deployment.algorithm)
-    Model{T,typeof(exec)}(deployment, exec, :built, DiagCell(EMPTY_DIAG))
+    Model{T,typeof(exec)}(deployment, exec, :built, false, DiagCell(EMPTY_DIAG))
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254).

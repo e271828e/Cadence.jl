@@ -155,6 +155,29 @@ function test_lifecycle()
         @test d.op === :init! && d.status === :errored
     end
 
+    @testset "a `Simulation` claims its `Model` (§9.2, §12.6, D-318)" begin
+        deployment = Deployment(build(feedback_model()); h = 1//50)
+        model = Model(deployment)
+        @test model.claimed === false
+        sim = Simulation(model)
+        @test model.claimed === true && sim.model === model
+        # A claimed model is never shared: a second simulation over it is refused.
+        d = only(diagnostics(failure(() -> Simulation(model))))
+        @test d isa ArgumentInvalid && d.call === :Simulation
+        @test d.reason === :claimed && d.argument === :model
+        # A model initialized standalone is not `:built`, so no simulation takes
+        # it, and the refusal leaves it unclaimed.
+        standalone = Model(deployment)
+        init!(standalone, fragment(u = (ref = 0.0,)))
+        d = only(diagnostics(failure(() -> Simulation(standalone))))
+        @test d isa ArgumentInvalid && d.reason === :not_built
+        @test d.argument === :model && d.value === :consistent
+        @test standalone.claimed === false
+        # The sugar form materializes a fresh model and claims it.
+        composed = Simulation(deployment)
+        @test lifecycle(composed) === :built && composed.model.claimed === true
+    end
+
     @testset "t_end is the advance's own bound, validated per call (§13.5)" begin
         sim = Simulation(feedback_model(); h = 1//50)
         init!(sim, fragment(u = (ref = 0.0,)))

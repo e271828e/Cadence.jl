@@ -1444,6 +1444,9 @@ function trace_checkpoints()
         _restore_state!(twin, dual_cp)
         @test twin.status === :consistent
         @test state(twin, "c") == state(dual, "c")
+        # The executor's method is typed by scalar, so a `D8` checkpoint never
+        # enters a `Float64` executor.
+        @test_throws MethodError _restore_state!(low_high.model.exec, dual_cp)
     end
 
     @testset "`restore = false` feeds on the recording's clock (§12.7, D-274)" begin
