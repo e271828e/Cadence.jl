@@ -164,7 +164,7 @@ function assembly_container_children()
         # naming rule itself is the undeclared containers' below.
         sim = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter()));
                          h = 1//10)
-        @test paths(sim.deployment.build.structure) == ["c1", "c2"]
+        @test paths(sim.model.deployment.build.structure) == ["c1", "c2"]
         @test state(sim, "c2") === (n = 0,)
 
         # An empty container contributes zero children, and is not an error.
@@ -181,7 +181,7 @@ function assembly_container_children()
         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
         # (§8.5), addressable by the parent's declarations like any child name.
         tuple_sim = Simulation(TupleRoster((Gain(2.0), Gain(3.0))); h = 1//10)
-        @test paths(tuple_sim.deployment.build.structure) == ["units/1", "units/2"]
+        @test paths(tuple_sim.model.deployment.build.structure) == ["units/1", "units/2"]
         init!(tuple_sim, fragment(u = (in = 1.0,)))
         @test port(tuple_sim, "units/2", :out) === 6.0
         @test port(tuple_sim, "", :y) === port(tuple_sim, "units/2", :out)
@@ -271,7 +271,7 @@ function assembly_transparent_containers()
         # the same declaration order, addressed without the field segment — wiring
         # endpoints, the flat list and the read path alike.
         sim = Simulation(TransparentRoster((a = Gain(2.0), b = Gain(3.0))); h = 1//10)
-        @test paths(sim.deployment.build.structure) == ["a", "b"]
+        @test paths(sim.model.deployment.build.structure) == ["a", "b"]
         init!(sim, fragment(u = (in = 1.0,)))
         @test port(sim, "b", :out) === 6.0
         @test port(sim, "", :y) === port(sim, "b", :out)
@@ -326,7 +326,7 @@ function assembly_transparent_containers()
         # over inert data, a false positive where no shadow exists. Legality is
         # per-instantiation, as every wiring judgment already is.
         sim = Simulation(Shadowed((units = Gain(2.0),), (), Gain(3.0)); h = 1//10)
-        @test paths(sim.deployment.build.structure) == ["units", "trim"]     # the bare child, and nothing under it
+        @test paths(sim.model.deployment.build.structure) == ["units", "trim"]     # the bare child, and nothing under it
         init!(sim, fragment(u = (in = 1.0,)))
         @test port(sim, "units", :out) === 6.0             # reads resolve `units` bare
         @test port(sim, "", :y) === 6.0                    # and so does wiring resolution
@@ -412,10 +412,10 @@ function assembly_paths()
         # this case entirely.
         generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
         init!(generic_sim, fragment(u = (ref = 1.0,)))
-        @test paths(generic_sim.deployment.build.structure) ==
-              paths(sim.deployment.build.structure)
-        @test [level.wires for level in generic_sim.deployment.build.structure.levels] ==
-              [level.wires for level in sim.deployment.build.structure.levels]
+        @test paths(generic_sim.model.deployment.build.structure) ==
+              paths(sim.model.deployment.build.structure)
+        @test [level.wires for level in generic_sim.model.deployment.build.structure.levels] ==
+              [level.wires for level in sim.model.deployment.build.structure.levels]
         run!(sim; t_end = 0.2)                       # equal wiring, and equal trajectories:
         run!(generic_sim; t_end = 0.2)  # the t₀ table alone would prove nothing
         @test state(generic_sim, "inner/plant").q === state(sim, "inner/plant").q
@@ -576,7 +576,7 @@ function assembly_two_level()
         end
 
         sim = Simulation(Vehicle(; k, kI, ω, ζ); h = 1//50)
-        @test paths(sim.deployment.build.structure) == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
+        @test paths(sim.model.deployment.build.structure) == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
         init!(sim, fragment(u = (ref = r,)))
         run!(sim; t_end = n_steps * Δt)
         @test state(sim, "loop/plant").q ≈ q rtol = 1e-6
@@ -889,7 +889,7 @@ function assembly_obligations()
         # authored by the init service's condition (§11.3, §14.6).
         sim = Simulation(Group((; c = Gain(2.0)); input_wires = ("in" => "c/e",));
                          h = 1//100)
-        @test sim.deployment.build.structure.root_inputs == [:in]
+        @test sim.model.deployment.build.structure.root_inputs == [:in]
         init!(sim, fragment(u = (in = 0.0,)))
         @test port(sim, "c", :out) == 0.0
         init!(sim, fragment(u = (in = 3.0,)))
@@ -1249,7 +1249,7 @@ function assembly_primitives()
         @test output_wires(group) == ("inner/scaled" => "inner.scaled",)
 
         sim = Simulation(group; h = 1//10)
-        @test paths(sim.deployment.build.structure) == ["inner/s", "inner/g", "trim"]
+        @test paths(sim.model.deployment.build.structure) == ["inner/s", "inner/g", "trim"]
         init!(sim, fragment(u = (var"inner.b" = 1.0, e = 2.0)))
         @test port(sim, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
     end

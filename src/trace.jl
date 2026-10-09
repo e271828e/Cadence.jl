@@ -273,7 +273,7 @@ that produced a diagnostic contributes no record: a partially applied frame is
 not a replay of anything.
 """
 function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Vector{Symbol})
-    layout, store, schemas = sim.exec.act.layout, sim.exec.store, trc.schemas
+    layout, store, schemas = sim.model.exec.act.layout, sim.model.exec.store, trc.schemas
     writers = Dict{Int,Writer}()
     replay_records = ReplayRecord[]
     recorded_frames = (trc.header.frame + 1):trc.frames

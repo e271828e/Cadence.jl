@@ -50,10 +50,10 @@ function discrete_one_rate()
         # Structural: the interior variants carry continuous entries only, so there
         # is no gating test on the hot path — the hold is not implemented, it is
         # the absence of any way to change the cell.
-        @test length(walked(sim.exec.bodies.sweep_1, :interior)) == 1        # plant only
-        @test length(walked(sim.exec.bodies.sweep_1)) == 2                   # plus ctl
-        @test isempty(walked(sim.exec.bodies.ticks, :interior))
-        @test length(walked(sim.exec.bodies.ticks)) == 1
+        @test length(walked(sim.model.exec.bodies.sweep_1, :interior)) == 1        # plant only
+        @test length(walked(sim.model.exec.bodies.sweep_1)) == 2                   # plus ctl
+        @test isempty(walked(sim.model.exec.bodies.ticks, :interior))
+        @test length(walked(sim.model.exec.bodies.ticks)) == 1
 
         # Semantic: a step is made of interior evaluations, so the discrete cell
         # cannot move across one, while the continuous table does. Run a few
@@ -78,8 +78,8 @@ function discrete_frozen_activation()
         # has none) — and its cell holds the nominal products §9.4 carried across,
         # pinned for the whole run.
         dual_sim = Simulation(sampled_loop(), D8; h = 1//50)
-        @test isempty(walked(dual_sim.exec.bodies.ticks))
-        @test length(walked(dual_sim.exec.bodies.sweep_1)) == 1          # plant only; ctl frozen
+        @test isempty(walked(dual_sim.model.exec.bodies.ticks))
+        @test length(walked(dual_sim.model.exec.bodies.sweep_1)) == 1          # plant only; ctl frozen
         @test port(dual_sim, "ctl", :u) isa Float64
 
         init!(dual_sim, fragment(u = (ref = 0.0,)))
@@ -151,7 +151,7 @@ function discrete_rate_fold()
         # A bare container field name applies one declaration to every element.
         sim = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter());
                                sample_times = (; children = Relative(2, 1))); h = 1//10)
-        rows = sim.deployment.schedule.rows
+        rows = sim.model.deployment.schedule.rows
         @test length(rows) == 2
         @test all(e.D == 2 && e.Φ == 1 for e in rows)
     end
@@ -163,11 +163,11 @@ function discrete_rate_fold()
                                          (; var"kids/a" = Relative(2),
                                             var"kids/b" = Relative(3, 1))); h = 1//10)
         bare_rows, opaque_rows =
-            bare.deployment.schedule.rows, opaque.deployment.schedule.rows
+            bare.model.deployment.schedule.rows, opaque.model.deployment.schedule.rows
         @test [(e.D, e.Φ) for e in bare_rows] == [(2, 0), (3, 1)]
         @test [(e.D, e.Φ) for e in bare_rows] == [(e.D, e.Φ) for e in opaque_rows]
-        @test paths(bare.deployment.build.structure) == ["a", "b"] &&
-              paths(opaque.deployment.build.structure) == ["kids/a", "kids/b"]
+        @test paths(bare.model.deployment.build.structure) == ["a", "b"] &&
+              paths(opaque.model.deployment.build.structure) == ["kids/a", "kids/b"]
     end
 
     # The schedule the fold produces: the spec's own worked example, and the
@@ -176,7 +176,7 @@ function discrete_rate_fold()
         # Three discrete components under two scopes, deployed at Δt_base = 2 ms:
         # inner (1, 0), outer (5, 2), gnss (10, 0) — §9.2's table, exactly.
         sim = Simulation(MultiRate(); h = 1//500)
-        deployment = sim.deployment
+        deployment = sim.model.deployment
         @test deployment.N_base == 1 && deployment.Δt_base == 0.002
         @test [(e.path, e.D, e.Φ) for e in deployment.schedule.rows] ==
               [("fcs/inner", 1, 0), ("fcs/outer", 5, 2), ("gnss", 10, 0)]
@@ -184,9 +184,9 @@ function discrete_rate_fold()
 
         # The gate is structural: the interior variants carry no discrete entry, the
         # boundary variants gate every one of them, and nothing else.
-        @test isempty(walked(sim.exec.bodies.sweep_2, :interior))
-        @test gated(sim.exec.bodies.sweep_2) == 3
-        @test gated(sim.exec.bodies.sweep_1) == 0            # the ramp is continuous
+        @test isempty(walked(sim.model.exec.bodies.sweep_2, :interior))
+        @test gated(sim.model.exec.bodies.sweep_2) == 3
+        @test gated(sim.model.exec.bodies.sweep_1) == 0            # the ramp is continuous
     end
 
     @testset "the hyperperiod chart is readable off the cells (§10.5)" begin
@@ -216,7 +216,7 @@ function discrete_rate_fold()
                             sample_times = (; a = Relative(1), b = Relative(5, 2)))
         sim = Simulation(Group((; f = inner_group);
                                sample_times = (; f = Relative(2, 1))); h = 1//100)
-        @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(2, 1), (10, 5)]
+        @test [(e.D, e.Φ) for e in sim.model.deployment.schedule.rows] == [(2, 1), (10, 5)]
 
         # Neither has Φ = 0, so boundary zero admits neither; over base ticks 1…10,
         # `a` ticks at the odd indices and `b` at 5 alone.
@@ -232,7 +232,7 @@ function discrete_rate_fold()
                     sample_times = (; rx = Relative(3)))
         sim = Simulation(Group((; gps = gps);
                                sample_times = (; gps = Absolute(Hz(50)))); h = 1//500)
-        @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(30, 0)]
+        @test [(e.D, e.Φ) for e in sim.model.deployment.schedule.rows] == [(30, 0)]
     end
 end
 
@@ -310,10 +310,10 @@ function discrete_deployment()
         multirate_build = build(MultiRate())
         deployment = Deployment(multirate_build; h = 1//500)
         sim = Simulation(deployment, Float64)
-        @test sim.deployment === deployment
+        @test sim.model.deployment === deployment
         # the sugar, *defined as* the composition
         reference = Simulation(multirate_build; h = 1//500)
-        @test sim.deployment == reference.deployment
+        @test sim.model.deployment == reference.model.deployment
         init!(sim); run!(sim; t_end = 12 * 0.002)
         init!(reference); run!(reference; t_end = 12 * 0.002)
         @test port(sim, "fcs/outer", :out) == port(reference, "fcs/outer", :out)
@@ -321,12 +321,16 @@ function discrete_deployment()
 
         # The same deployment at a second scalar: scalar-free means one backs many.
         dual = Simulation(deployment, D8)
-        @test dual.deployment === deployment && eltype(dual.exec.xbuf) === D8
+        @test dual.model.deployment === deployment && eltype(dual.model.exec.xbuf) === D8
+        # The materialization is the `Model`, and a simulation holds one (D-317).
+        model = Model(deployment, D8)
+        @test model.deployment === deployment && eltype(model.exec.xbuf) === D8
+        @test Simulation(deployment, D8).model isa Model{D8}
 
         # `warnings(sim)` is the concatenation of its artifacts' lists (D-250);
         # neither has a producer here.
         @test warnings(sim) == Diagnostic[]
-        @test warnings(sim.deployment.build) == Diagnostic[] &&
+        @test warnings(sim.model.deployment.build) == Diagnostic[] &&
               warnings(deployment) == Diagnostic[]
     end
 
@@ -340,13 +344,13 @@ function discrete_deployment()
         n_base_sim = Simulation(multirate_build; h = 1//500, N_base = 2)
         Δt_base_sim = Simulation(multirate_build; h = 1//500, Δt_base = 1//250)
         period_sim = Simulation(multirate_build; h = 1//500, Δt_base = Period(1//250))
-        @test [e.D for e in default_sim.deployment.schedule.rows] == [1, 5, 10]
-        @test [e.D for e in n_base_sim.deployment.schedule.rows] == [1, 5, 5]
+        @test [e.D for e in default_sim.model.deployment.schedule.rows] == [1, 5, 10]
+        @test [e.D for e in n_base_sim.model.deployment.schedule.rows] == [1, 5, 5]
         # The deployment is a value (§12.7, D-254): two spellings of one base tick
         # period, over one build, deploy equal — and hash equal with it.
-        @test Δt_base_sim.deployment.N_base == 2
-        @test Δt_base_sim.deployment == n_base_sim.deployment == period_sim.deployment
-        @test hash(Δt_base_sim.deployment) == hash(period_sim.deployment)
+        @test Δt_base_sim.model.deployment.N_base == 2
+        @test Δt_base_sim.model.deployment == n_base_sim.model.deployment == period_sim.model.deployment
+        @test hash(Δt_base_sim.model.deployment) == hash(period_sim.model.deployment)
 
         # Nothing writable is shared: each Simulation materializes its own buffers.
         init!(default_sim); run!(default_sim; t_end = 0.02)
@@ -448,13 +452,13 @@ function discrete_deployment()
                          sample_times = (; c = Absolute(Hz(50), 1//100)))
         sim = @test_logs (:info, r"derived") (:warn, r"^GridUtilization") Simulation(
             anchored; h = 1//500, Δt_base = :derive)
-        @test sim.deployment.Δt_base == 0.01 && sim.deployment.N_base == 5
-        @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(2, 1)]
+        @test sim.model.deployment.Δt_base == 0.01 && sim.model.deployment.N_base == 5
+        @test [(e.D, e.Φ) for e in sim.model.deployment.schedule.rows] == [(2, 1)]
 
         # The offset alone refines, so the grid is twice the fastest declared work
         # and the advisory says so, with the repair: no offset keeps the 50 Hz grid
         # (§9.2, D-187). The advisory lives on the deployment (D-250).
-        warning = only(warnings(sim.deployment))
+        warning = only(warnings(sim.model.deployment))
         @test warning isa GridUtilization && warning.Δt_base == 1//100 &&
               warning.utilization == 2
         @test warning.fastest == "c"
@@ -573,8 +577,8 @@ function discrete_deployment()
         # §10.5's exposed-multiplier idiom: the deployment preference arrives as a
         # constructor parameter, and the declaration stays the assembly's.
         sim = Simulation(SampledLoop(; kI, ω, ζ, ctl_rate = Relative(2)); h = 1//200, N_base = 2)
-        @test [(e.path, e.D, e.Φ) for e in sim.deployment.schedule.rows] == [("ctl", 2, 0)]
-        @test sim.deployment.schedule.rows[1].Δt ≈ Δt_ctl
+        @test [(e.path, e.D, e.Φ) for e in sim.model.deployment.schedule.rows] == [("ctl", 2, 0)]
+        @test sim.model.deployment.schedule.rows[1].Δt ≈ Δt_ctl
         init!(sim, fragment(u = (ref = r,)))
         run!(sim; t_end = n_samples * Δt_ctl)
         @test state(sim, "plant").q ≈ q rtol = 1e-6

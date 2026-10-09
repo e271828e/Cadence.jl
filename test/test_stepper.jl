@@ -10,9 +10,9 @@ requested_bouncer() = Group((; b = Bouncer(1.0, 0.07), r = requested(false, "nev
 function test_stepper()
     @testset "the method is a deployment binding, RK4 the default (§10.2)" begin
         sim = Simulation(feedback_model(); h = 1//100)
-        @test sim.exec.stepper isa RK4{Float64}
+        @test sim.model.exec.stepper isa RK4{Float64}
         heun_sim = Simulation(feedback_model(); h = 1//100, algorithm = Heun)
-        @test heun_sim.exec.stepper isa Heun{Float64}
+        @test heun_sim.model.exec.stepper isa Heun{Float64}
         # validated with its siblings: a backend is named by stepper type, and
         # anything else is refused at binding, not deep in a MethodError
         d = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, algorithm = 4))))
@@ -81,7 +81,7 @@ function test_stepper()
         step!(fed_sim; t_plus = 0.3)
         stage!(fed_sim, "in" => 1.0)                   # frame 4's drain, at its frame top
         step!(fed_sim; t_plus = 0.3)
-        @test modes(fed_sim, "c").t_fired == 4 * fed_sim.deployment.h
+        @test modes(fed_sim, "c").t_fired == 4 * fed_sim.model.deployment.h
     end
 
     @testset "gate 4: the second backend holds the §7.5 invariant" begin

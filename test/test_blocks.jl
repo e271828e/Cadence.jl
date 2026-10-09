@@ -1143,7 +1143,7 @@ function test_blocks()
         step!(sim; t_plus = 0.2)
         @test port(sim, "s", :out) == 0.0 && state(sim, "i").q == 0.0
         step!(sim; t_plus = 0.1)
-        bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+        bracket_width = sim.model.deployment.localization_tol * sim.model.deployment.h    # in time (§10.4)
         @test state(sim, "i").q ≈ 0.05 atol = bracket_width
         @test port(sim, "s", :out) == 1.0
         @test step_events(step_model(Step(t_step = 0.25))).policies === (fire = :localized,)
@@ -1210,7 +1210,7 @@ function test_blocks()
             @test state(sim, "li").q == 0.5 && modes(sim, "li").saturation === Int8(1)
             @test port(sim, "li", :saturation) === modes(sim, "li").saturation
             step!(sim; t_plus = 1.3)
-            bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+            bracket_width = sim.model.deployment.localization_tol * sim.model.deployment.h    # in time (§10.4)
             @test state(sim, "li").q ≈ -0.45 atol = bracket_width
             @test modes(sim, "li").saturation === Int8(0)
             @test port(sim, "li", :saturation) === modes(sim, "li").saturation
@@ -1268,7 +1268,7 @@ function test_blocks()
             @test modes(sim, "li").saturation == SVector{2, Int8}(1, 1)
             @test port(sim, "li", :saturation) === modes(sim, "li").saturation
             step!(sim; t_plus = 1.3)
-            bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+            bracket_width = sim.model.deployment.localization_tol * sim.model.deployment.h    # in time (§10.4)
             @test state(sim, "li").q[1] ≈ -0.45 atol = bracket_width
             @test state(sim, "li").q[2] == 0.8
             @test modes(sim, "li").saturation == SVector{2, Int8}(0, 1)
@@ -1317,7 +1317,7 @@ function test_blocks()
         localized_sim = Simulation(ramp_limited_model(true); h = 1//10)
         init!(localized_sim, fragment())
         step!(localized_sim; t_plus = 3.0)
-        bracket_width = localized_sim.deployment.localization_tol * localized_sim.deployment.h    # in time (§10.4)
+        bracket_width = localized_sim.model.deployment.localization_tol * localized_sim.model.deployment.h    # in time (§10.4)
         @test state(localized_sim, "li").q ≈ 0.4 - 1.95^2 / 2 atol = bracket_width
         boundary_sim = Simulation(ramp_limited_model(false); h = 1//10)
         init!(boundary_sim, fragment())
@@ -1549,7 +1549,7 @@ function test_blocks()
         sim = Simulation(bang_bang_loop(); h = 1//10)
         init!(sim, fragment())
         step!(sim; t_plus = 5.0)
-        bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time, at slope 1
+        bracket_width = sim.model.deployment.localization_tol * sim.model.deployment.h    # in time, at slope 1
         @test 0.2 - bracket_width ≤ state(sim, "integrator").q ≤ 0.8 + bracket_width
     end
 

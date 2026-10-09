@@ -543,6 +543,7 @@ end
 
 """
     apply!(exec::Executor, plan)
+    apply!(model, plan)
     apply!(sim, plan)
 
 §14.4's dynamic walk: execute the validated entry list by runtime dispatch per
@@ -569,7 +570,8 @@ end
 apply!(::Executor{S}, ::ConditionPlan{T}) where {S,T} =
     _activation_mismatch("plan", T, S)
 
-apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.exec, plan)
+apply!(model::Model, plan::ConditionPlan) = apply!(model.exec, plan)
+apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.model, plan)
 
 # --- the specialized `apply!` (§14.3, §14.4, D-066) ------------------------------
 # The other way over the same checks. The dynamic walk bakes *values*, so a

@@ -18,11 +18,11 @@ function store_pinned_leaf()
     @testset "a pinned leaf lives in its own store (D-166, D-162)" begin
         # Nominally the pin and the activation scalar coincide: one buffer.
         sim = Simulation(single(PinnedLeaf()); h = 1//100)
-        @test keys(sim.exec.store.stores) === (_cell_key(Float64),)
+        @test keys(sim.model.exec.store.stores) === (_cell_key(Float64),)
         # Off nominal the pin keeps a `Float64` buffer of its own beside the `Dual`
         # one, rather than being flattened into it as a zero-partial.
         sim = Simulation(single(PinnedLeaf()), D8; h = 1//100)
-        @test Set(keys(sim.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
+        @test Set(keys(sim.model.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
         init!(sim)
         @test port(sim, "c", :a) isa D8
         @test port(sim, "c", :frozen) isa Float64
@@ -58,7 +58,7 @@ function store_mixed_cell()
         # The Int leaf beside T: mixed at every activation. The tag must come back
         # as a stored `Int`, not a converted double in the `T` buffer.
         sim = Simulation(single(MixedCell()); h = 1//100)
-        @test Set(keys(sim.exec.store.stores)) == Set([_cell_key(Float64), _cell_key(Int)])
+        @test Set(keys(sim.model.exec.store.stores)) == Set([_cell_key(Float64), _cell_key(Int)])
         init!(sim)
         out = port(sim, "c", :out)
         @test out isa TaggedValue{Float64} && out.n === 1
@@ -69,9 +69,9 @@ function store_mixed_cell()
         # (K = 1), mixed off it — same declaration, and at `Dual` the `T` half
         # walks while `ref` stays a pinned `Float64` in its own buffer.
         sim = Simulation(single(PinnedInside()); h = 1//100)
-        @test keys(sim.exec.store.stores) === (_cell_key(Float64),)
+        @test keys(sim.model.exec.store.stores) === (_cell_key(Float64),)
         sim = Simulation(single(PinnedInside()), D8; h = 1//100)
-        @test Set(keys(sim.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
+        @test Set(keys(sim.model.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
         init!(sim)
         out = port(sim, "c", :out)
         @test out isa PinnedPair{D8}
@@ -87,7 +87,7 @@ function store_discrete_cells()
                          h = 1//10)
         # The flat buffer is continuous state only; the counter's `Int` is in its
         # own store, and no store mirrors another.
-        @test isempty(sim.exec.xbuf)
+        @test isempty(sim.model.exec.xbuf)
         @test state(sim, "counter") === (n = 0,)
         @test modes(sim, "moded") === (phase = :idle,)
 
@@ -95,7 +95,7 @@ function store_discrete_cells()
         # "per-eltype stores", first exercised here. The field names are the
         # eltypes' fully-qualified spellings (`_cell_key`), which is the one
         # spelling a `@generated` gather and a plain `compile` agree on.
-        @test Set(keys(sim.exec.store.stores)) ==
+        @test Set(keys(sim.model.exec.store.stores)) ==
               Set([_cell_key(Int), _cell_key(Bool), _cell_key(Float64)])
 
         init!(sim)
@@ -147,20 +147,20 @@ function store_shared_bodies()
                     input_wires = ("ref" => ("a/ref", "b/ref"),))
         sim = Simulation(two; h = 1//100)
         types(body) = unique(typeof(e) for e in walked(body))
-        @test length(types(sim.exec.bodies.sweep_1)) == 1     # two Plants, one y_state body
-        @test length(types(sim.exec.bodies.sweep_2)) == 3    # Plant, Gain, Sum
-        @test length(types(sim.exec.bodies.rhs)) == 1
+        @test length(types(sim.model.exec.bodies.sweep_1)) == 1     # two Plants, one y_state body
+        @test length(types(sim.model.exec.bodies.sweep_2)) == 3    # Plant, Gain, Sum
+        @test length(types(sim.model.exec.bodies.rhs)) == 1
 
         # The discrete tier keeps the property: a state store is a `Ref` whose
         # *type* every instance of a component type shares, so the store lives in a
         # field and two counters still compile to one `s_update` body.
         counters = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter()));
                               h = 1//10)
-        @test length(walked(counters.exec.bodies.ticks)) == 2
-        @test length(types(counters.exec.bodies.ticks)) == 1
-        @test length(types(counters.exec.bodies.sweep_1)) == 1
+        @test length(walked(counters.model.exec.bodies.ticks)) == 2
+        @test length(types(counters.model.exec.bodies.ticks)) == 1
+        @test length(types(counters.model.exec.bodies.sweep_1)) == 1
         # And one bundle type per model, whatever the eltype count (D-162).
-        @test counters.exec.store isa StoreBundle
+        @test counters.model.exec.store isa StoreBundle
     end
 end
 
@@ -186,7 +186,7 @@ end
 function store_opaque_leaf()
     @testset "a handle type is its own cell store (§4.4, D-237)" begin
         sim = Simulation(handle_model(); h = 1//10)
-        @test Set(keys(sim.exec.store.stores)) ==
+        @test Set(keys(sim.model.exec.store.stores)) ==
               Set([_cell_key(Float64), _cell_key(HeightField)])
 
         init!(sim)
@@ -201,7 +201,7 @@ function store_opaque_leaf()
         # at every activation while the numeric ports follow the scalar.
         dual_sim = Simulation(build(handle_model()), D8; h = 1//10)
         init!(dual_sim)
-        @test _cell_key(HeightField) in keys(dual_sim.exec.store.stores)
+        @test _cell_key(HeightField) in keys(dual_sim.model.exec.store.stores)
         @test port(dual_sim, "src", :terrain) isa HeightField
         @test port(dual_sim, "q", :h) isa D8
 

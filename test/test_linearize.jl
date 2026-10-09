@@ -146,7 +146,7 @@ function test_linearize()
         sim = Simulation(fed(TimedDecay(), "u"); h = 1//10)
         init!(sim, fragment(u = (in = 0.0,)); t0 = 0.2)
         step!(sim; frames = 3)
-        t, q = sim.exec.clock.t, state(sim, "c").q
+        t, q = sim.model.exec.clock.t, state(sim, "c").q
         @test t ≈ 0.5
         linearization = linearize(sim, taps(x = (q = get_state("c", :q),)))
         @test linearization.ẋ₀.q ≈ -t * q^2 && linearization.A ≈ [-2t * q;;]
@@ -375,8 +375,8 @@ function test_linearize()
     @testset "the two table selectors read a component through the leaf address (§14.4, D-276)" begin
         sim = Simulation(lin_vector(); h = 1//10)
         init!(sim, lin_vector_point())
-        reader = _compile_reads(reads(a = get_input("qin[2]"), b = get_face("q[1]")), sim.deployment.build)
-        @test gather_reads(reader, sim.exec) === (a = 0.0, b = 0.1)
+        reader = _compile_reads(reads(a = get_input("qin[2]"), b = get_face("q[1]")), sim.model.deployment.build)
+        @test gather_reads(reader, sim.model.exec) === (a = 0.0, b = 0.1)
         # The trailing index is retired: no selector takes a third argument.
         @test_throws MethodError get_input(:qin, 1)
     end

@@ -139,7 +139,7 @@ function test_lifecycle()
         @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§9.4, D-203)
         @test record.source === EndTimeReached() && record.t == 1.0
         @test isempty(record.residue)                         # a quiet tail contributes no record
-        @test sim.exec.clock.frame == 50
+        @test sim.model.exec.clock.frame == 50
 
         # §12.4: the run ends at the first frame top reaching or exceeding
         # `t_end`, whole frames from `t₀` — an off-grid bound overshoots by
@@ -150,19 +150,19 @@ function test_lifecycle()
         # `t_plus` is the same rule)
         init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 0.99)
-        @test termination(sim).t == 1.0 && sim.exec.clock.frame == 50
+        @test termination(sim).t == 1.0 && sim.model.exec.clock.frame == 50
         init!(sim, fragment(u = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 12.0)
-        @test termination(sim).t == 12.0 && sim.exec.clock.frame == 100
+        @test termination(sim).t == 12.0 && sim.model.exec.clock.frame == 100
         init!(sim, fragment(u = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 5.0)
-        @test termination(sim).source === EndTimeReached() && sim.exec.clock.frame == 0
+        @test termination(sim).source === EndTimeReached() && sim.model.exec.clock.frame == 0
         late = Simulation(feedback_model(); h = 1//50)   # the advance below carries the bound:
                                                         # one before `t0` advances nothing
         init!(late, fragment(u = (ref = 0.0,)); t0 = 86400.0)
         @test step!(late; t_plus = 1.0) == 50
         run!(late; t_end = 86402.0)
-        @test termination(late).t == 86402.0 && late.exec.clock.frame == 100
+        @test termination(late).t == 86402.0 && late.model.exec.clock.frame == 100
 
         # An origin far from zero and a bound near it: at `t0 = -0.3` the loop
         # writes frame 3's time as `-0.3 + 3 * 0.1`, about `5.6e-17`. That time
@@ -171,19 +171,19 @@ function test_lifecycle()
         shifted = Simulation(feedback_model(); h = 1//10)
         init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         step!(shifted; frames = 3)
-        t_three = shifted.exec.clock.t
+        t_three = shifted.model.exec.clock.t
         init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         run!(shifted; t_end = t_three)
-        @test termination(shifted).t == t_three && shifted.exec.clock.frame == 3
+        @test termination(shifted).t == t_three && shifted.model.exec.clock.frame == 3
         init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
-        @test step!(shifted; t_plus = 3 * shifted.deployment.h) == 3
-        @test shifted.exec.clock.t == t_three
+        @test step!(shifted; t_plus = 3 * shifted.model.deployment.h) == 3
+        @test shifted.model.exec.clock.t == t_three
         @test step!(shifted; t_plus = 0.3) == 3
         # The same at a `Dual` activation, whose clock is a `Dual` (D-260).
         dual_sim = Simulation(feedback_model(), D8; h = 1//10)
         init!(dual_sim, fragment(u = (ref = D8(0.0),)); t0 = -0.3)
-        @test step!(dual_sim; t_plus = 3 * dual_sim.deployment.h) == 3
-        @test dual_sim.exec.clock.t isa D8
+        @test step!(dual_sim; t_plus = 3 * dual_sim.model.deployment.h) == 3
+        @test dual_sim.model.exec.clock.t isa D8
         @test step!(dual_sim; t_plus = 0.3) == 3
 
         # Both helpers against the grid the loop writes, `t₀ + k * h`: every
@@ -217,7 +217,7 @@ function test_lifecycle()
         @test termination(lifted).source === EndTimeReached() && termination(lifted).t == 0.2
         init!(lifted)
         run!(lifted; t_end = Inf)
-        @test termination(lifted).t == 4 * lifted.deployment.h
+        @test termination(lifted).t == 4 * lifted.model.deployment.h
         unbound = Simulation(feedback_model(); h = 1//50)
         init!(unbound, fragment(u = (ref = 0.0,)))
         # The bound is validated identically at the three binding sites: the same
@@ -274,8 +274,8 @@ function test_lifecycle()
         record = termination(sim)
         # kind + payload, one typed value (D-203)
         @test record.source === ModelRequestedStop("stop", :flag, "ramp at level")
-        @test record.t == 4 * sim.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
-        @test sim.exec.clock.frame == 4                       # the run ended there, not at t_end
+        @test record.t == 4 * sim.model.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
+        @test sim.model.exec.clock.frame == 4                       # the run ended there, not at t_end
         # that snapshot is the final one
         @test latest(sim).t === record.t
     end
@@ -287,7 +287,7 @@ function test_lifecycle()
         run!(sim; t_end = 5.0)
         record = termination(sim)
         @test record.source === ModelRequestedStop("stop", :flag, "input at level") && record.t == 0.0
-        @test sim.exec.clock.frame == 0             # zero frames: the check precedes the first step
+        @test sim.model.exec.clock.frame == 0             # zero frames: the check precedes the first step
     end
 
     @testset "a localized stop ends the run at t*, the crossing state final (§13.5, §10.4)" begin
@@ -297,7 +297,7 @@ function test_lifecycle()
         record = termination(sim)
         @test record.source === ModelRequestedStop("stop", :flag, "overload tripped")
         @test record.t ≈ 0.315 atol = 1e-6                    # the analytic crossing, not a frame top
-        @test record.t == sim.exec.clock.t                         # the frame's remainder was abandoned
+        @test record.t == sim.model.exec.clock.t                         # the frame's remainder was abandoned
         @test latest(sim).t === record.t
         @test logged(sim)[end] === latest(sim)           # the log's terminal endpoint is the t* boundary
     end
@@ -318,11 +318,11 @@ function test_lifecycle()
         init!(sim)
         run!(sim; t_end = 1.0)
         @test termination(sim).source === ModelRequestedStop("a/stop", :flag, "a at level")
-        @test sim.exec.clock.frame == 2
+        @test sim.model.exec.clock.frame == 2
         init!(sim)
         run!(sim; t_end = 1.0, ignore_stop_requests = ("a/stop",))
         @test termination(sim).source === ModelRequestedStop("b/stop", :flag, "b at level")
-        @test sim.exec.clock.frame == 4
+        @test sim.model.exec.clock.frame == 4
         # the ignored request is still a cell in the snapshot
         @test port(latest(sim), "a/stop", :flag) === STOP_REQUESTED
         init!(sim)
@@ -340,15 +340,15 @@ function test_lifecycle()
         init!(sim)
         run!(sim; t_end = 1.0)
         @test termination(sim).source === ModelRequestedStop("a/stop", :flag, "a at level")
-        @test sim.exec.clock.frame == 4
+        @test sim.model.exec.clock.frame == 4
         @test port(latest(sim), "b/stop", :flag) === STOP_REQUESTED     # both hold there
         # The declaration order swapped, the roster and the record follow it.
         swapped = Simulation(two_ramps_swapped(0.35, 0.35); h = 1//10)
         init!(swapped)
         run!(swapped; t_end = 1.0)
-        @test [r.path for r in swapped.exec.act.layout.requesters] == ["b/stop", "a/stop"]
+        @test [r.path for r in swapped.model.exec.act.layout.requesters] == ["b/stop", "a/stop"]
         @test termination(swapped).source === ModelRequestedStop("b/stop", :flag, "b at level")
-        @test swapped.exec.clock.frame == 4
+        @test swapped.model.exec.clock.frame == 4
     end
 
     @testset "two requests on one component share its path, named once (§13.5, D-316)" begin
@@ -388,7 +388,7 @@ function test_lifecycle()
         run!(sim; t_end = 5.0)
         record = termination(sim)
         @test record.source === ModelRequestedStop("stop", :flag, "three ticks counted")
-        @test record.t === tick.t && sim.exec.clock.frame == 9
+        @test record.t === tick.t && sim.model.exec.clock.frame == 9
     end
 
     @testset "the record carries the terminating advance's policy (§13.5, D-255)" begin

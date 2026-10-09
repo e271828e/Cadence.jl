@@ -37,8 +37,8 @@ recorded_faces(trc, batch::TraceBatch) =
 # The root-input cells a checkpoint's table holds, face by face, read through the
 # layout's addresses: the values the header records (§11.5, D-038).
 table_inputs(sim, cp::Checkpoint) =
-    Pair{Symbol,Any}[f => gather_cell(cp.table, sim.exec.act.layout.addr[("", f)])
-                     for (f, _) in sim.exec.act.layout.root_inputs]
+    Pair{Symbol,Any}[f => gather_cell(cp.table, sim.model.exec.act.layout.addr[("", f)])
+                     for (f, _) in sim.model.exec.act.layout.root_inputs]
 
 function trace_recording()
     @testset "one sparse record per drained batch, against the writer's schema (§11.5, D-176)" begin
@@ -96,7 +96,7 @@ function trace_recording()
         @test header.prior == [true]
         # the clock in full: frame 0, one publication behind it
         @test header.t === 0.0 && header.t₀ === 0.0
-        @test header.frame == 0 && header.boundary == 1 == sim.exec.clock.boundary
+        @test header.frame == 0 && header.boundary == 1 == sim.model.exec.clock.boundary
 
         # The root inputs ride in the table as resolved values (§11.5): neither
         # face is ever staged, so no batch would carry them and replay would have
@@ -105,7 +105,7 @@ function trace_recording()
 
         # The fingerprint, the `Deployment` itself and the structural layout
         # (§11.5, D-255): a restore compares both, and restores the clock.
-        @test header.deployment == sim.deployment
+        @test header.deployment == sim.model.deployment
         @test header.layout.paths == ["t", "d"] && header.layout.root_faces == [:sig, :e]
 
         # `trace(sim)` hands the header out detached: a write to the copy never
@@ -185,7 +185,7 @@ function trace_recording()
         # The ordinal a record carries is the trace's own drain count (D-260):
         # advanced at the top of the drain, one per frame, so after three frames
         # it is the clock's frame and the last batch's `frame` is it.
-        @test trc.frames == 3 == sim.exec.clock.frame
+        @test trc.frames == 3 == sim.model.exec.clock.frame
     end
 end
 
@@ -485,7 +485,7 @@ function trace_replay_loop()
         # …and `:live`, the halt having landed at the recording's last frame: the
         # records are exhausted, so whatever advances next is a live frame (D-218).
         @test mode(sim2) === :live && sim2.run.feed === nothing
-        @test sim2.exec.clock.frame == trc.frames
+        @test sim2.model.exec.clock.frame == trc.frames
         @test same_trajectory(logged(sim2), logged(sim))
         # …including the localized boundaries the recording never stored: `t*` is
         # derived from state (§10.4), so reproducing the state reproduces the timing.
@@ -563,7 +563,7 @@ function trace_replay_loop()
         sim2 = replay_twin()
         replay!(sim2, trc; to_boundary = 5)
         @test lifecycle(sim2) === :initialized      # the replay pointer: ready to advance
-        @test sim2.exec.clock.frame == 5     # the halt is at `k` itself (§12.7, §13.4)
+        @test sim2.model.exec.clock.frame == 5     # the halt is at `k` itself (§12.7, §13.4)
         @test trace(sim2).frames == 5
         @test same_trajectory(logged(sim2),
                               [snapshot for snapshot in logged(sim) if snapshot.frame ≤ 5])
@@ -588,7 +588,7 @@ function trace_replay_loop()
         # On grid: the time of boundary 5 halts *at* 5, never at the one below it.
         on = replay_twin()
         replay!(on, trc; to_time = 0.5)
-        @test lifecycle(on) === :initialized && on.exec.clock.frame == 5
+        @test lifecycle(on) === :initialized && on.model.exec.clock.frame == 5
         @test mode(on) === :replay                  # short of the end, so still attached
         @test same_trajectory(logged(on), prefix(5))
 
@@ -598,20 +598,20 @@ function trace_replay_loop()
         # direction.
         fuzz = replay_twin()
         replay!(fuzz, trc; to_time = 0.3)
-        @test fuzz.exec.clock.frame == 3
+        @test fuzz.model.exec.clock.frame == 3
 
         # Between two frame tops the halt floors onto the earlier one — D-219's
         # deliberate opposite of `t_end`'s reach-or-exceed rule, because the point
         # of halting is to stand *before* the anomaly.
         between = replay_twin()
         replay!(between, trc; to_time = 0.55)
-        @test between.exec.clock.frame == 5
+        @test between.model.exec.clock.frame == 5
         @test same_trajectory(logged(between), prefix(5))
 
         # `t₀` itself is the empty halt: boundary zero and no frame.
         zero = replay_twin()
         replay!(zero, trc; to_time = trc.header.t₀)
-        @test zero.exec.clock.frame == 0 && lifecycle(zero) === :initialized
+        @test zero.model.exec.clock.frame == 0 && lifecycle(zero) === :initialized
         @test trace(zero).frames == 0
 
         # An origin far from zero: at `t₀ = -0.3`, `to_time = 0.0` is boundary 3.
@@ -622,7 +622,7 @@ function trace_replay_loop()
         step!(shifted; frames = 5)
         near_zero = replay_twin()
         replay!(near_zero, trace(shifted); to_time = 0.0)
-        @test near_zero.exec.clock.frame == 3
+        @test near_zero.model.exec.clock.frame == 3
     end
 
     @testset "`to_time`'s refusals precede every write (§12.7, D-219)" begin
@@ -633,7 +633,7 @@ function trace_replay_loop()
         target = replay_twin()
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(target, trc; to_boundary = 5, to_time = 0.5))
         @test d.call === :replay! && d.reason === :both_given
-        @test lifecycle(target) === :initialized && target.exec.clock.frame == 0 && mode(target) === :live
+        @test lifecycle(target) === :initialized && target.model.exec.clock.frame == 0 && mode(target) === :live
 
         # Before `t₀`, past the recording's own reach, and the two non-finites: each
         # names the argument and the value, and each precedes every write.
@@ -675,7 +675,7 @@ function trace_replay_loop()
         run!(sim2; t_end = 5.0)
         @test lifecycle(sim2) === :initialized && termination(sim2) === nothing
         @test !closed(sim2.run)
-        @test sim2.exec.clock.frame == trc.frames
+        @test sim2.model.exec.clock.frame == trc.frames
         @test mode(sim2) === :live && sim2.run.feed === nothing
         # §12.6: the mode is read off the feed, so the flip is a *write* to the
         # run — the same object, with the same log and the same trace (D-260)
@@ -700,10 +700,10 @@ function trace_replay_loop()
         # The return value is the truncation, as under a §13.5 stop: three frames of
         # recording left, ten asked for.
         @test step!(sim2; frames = 10) == 3
-        @test sim2.exec.clock.frame == trc.frames
+        @test sim2.model.exec.clock.frame == trc.frames
         @test lifecycle(sim2) === :initialized && mode(sim2) === :live
         @test step!(sim2; frames = 2) == 2           # and the next call is live again
-        @test sim2.exec.clock.frame == trc.frames + 2
+        @test sim2.model.exec.clock.frame == trc.frames + 2
     end
 
     @testset "`init!` after a partial replay returns the mode to `:live` (§12.6, D-218)" begin
@@ -716,7 +716,7 @@ function trace_replay_loop()
         # recording detaches, and the next frame's drain is the staging cells'.
         init!(sim2, fragment(u = (ref = 0.0, rate = 0.0)))
         @test mode(sim2) === :live && sim2.run.feed === nothing
-        @test sim2.exec.clock.frame == 0
+        @test sim2.model.exec.clock.frame == 0
         stage!(sim2, "ref" => 3.0)
         @test step!(sim2) == 1
         @test port(sim2, "", :ref) == 3.0
@@ -731,7 +731,7 @@ function trace_replay_loop()
         run!(sim2; t_end = 1.4)                     # `run!` after `replay!`
         @test mode(sim2) === :live && port(sim2, "", :rate) == 4.0
         @test lifecycle(sim2) === :stopped && termination(sim2).source === EndTimeReached()
-        @test sim2.exec.clock.frame == 14           # it proceeded from frame 8, not from zero
+        @test sim2.model.exec.clock.frame == 14           # it proceeded from frame 8, not from zero
         # The session leaves behind a complete, valid trace of *itself*, with the
         # recording as a bit-identical prefix and no special stitching (§12.7).
         continuation = trace(sim2)
@@ -750,7 +750,7 @@ function trace_replay_loop()
         (sim, trc) = recorded_run()
         sim2 = replay_twin()
         replay!(sim2, trc; to_time = 0.5)
-        @test mode(sim2) === :replay && sim2.exec.clock.frame == 5
+        @test mode(sim2) === :replay && sim2.model.exec.clock.frame == 5
 
         # The door moves the mode and nothing else: the trajectory stands at the
         # halt, and so does the run's trace with the header it inherited and the
@@ -760,7 +760,7 @@ function trace_replay_loop()
         @test mode(sim2) === :live && sim2.run.feed === nothing
         # the flip is a write, not a rebuild: the same run, log and trace (D-260)
         @test sim2.run === run && sim2.run.log === run.log && sim2.run.trace === run.trace
-        @test lifecycle(sim2) === :initialized && sim2.exec.clock.frame == 5
+        @test lifecycle(sim2) === :initialized && sim2.model.exec.clock.frame == 5
         at_halt = trace(sim2)
         @test at_halt.frames == 5 && at_halt.batches == trc.batches
         @test same_table(at_halt.header.table, trc.header.table)
@@ -772,7 +772,7 @@ function trace_replay_loop()
         @test lifecycle(sim2) === :stopped && mode(sim2) === :live
         @test termination(sim2).source === EndTimeReached()
         @test port(sim2, "", :rate) == 9.0
-        @test sim2.exec.clock.frame == trc.frames
+        @test sim2.model.exec.clock.frame == trc.frames
         @test snap_cells(at_frame(logged(sim2), 8)) != snap_cells(at_frame(logged(sim), 8))
         @test same_trajectory([snapshot for snapshot in logged(sim2) if snapshot.frame ≤ 5],
                               [snapshot for snapshot in logged(sim) if snapshot.frame ≤ 5])
@@ -949,7 +949,7 @@ function trace_discarded_harness()
         first_run = what_if()
         replay!(first_run, trc; restore = false)
         @test lifecycle(first_run) === :initialized && mode(first_run) === :live
-        @test first_run.exec.clock.frame == trc.frames
+        @test first_run.model.exec.clock.frame == trc.frames
         @test state(first_run, "plant").q != state(sim, "plant").q
         # the new trace opens from the simulation's own state and re-records the feed
         @test trace(first_run).header.frame == 0 && trace(first_run).batches == trc.batches
@@ -967,7 +967,7 @@ function trace_discarded_harness()
         err = failure(() -> replay!(coarse, trc; restore = false))
         @test err isa DiagnosticError && all(d isa CheckpointMismatch for d in diagnostics(err))
         @test any(d.what === :deployment && d.name === :h for d in diagnostics(err))
-        @test coarse.exec.clock.frame == 0 && lifecycle(coarse) === :initialized
+        @test coarse.model.exec.clock.frame == 0 && lifecycle(coarse) === :initialized
 
         # …and it joins a trajectory in progress, so only `initialized` admits it.
         raw = Simulation(replay_model(9.0); h = 1//10)
@@ -993,7 +993,7 @@ function trace_discarded_harness()
                                              d.reason === :range for d in diagnostics(err))
         @test [(d.argument, d.value) for d in diagnostics(err)] ==
               [(:log_every, 0), (:restore, nothing)]
-        @test lifecycle(target) === :initialized && target.exec.clock.frame == 0 &&
+        @test lifecycle(target) === :initialized && target.model.exec.clock.frame == 0 &&
               mode(target) === :live
 
         # `errored` is terminal (§13.6): never resumable, never re-initialized, and
@@ -1103,7 +1103,7 @@ s_update(::TickInterrupter, (; s, u)) = u.arm ? throw(InterruptException()) : (n
 function assert_unwritten(sim, before::Checkpoint)
     after = checkpoint(sim)
     @test after.x == before.x && after.s == before.s && after.m == before.m
-    @test after.prior == before.prior && sim.exec.events.last == before.prior
+    @test after.prior == before.prior && sim.model.exec.events.last == before.prior
     @test same_table(after.table, before.table)
     @test (after.t, after.frame, after.boundary, after.t₀) ==
           (before.t, before.frame, before.boundary, before.t₀)
@@ -1114,7 +1114,7 @@ function trace_checkpoints()
         (sim, _) = recorded_run()
         cp = checkpoint(sim)
         @test cp isa Checkpoint{Float64}
-        @test cp.frame == 8 && cp.boundary == sim.exec.clock.boundary == latest(sim).boundary + 1
+        @test cp.frame == 8 && cp.boundary == sim.model.exec.clock.boundary == latest(sim).boundary + 1
 
         twin = replay_twin()                       # another state, another run
         stage!(twin, "ref" => 99.0)                # staged before the door: dropped by it
@@ -1142,7 +1142,7 @@ function trace_checkpoints()
         @test latest(twin).t === cp.t && latest(twin).frame == cp.frame
         @test latest(twin).boundary == cp.boundary - 1 == latest(sim).boundary
         @test snap_cells(latest(twin)) == snap_cells(latest(sim))
-        @test twin.exec.clock.boundary == cp.boundary && twin.exec.clock.frame == cp.frame
+        @test twin.model.exec.clock.boundary == cp.boundary && twin.model.exec.clock.frame == cp.frame
         @test state(twin, "plant").q === state(sim, "plant").q
         @test state(twin, "acc") === state(sim, "acc") && modes(twin, "b") === modes(sim, "b")
 
@@ -1224,13 +1224,13 @@ function trace_checkpoints()
             run!(abandoned; t_end = 5.0)
             @test lifecycle(abandoned) === :stopped
             @test termination(abandoned).source === ControlRequestedStop(:interrupt)
-            @test abandoned.exec.clock.frame == 3 && latest(abandoned).frame == 2
-            @test (abandoned.exec.clock.t == 3 * 0.1) == at_frame_top    # frame 3's top
+            @test abandoned.model.exec.clock.frame == 3 && latest(abandoned).frame == 2
+            @test (abandoned.model.exec.clock.t == 3 * 0.1) == at_frame_top    # frame 3's top
             d = carried(@test_throws DiagnosticError{CheckpointMidFrame} checkpoint(abandoned))
             @test d.frame == 3 && d.t_frame == 3 * 0.1
-            @test d.t == abandoned.exec.clock.t
+            @test d.t == abandoned.model.exec.clock.t
             d = carried(@test_throws DiagnosticError{CheckpointMidFrame} linearize(abandoned, taps()))
-            @test d.frame == 3 && d.t == abandoned.exec.clock.t
+            @test d.frame == 3 && d.t == abandoned.model.exec.clock.t
         end
 
         # A frame top is the time the loop writes there, at any origin: near zero,
@@ -1280,7 +1280,7 @@ function trace_checkpoints()
         restore!(seeker, cp)
         replay!(seeker, trc; restore = false)
         @test lifecycle(seeker) === :initialized && mode(seeker) === :live
-        @test seeker.exec.clock.frame == trc.frames
+        @test seeker.model.exec.clock.frame == trc.frames
         # bitwise the original from 0.5, ordinals included
         from_seek = [x for x in logged(sim) if x.boundary ≥ cp.boundary - 1]
         @test same_trajectory(logged(seeker), from_seek)
@@ -1316,7 +1316,7 @@ function trace_checkpoints()
         for halt in ((to_boundary = 5,), (to_time = 0.5,))
             target = Simulation(replay_model(); h = 1//10)
             replay!(target, late; halt...)
-            @test lifecycle(target) === :initialized && target.exec.clock.frame == 5
+            @test lifecycle(target) === :initialized && target.model.exec.clock.frame == 5
             @test mode(target) === :replay
         end
 
@@ -1326,10 +1326,10 @@ function trace_checkpoints()
         step!(ahead)
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(ahead, trc; restore = false, to_boundary = 5))
         @test d.argument === :to_boundary && d.value == 5
-        @test lifecycle(ahead) === :initialized && ahead.exec.clock.frame == 6 &&
+        @test lifecycle(ahead) === :initialized && ahead.model.exec.clock.frame == 6 &&
               mode(ahead) === :live
         replay!(ahead, trc; restore = false, to_boundary = 6)
-        @test ahead.exec.clock.frame == 6 && mode(ahead) === :replay
+        @test ahead.model.exec.clock.frame == 6 && mode(ahead) === :replay
     end
 
     @testset "the fingerprint covers what the restore copies by position (§12.6, §12.7, D-274)" begin
@@ -1349,7 +1349,7 @@ function trace_checkpoints()
         d = only(diagnostics(failure(() -> restore!(wider, cp))))
         @test d isa CheckpointMismatch && d.what === :store
         @test d.path == "c" && d.name === :x && d.expected === pendulum_x && d.found === clocked_x
-        @test wider.exec.xbuf == [0.0, 0.0, 0.0] && wider.exec.clock.frame == 0
+        @test wider.model.exec.xbuf == [0.0, 0.0, 0.0] && wider.model.exec.clock.frame == 0
         replayed = Simulation(fed(ClockedPendulum(), "u"); h = 1//10)
         d = only(diagnostics(failure(() -> replay!(replayed, trace(source)))))
         @test d isa CheckpointMismatch && d.name === :x && lifecycle(replayed) === :built
@@ -1357,7 +1357,7 @@ function trace_checkpoints()
         d = only(diagnostics(failure(() -> restore!(source, checkpoint(wider)))))
         @test d isa CheckpointMismatch && d.name === :x
         @test d.expected === clocked_x && d.found === pendulum_x
-        @test source.exec.clock.frame == 2
+        @test source.model.exec.clock.frame == 2
 
         # The same width with the states in the other order: each position would
         # take the other state, so the type is compared, not the width.
@@ -1382,7 +1382,7 @@ function trace_checkpoints()
         @test [d.name for d in diagnostics(err)] == [Symbol("port.θ"), Symbol("port.ω")]
         @test diagnostics(err)[1].expected == (Float64, (0,)) &&
               diagnostics(err)[1].found == (Float64, (1,))
-        @test swapped.exec.clock.frame == 0 && lifecycle(swapped) === :initialized
+        @test swapped.model.exec.clock.frame == 0 && lifecycle(swapped) === :initialized
 
         # Other ports altogether, one leaf wider: the cells that differ are named,
         # and the root input they shift is not reported, having kept its type.
@@ -1437,7 +1437,7 @@ function trace_checkpoints()
         twin = Simulation(single(GuardedRamp{(:low, :high)}()), D8; h = 1//10)
         init!(twin)
         restore!(twin, dual_cp)
-        @test twin.exec.clock.frame == 5 && state(twin, "c") == state(dual, "c")
+        @test twin.model.exec.clock.frame == 5 && state(twin, "c") == state(dual, "c")
     end
 
     @testset "`restore = false` feeds on the recording's clock (§12.7, D-274)" begin
@@ -1479,7 +1479,7 @@ function trace_checkpoints()
             inside = replay_twin()
             replay!(inside, long_trc; to_boundary = frame)
             replay!(inside, late; restore = false)
-            @test inside.exec.clock.frame == 8 && mode(inside) === :live
+            @test inside.model.exec.clock.frame == 8 && mode(inside) === :live
             @test trace(inside).header.frame == frame
         end
 

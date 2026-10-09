@@ -164,7 +164,7 @@ function test_events()
         # The restore resets no prior, so the next boundary sees no edge.
         twin = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)
         restore!(twin, cp)
-        @test twin.exec.events.prior == [true] && twin.exec.events.last == [true]
+        @test twin.model.exec.events.prior == [true] && twin.model.exec.events.last == [true]
         step!(twin)
         @test modes(twin, "c") === (state = :fired, count = 1)
 
@@ -303,7 +303,7 @@ function test_events()
 
     @testset "events compile out at a non-nominal activation (§9.4, D-052)" begin
         sim = Simulation(fed(Trigger(0.5), "sig"), D8; h = 1//10)
-        @test isempty(sim.exec.events.entries)
+        @test isempty(sim.model.exec.events.entries)
         init!(sim, fragment(u = (in = D8(1.0),)))
         run!(sim; t_end = 0.3)
         @test modes(sim, "c").count == 0            # the guard never ran

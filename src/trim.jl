@@ -447,7 +447,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     status === :errored && throw(DiagnosticError(ServiceLifecycle(
         op = :trim!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
 
-    build = sim.deployment.build
+    build = sim.model.deployment.build
     diags = Diagnostic[]
     _check_decisions!(diags, problem)
     _check_tolerances!(diags, :tolerances, problem.tolerances)
@@ -487,7 +487,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     T = ForwardDiff.Dual{TrimTag,Float64,N}
     act = activation(build, T)                # the cached activation (§9.4)
     seeded_exec = _scratch(sim, T, act)
-    _establish_frozen!(seeded_exec, act, nominal_exec, sim.deployment.build)
+    _establish_frozen!(seeded_exec, act, nominal_exec, sim.model.deployment.build)
     # The names enter the closure as types: captured as a `Tuple` of `Symbol`s,
     # they would leave every `NamedTuple` `eval!` builds to runtime dispatch.
     decision_keys, residual_keys = Val(decision_names), Val(residual_names)
@@ -566,10 +566,10 @@ trim!(::Simulation, other; kw...) = throw(DiagnosticError(
 # One scratch executor: the same buffer set the `Simulation` owns, at whatever
 # scalar, from the same cached layouts and the same bound entry data — and it
 # dies with the call (§9.2, §14.8, glossary `scratch`).
-_scratch(sim::Simulation, ::Type{T}) where {T} = _scratch(sim, T, activation(sim.deployment.build, T))
+_scratch(sim::Simulation, ::Type{T}) where {T} = _scratch(sim, T, activation(sim.model.deployment.build, T))
 function _scratch(sim::Simulation, ::Type{T}, act::Activation{T}) where {T}
-    compile(sim.deployment.build, act, sim.deployment.schedule;
-            chunk_size = sim.exec.chunk_size, algorithm = sim.deployment.algorithm)
+    compile(sim.model.deployment.build, act, sim.model.deployment.schedule;
+            chunk_size = sim.model.exec.chunk_size, algorithm = sim.model.deployment.algorithm)
 end
 
 # D-213's copy: a frozen component's stages are outside the seeded activation's
@@ -637,7 +637,7 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # The commit's fired events, read off the per-boundary counts right after
     # `init!` returns — they are reset at the next boundary, and there is none
     # (§10.6, §14.5).
-    events = sim.exec.events
+    events = sim.model.exec.events
     fired = Tuple{String,Symbol}[events.names[i] for i in eachindex(events.count)
                                  if events.count[i] > 0]
     isempty(fired) || @warn logline(TrimCommitEvents(events = fired))
@@ -646,8 +646,8 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # run, so the declared reads need only gather from it — with one `rhs` for
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
     # evaluation (§14.4, §14.8).
-    sim.exec.bodies.rhs()
-    gathered = gather_reads(reader, sim.exec)
+    sim.model.exec.bodies.rhs()
+    gathered = gather_reads(reader, sim.model.exec)
     committed = NamedTuple{residual_names}(problem.residuals(gathered, solution))
     out_of_tolerance = Tuple{Symbol,Float64,Float64}[
         (k, Float64(committed[k]), tol[i]) for (i, k) in enumerate(residual_names)

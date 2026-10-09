@@ -261,9 +261,10 @@ Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274.
     `SpecializedPlan`, whose writes and prefixes `apply!` walks as generated
     unrolls, and `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
+- `apply!` on a model, with a forwarding method on the simulation (D-317).
 
 Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
-D-130, D-204, D-205, D-207, D-226, D-277, D-315.
+D-130, D-204, D-205, D-207, D-226, D-277, D-315, D-317.
 
 ### `src/control.jl`
 
@@ -661,12 +662,16 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   and `TerminationRecord` (D-203, D-255). `ModelRequestedStop` carries the
   requester's path, port and reason (D-316).
 - `Run{T}`, §12.6's run state, and `closed(run)` (D-255, D-260).
-- The mutable `Simulation` (§12.1, D-256).
-- The materialization `Simulation(deployment, T)`.
+- `Model{T,E}`, the deployment and its executor at one scalar (§9.2, D-317).
+- The mutable `Simulation` of four fields, the model, the plane, the control
+  and the run (§12.1, D-256, D-317).
+- The materialization `Model(deployment, T)`, with `Model(::Build)` and
+  `Model(::AbstractComponent)` over it, and `Simulation(model)`.
 - The doors' recording keywords, checked by `_check_recording`.
-- The two sugar forms `Simulation(::Build)` and
-  `Simulation(::AbstractComponent)` (D-254).
-- `warnings(::Simulation)` (D-250).
+- The three sugar forms `Simulation(::Deployment, T)`, `Simulation(::Build)`
+  and `Simulation(::AbstractComponent)`, each a composition through a `Model`
+  (D-254, D-317).
+- `warnings(::Model)`, with a forwarding method on the simulation (D-250).
 - The boundary macro-sequence.
 - The §10.6 event phase, with its `FiringBudget` degradation.
 - `init!`, `restore!`, `run!`/`step!` and `replay!`, with the run body
@@ -698,13 +703,16 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   `step!` (D-268). The invariants each arm keeps are
   stated in the comments at those sites.
 - The seam's `isfinite` sweep `_check_finite!`.
-- The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged`,
-  `trace`, `port`, `state`, `modes` and `phase_bodies`.
+- The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged` and
+  `trace`.
+- The model's methods `port`, `state`, `modes`, `phase_bodies`, `evaluate!`,
+  `integrate!`, `boundary!`, `offtick_boundary!` and `boundary_zero!`, each
+  with a one-line forwarding method on the simulation (D-317).
 
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
 §14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
 D-223, D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
-D-268, D-269, D-270, D-274, D-316.
+D-268, D-269, D-270, D-274, D-316, D-317.
 
 ### `src/stepper.jl`
 

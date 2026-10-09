@@ -103,20 +103,20 @@ sibling_fed() = Group((; plant = Plant(), trig = Trigger(0.5));
                       local_wires = ("plant/y" => "trig/sig",), input_wires = ("u" => "plant/u",))
 
 # Every store, the root inputs and the clock, read straight out of an executor.
-world(sim) = (copy(sim.exec.xbuf),
-              [s === nothing ? nothing : s[] for s in sim.exec.sstores],
-              [m === nothing ? nothing : m[] for m in sim.exec.mstores],
-              [port(sim, "", f) for f in sim.deployment.build.structure.root_inputs],
-              sim.exec.clock.t)
+world(sim) = (copy(sim.model.exec.xbuf),
+              [s === nothing ? nothing : s[] for s in sim.model.exec.sstores],
+              [m === nothing ? nothing : m[] for m in sim.model.exec.mstores],
+              [port(sim, "", f) for f in sim.model.deployment.build.structure.root_inputs],
+              sim.model.exec.clock.t)
 
 function test_readers()
     @testset "the five selectors read what they name, at either activation (§14.4)" begin
         for T in (Float64, D8)
             sim = Simulation(readable(), T; h = 1//10)
             init!(sim, readable_condition())
-            evaluate!(sim.exec)                     # `ẋ` is integrator scratch: fill it first
-            r = _compile_reads(readable_reads(), sim.deployment.build, T)
-            v = gather_reads(r, sim.exec)
+            evaluate!(sim.model.exec)                     # `ẋ` is integrator scratch: fill it first
+            r = _compile_reads(readable_reads(), sim.model.deployment.build, T)
+            v = gather_reads(r, sim.model.exec)
 
             @test keys(v) === (:q, :v, :acc, :q̇, :a, :y, :u, :face)
             @test v.q == SVector{2,T}(0.3, -0.2)     # the whole leaf, out of `xbuf`
@@ -137,7 +137,7 @@ function test_readers()
             # a component, a matrix entry by its indices and by its linear place.
             pose_sim = Simulation(pose_model(), T; h = 1//10)
             init!(pose_sim)
-            pose = gather_reads(_compile_reads(pose_reads(), pose_sim.deployment.build, T), pose_sim.exec)
+            pose = gather_reads(_compile_reads(pose_reads(), pose_sim.model.deployment.build, T), pose_sim.model.exec)
             @test pose.whole isa LeafPose{T} && pose.short === pose.whole  # `:pose` is `"pose"`
             @test pose.v2 === pose.whole.v[2] === T(-0.25)
             @test pose.m12 === pose.whole.m[1, 2] === T(0.5)
@@ -150,24 +150,24 @@ function test_readers()
         init!(store_sim)
         stored = gather_reads(_compile_reads(reads(m12 = get_state("c", "pose.m[1,2]"),
                                                    w21 = get_state("c", "w[2][1]")),
-                                             store_sim.deployment.build), store_sim.exec)
+                                             store_sim.model.deployment.build), store_sim.model.exec)
         @test stored.m12 === 7.0 && stored.w21 === 3.0
     end
 
     @testset "the reader is the gather twin: allocation-free over an executor (§14.4, §7.5)" begin
         sim = Simulation(readable(); h = 1//10)
         init!(sim, readable_condition())
-        evaluate!(sim.exec)
-        reader, exec = _compile_reads(readable_reads(), sim.deployment.build), sim.exec
+        evaluate!(sim.model.exec)
+        reader, exec = _compile_reads(readable_reads(), sim.model.deployment.build), sim.model.exec
         gather_reads(reader, exec)
         @test @ballocated(gather_reads($reader, $exec)) == 0
         @test @inferred(gather_reads(reader, exec)) isa NamedTuple
-        @test gather_reads(_compile_reads(reads(), sim.deployment.build), exec) === (;)   # the empty set reads nothing
+        @test gather_reads(_compile_reads(reads(), sim.model.deployment.build), exec) === (;)   # the empty set reads nothing
 
         # A two-step address is unrolled at compile time, so it allocates nothing.
         pose_sim = Simulation(pose_model(); h = 1//10)
         init!(pose_sim)
-        pose_reader, pose_exec = _compile_reads(pose_reads(), pose_sim.deployment.build), pose_sim.exec
+        pose_reader, pose_exec = _compile_reads(pose_reads(), pose_sim.model.deployment.build), pose_sim.model.exec
         gather_reads(pose_reader, pose_exec)
         @test @ballocated(gather_reads($pose_reader, $pose_exec)) == 0
         @test @inferred(gather_reads(pose_reader, pose_exec)) isa NamedTuple
@@ -177,8 +177,8 @@ function test_readers()
         bank_sim = Simulation(sawtooth_bank(); h = 1//10)
         init!(bank_sim)
         bank_reader = _compile_reads(reads(; (Symbol(:q, i) => get_state("s$i", :q) for i in 1:64)...),
-                                     bank_sim.deployment.build)
-        bank_exec = bank_sim.exec
+                                     bank_sim.model.deployment.build)
+        bank_exec = bank_sim.model.exec
         gather_reads(bank_reader, bank_exec)
         @test @ballocated(gather_reads($bank_reader, $bank_exec)) == 0
         @test isconcretetype(only(Base.return_types(gather_reads, (typeof(bank_reader), typeof(bank_exec)))))
@@ -280,8 +280,8 @@ function test_readers()
         sim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
         init!(sim, combine(at("inner/plant", fragment(x = (q = SVector(0.3, 0.1),))),
                            fragment(u = (ref = 1.0,))))
-        evaluate!(sim.exec)
-        @test gather_reads(_compile_reads(deep, sim.deployment.build), sim.exec).q == SVector(0.3, 0.1)
+        evaluate!(sim.model.exec)
+        @test gather_reads(_compile_reads(deep, sim.model.deployment.build), sim.model.exec).q == SVector(0.3, 0.1)
 
         # D-125's own remedy, and the one that survives substitution: the seam
         # publishes a face, which is what the read binds to.
@@ -305,14 +305,14 @@ function test_readers()
         generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
         init!(generic_sim, combine(at("inner", at("plant", fragment(x = (q = SVector(0.3, 0.1),)))),
                                    fragment(u = (ref = 1.0,))))
-        evaluate!(generic_sim.exec)
-        generic_build = generic_sim.deployment.build
+        evaluate!(generic_sim.model.exec)
+        generic_build = generic_sim.model.deployment.build
         @test gather_reads(_compile_reads(at("inner", reads(q = get_state("plant", :q))), generic_build),
-                           generic_sim.exec).q == SVector(0.3, 0.1)
+                           generic_sim.model.exec).q == SVector(0.3, 0.1)
         # Each prefix is walked from the level the one before it reached, so a
         # chain of two is legal where the joined prefix walks past the child.
         @test gather_reads(_compile_reads(at("inner", at("plant", reads(q = get_state("", :q)))),
-                                          generic_build), generic_sim.exec).q == SVector(0.3, 0.1)
+                                          generic_build), generic_sim.model.exec).q == SVector(0.3, 0.1)
         d = only(diagnostics(failure(() ->
                 _compile_reads(at("inner/plant", reads(q = get_state("", :q))), generic_build))))
         @test d isa PathResolution && d.reason === :past_generic && d.segment == "inner" &&
@@ -344,17 +344,17 @@ function test_readers()
         for T in (Float64, D8)
             sim = Simulation(wrapped_readable(), T; h = 1//10)
             init!(sim, at("inner", readable_condition()))
-            evaluate!(sim.exec)
-            wrapped_build = sim.deployment.build
+            evaluate!(sim.model.exec)
+            wrapped_build = sim.model.deployment.build
             mounted = gather_reads(_compile_reads(at("inner", readable_reads()), wrapped_build, T),
-                                   sim.exec)
+                                   sim.model.exec)
             # Every path carries `inner/`, `get_input(:u)` is the root input the
             # chain lands on, and `get_face(:y)` the face the root re-exports.
             twin = gather_reads(_compile_reads(
                 reads(q = get_state("inner/plant", :q), v = get_state("inner/plant", "q[2]"),
                       acc = get_state("inner/ctl", :acc), q̇ = get_deriv("inner/plant", :q),
                       a = get_deriv("inner/plant", "q[2]"), y = get_output("inner/plant", :y),
-                      u = get_input(:drive), face = get_face(:lift)), wrapped_build, T), sim.exec)
+                      u = get_input(:drive), face = get_face(:lift)), wrapped_build, T), sim.model.exec)
             @test mounted === twin                                # field by field, labels included
             @test mounted.q == SVector{2,T}(0.3, -0.2) && mounted.u === T(1.5)
             @test mounted.v === mounted.q[2]                      # the leaf address carried through
@@ -364,7 +364,7 @@ function test_readers()
             # face its own port, its input the root input feeding it.
             at_plant = gather_reads(_compile_reads(
                 at("inner/plant", reads(q = get_state("", :q), y = get_face(:y), u = get_input(:u))),
-                wrapped_build, T), sim.exec)
+                wrapped_build, T), sim.model.exec)
             @test at_plant === (q = twin.q, y = twin.y, u = twin.u)
         end
 
@@ -372,14 +372,14 @@ function test_readers()
         # at the root, and the steps ride through the rebase to a dotted root input.
         dotted_sim = Simulation(wrapped_dotted(); h = 1//10)
         init!(dotted_sim, at("inner", dotted_condition()))
-        dotted_build = dotted_sim.deployment.build
+        dotted_build = dotted_sim.model.deployment.build
         dotted = gather_reads(_compile_reads(at("inner", reads(b = get_input("left.brake[2]"),
                                                                v = get_face("pose.v[2]"),
                                                                m = get_face("pose.m[1,2]"))),
-                                             dotted_build), dotted_sim.exec)
+                                             dotted_build), dotted_sim.model.exec)
         @test dotted === (b = 2.5, v = 8.0, m = 3.0)
         @test gather_reads(_compile_reads(reads(b = get_input("outer.left.brake[2]")), dotted_build),
-                           dotted_sim.exec).b === dotted.b
+                           dotted_sim.model.exec).b === dotted.b
     end
 
     @testset "a refusal at a mount spells the read as authored and names the mount (§14.9, D-277)" begin
@@ -503,7 +503,7 @@ function test_readers()
                                               pose_v = get_face("pose.v"),
                                               pose_v2 = get_face("pose.v[2]"),
                                               m12 = get_face("pose.m[1,2]")),
-                                        sim.deployment.build), sim.exec)
+                                        sim.model.deployment.build), sim.model.exec)
         @test v.brake === v.short === SVector(1.5, 2.5)   # a `Symbol` names the face whole
         @test v.brake2 === 2.5
         @test v.theta === 0.5
@@ -523,7 +523,7 @@ function test_readers()
 
         # Where no face matches, `field` is the whole address, the candidates the list.
         err = failure(() -> _compile_reads(reads(a = get_input("left.brakes"),
-                                                 b = get_face("att")), sim.deployment.build))
+                                                 b = get_face("att")), sim.model.deployment.build))
         (a, b_) = diagnostics(err)
         @test a.reason === :unknown_root_input && a.field === Symbol("left.brakes") &&
               a.candidates == [Symbol("left.brake")]
@@ -550,16 +550,16 @@ function test_readers()
         init!(seeded, readable_condition())
         before = world(seeded)
 
-        err = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
+        err = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.model.deployment.build), seeded.model.exec))
         @test err isa InternalInvariant         # not a diagnostic kind, and not a DiagnosticError
         @test occursin("compiled at Float64", err.message) && occursin("Dual{Nothing, Float64, 8}", err.message)
         # `InternalInvariant` carries a message and no payload by design (D-215),
         # so it is matched on text — it is no diagnostic kind.
 
         authored = readable_condition()
-        err = failure(() -> apply!(seeded.exec, resolve_condition(authored, nominal.deployment.build)))
+        err = failure(() -> apply!(seeded.model.exec, resolve_condition(authored, nominal.model.deployment.build)))
         @test err isa InternalInvariant
-        err = failure(() -> apply!(seeded.exec, compile_plan(authored, nominal.deployment.build), authored))
+        err = failure(() -> apply!(seeded.model.exec, compile_plan(authored, nominal.model.deployment.build), authored))
         @test err isa InternalInvariant
 
         @test world(seeded) == before                # every refusal left the executor alone
@@ -571,7 +571,7 @@ function test_readers()
         # scalar. A `T`-typed keyword refused `t0 = 0.25` here.
         seeded = Simulation(readable(), D8; h = 1//10)
         init!(seeded, readable_condition(); t0 = 0.25)
-        @test seeded.exec.clock.t₀ === 0.25
-        @test seeded.exec.clock.t isa D8 && ForwardDiff.value(seeded.exec.clock.t) === 0.25
+        @test seeded.model.exec.clock.t₀ === 0.25
+        @test seeded.model.exec.clock.t isa D8 && ForwardDiff.value(seeded.model.exec.clock.t) === 0.25
     end
 end

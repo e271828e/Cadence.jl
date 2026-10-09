@@ -44,7 +44,7 @@ function test_executor()
         six = Group(NamedTuple{ntuple(i -> Symbol(:m, i), 6)}(ntuple(_ -> feedback_model(), 6));
                     input_wires = ("ref" => ntuple(i -> "m$(i)/ref", 6),))
         sim = Simulation(six; h = 1//100, chunk_size = 1)
-        @test length(sim.exec.bodies.sweep_2.interior) > 16
+        @test length(sim.model.exec.bodies.sweep_2.interior) > 16
         for name in BLOCKS
             body = phase_bodies(sim)[name]
             body(); body(0)
@@ -59,7 +59,7 @@ function test_executor()
                       input_wires = ("ref" => ntuple(i -> "m$(i)/ref", 40),))
         for chunk_size in (1, 40)
             sim = Simulation(forty; h = 1//100, chunk_size)
-            sweep_2 = sim.exec.bodies.sweep_2
+            sweep_2 = sim.model.exec.bodies.sweep_2
             @test length(sweep_2.interior) == 120 ÷ chunk_size
             @test length(first(sweep_2.interior).entries) == chunk_size
             for name in BLOCKS
@@ -79,7 +79,7 @@ function test_executor()
             init!(sim)
             @test length(phase_bodies(sim).projections) == 40
             @test length(phase_bodies(sim).events) == 40
-            events, store, xbuf = sim.exec.events, sim.exec.store, sim.exec.xbuf
+            events, store, xbuf = sim.model.exec.events, sim.model.exec.store, sim.model.exec.xbuf
             @test length(events.entries) == length(events.projects) == 40 ÷ chunk_size
             _projects!(events, xbuf); _guards!(events, store, xbuf); _fire!(events, store, xbuf)
             @test @ballocated(_projects!($events, $xbuf)) == 0
@@ -94,7 +94,7 @@ function test_executor()
         # event set by one pointer too, and the event set holds one pointer per
         # event chunk.
         count_chunks(sim) =
-            sum(length(getfield(sim.exec.bodies[name], variant))
+            sum(length(getfield(sim.model.exec.bodies[name], variant))
                 for name in BLOCKS for variant in (:interior, :boundary))
         loops(n) = Group(NamedTuple{ntuple(i -> Symbol(:m, i), n)}(ntuple(_ -> feedback_model(), n));
                          input_wires = ("ref" => ntuple(i -> "m$(i)/ref", n),))
@@ -105,10 +105,10 @@ function test_executor()
                                  saw = Sawtooth(1.0 + i / 100))), n)))
         for model in (loops, rotor_saws)
             small, big = Simulation(model(6); h = 1//100), Simulation(model(40); h = 1//100)
-            @test sizeof(big.exec) - sizeof(small.exec) ==
+            @test sizeof(big.model.exec) - sizeof(small.model.exec) ==
                   sizeof(Int) * (count_chunks(big) - count_chunks(small))
         end
-        events = Simulation(rotor_saws(40); h = 1//100).exec.events
+        events = Simulation(rotor_saws(40); h = 1//100).model.exec.events
         @test ismutable(events)
         @test sizeof(events.entries) == sizeof(Int) * length(events.entries)
         @test sizeof(events.projects) == sizeof(Int) * length(events.projects)
@@ -123,10 +123,10 @@ function test_executor()
             run!(sim; t_end = 3.5)
             sim
         end
-        @test length(runs[1].exec.events.entries) == 10
-        @test length(runs[1].exec.events.projects) == 10
+        @test length(runs[1].model.exec.events.entries) == 10
+        @test length(runs[1].model.exec.events.projects) == 10
         @test all(state(runs[1], "p$(i)/saw").q < 1 for i in 1:40)   # every saw wrapped
-        @test runs[1].exec.xbuf == runs[2].exec.xbuf == runs[3].exec.xbuf
+        @test runs[1].model.exec.xbuf == runs[2].model.exec.xbuf == runs[3].model.exec.xbuf
 
         # A body with no gated entry walks its interior at a boundary: its two
         # tuples have one type, and the boundary call writes what the interior does.
@@ -135,9 +135,9 @@ function test_executor()
         run!(sim; t_end = 0.1)
         rhs = phase_bodies(sim).rhs
         @test fieldtype(typeof(rhs), :interior) === fieldtype(typeof(rhs), :boundary)
-        rhs(); ẋ_interior = copy(sim.exec.ẋbuf)
-        fill!(sim.exec.ẋbuf, NaN); rhs(3)
-        @test sim.exec.ẋbuf == ẋ_interior
+        rhs(); ẋ_interior = copy(sim.model.exec.ẋbuf)
+        fill!(sim.model.exec.ẋbuf, NaN); rhs(3)
+        @test sim.model.exec.ẋbuf == ẋ_interior
         # It reuses the interior's compiled walk: no boundary walk exists for
         # this body's entries.
         entries_types = [typeof(chunk.entries) for chunk in rhs.interior]

@@ -283,7 +283,7 @@ function conditions_algebra()
         free = Simulation(single(Sawtooth(1.0)); h = 1//10)
         init!(free)                                    # nothing to cover: total by construction
         @test lifecycle(free) === :initialized
-        @test isempty(free.deployment.build.structure.root_inputs)
+        @test isempty(free.model.deployment.build.structure.root_inputs)
     end
 
     @testset "a sparse overlay lands on the declared defaults (§14.1, §14.3)" begin
@@ -356,7 +356,7 @@ function conditions_algebra()
                            fragment(u = (u = 0.0, e = 0.0))))
         @test modes(sim, "trig") === (state = :fired, count = 1)
         @test port(sim, "trig", :on) === true
-        @test latest(sim).t == 0.0 && sim.exec.clock.frame == 0
+        @test latest(sim).t == 0.0 && sim.model.exec.clock.frame == 0
     end
 
     @testset "the fragment-function idiom composes by pull across two levels (§14.2)" begin
@@ -493,10 +493,10 @@ ledger_tree(a, b) = override(at("led", fragment(s = (a = a,))),
                              at("led", fragment(s = (b = b,))))
 
 # Everything an `apply!` can land in, for the comparisons below.
-landed(sim) = (copy(sim.exec.xbuf),
-               [s === nothing ? nothing : s[] for s in sim.exec.sstores],
-               [m === nothing ? nothing : m[] for m in sim.exec.mstores],
-               [port(sim, "", f) for f in sim.deployment.build.structure.root_inputs])
+landed(sim) = (copy(sim.model.exec.xbuf),
+               [s === nothing ? nothing : s[] for s in sim.model.exec.sstores],
+               [m === nothing ? nothing : m[] for m in sim.model.exec.mstores],
+               [port(sim, "", f) for f in sim.model.deployment.build.structure.root_inputs])
 
 function conditions_specialized_apply()
     @testset "a shape-compiled plan lands what the dynamic walk lands (§14.4, D-066)" begin
@@ -504,15 +504,15 @@ function conditions_specialized_apply()
         dynamic = Simulation(tri(); h = 1//10)
         # Compiled from one tree, applied to a second of the same shape with other
         # values everywhere: the plan holds lenses, not the values it was shown.
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), specialized.deployment.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), specialized.model.deployment.build)
         later = tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)
 
-        apply!(specialized.exec, plan, later)
-        apply!(dynamic.exec, resolve_condition(later, dynamic.deployment.build))
+        apply!(specialized.model.exec, plan, later)
+        apply!(dynamic.model.exec, resolve_condition(later, dynamic.model.deployment.build))
         @test landed(specialized) == landed(dynamic)
 
         # And what it landed is the second tree's values, in all four homes.
-        @test specialized.exec.xbuf == [9.0, 8.0]
+        @test specialized.model.exec.xbuf == [9.0, 8.0]
         @test state(specialized, "ctl") === (acc = 7.0,)
         @test modes(specialized, "trig") === (state = :armed, count = 0)
         @test port(specialized, "", :u) === 6.0 && port(specialized, "", :e) === 5.5
@@ -525,34 +525,34 @@ function conditions_specialized_apply()
 
     @testset "the specialized `apply!` writes without allocating (§14.4, §7.5)" begin
         sim = Simulation(tri(); h = 1//10)
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.model.deployment.build)
         tree = tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)
         # The whole path: the prefix sweep, the flat-buffer write, both stores as
         # whole values, and the two root-input scatters. The tree is handed in
         # already built; its construction is measured on its own above.
-        @test (@ballocated apply!($(sim.exec), $plan, $tree)) == 0
+        @test (@ballocated apply!($(sim.model.exec), $plan, $tree)) == 0
     end
 
     @testset "the specialized `apply!` stays allocation-free past 32 writes (§14.4, §7.5)" begin
         # 64 `at` nodes over 64 components: 64 `x` writes and 64 prefixes to sweep.
         sim = Simulation(sawtooth_bank(); h = 1//10)
         bank_tree(v) = combine((at("s$i", fragment(x = (q = v + i,))) for i in 1:64)...)
-        plan = compile_plan(bank_tree(0.0), sim.deployment.build)
+        plan = compile_plan(bank_tree(0.0), sim.model.deployment.build)
         tree = bank_tree(0.25)
         @test length(plan.xs) == 64 && length(plan.prefixes) == 64
-        apply!(sim.exec, plan, tree)
-        @test sim.exec.xbuf == [0.25 + i for i in 1:64]
-        @test (@ballocated apply!($(sim.exec), $plan, $tree)) == 0
+        apply!(sim.model.exec, plan, tree)
+        @test sim.model.exec.xbuf == [0.25 + i for i in 1:64]
+        @test (@ballocated apply!($(sim.model.exec), $plan, $tree)) == 0
 
         # One store of 64 fields: one write, its overlay 64 authored values.
         wide_sim = Simulation(Group((; w = WideStore())); h = 1//10)
         authored = NamedTuple{ntuple(i -> Symbol(:f, i), 64)}(ntuple(i -> 0.5i, 64))
         wide_tree = at("w", fragment(s = authored))
-        wide_plan = compile_plan(wide_tree, wide_sim.deployment.build)
+        wide_plan = compile_plan(wide_tree, wide_sim.model.deployment.build)
         @test length(wide_plan.stores) == 1
-        apply!(wide_sim.exec, wide_plan, wide_tree)
+        apply!(wide_sim.model.exec, wide_plan, wide_tree)
         @test state(wide_sim, "w") === authored
-        @test (@ballocated apply!($(wide_sim.exec), $wide_plan, $wide_tree)) == 0
+        @test (@ballocated apply!($(wide_sim.model.exec), $wide_plan, $wide_tree)) == 0
     end
 
     @testset "the store merge is the composite's, not one layer's (§14.3)" begin
@@ -561,20 +561,20 @@ function conditions_specialized_apply()
         # the two layers' fields meet in one `merge(defaults, overlay)`. A plan over
         # the patch alone would write `(a = 0.0, b = 4.0)` — the baseline's `a`
         # replaced by the declared default, which is the trap the composite avoids.
-        plan = compile_plan(ledger_tree(1.0, 2.0), sim.deployment.build)
-        apply!(sim.exec, plan, ledger_tree(3.0, 4.0))
+        plan = compile_plan(ledger_tree(1.0, 2.0), sim.model.deployment.build)
+        apply!(sim.model.exec, plan, ledger_tree(3.0, 4.0))
         @test state(sim, "led") === (a = 3.0, b = 4.0)
-        @test (@ballocated apply!($(sim.exec), $plan, $(ledger_tree(3.0, 4.0)))) == 0
+        @test (@ballocated apply!($(sim.model.exec), $plan, $(ledger_tree(3.0, 4.0)))) == 0
     end
 
     @testset "shape drift is a structured error, and nothing is written (§14.4, §9.5)" begin
         sim = Simulation(tri(); h = 1//10)
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.model.deployment.build)
         before = landed(sim)
 
         # A tree of another type never reaches a write: the shape is proven by
         # dispatch, and the fallback method names both types.
-        d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, at("plant", fragment(x = (q = SVector(1.0, 2.0),)))))
+        d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.model.exec, plan, at("plant", fragment(x = (q = SVector(1.0, 2.0),)))))
         @test d.reason === :tree_type
         @test d.compiled === typeof(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0))
         @test d.observed <: Scoped                        # the observed tree's own type
@@ -586,7 +586,7 @@ function conditions_specialized_apply()
                           at("plant", fragment(s = (acc = 7.0,))),   # was "ctl"
                           at("trig", fragment(m = (state = :armed,))),
                           fragment(u = (u = 6.0, e = 5.5)))
-        d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, drifted))
+        d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.model.exec, plan, drifted))
         @test d.reason === :prefix
         @test d.position == (:nodes, (2,), :prefix)           # the position, as a tree-step tuple
         @test d.compiled == "ctl" && d.observed == "plant"
@@ -600,7 +600,7 @@ function conditions_specialized_apply()
         # service rebuilding its tree per evaluation actually needs, and it is both
         # stronger and truer than "equal literals are one object".
         sim = Simulation(tri(); h = 1//10)
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.model.deployment.build)
 
         prefix_words = split("plant ctl trig")       # the prefixes as data, not literals
         fresh(i) = String(prefix_words[i])           # a new `String` object per call
@@ -611,31 +611,31 @@ function conditions_specialized_apply()
                            at(fresh(2), fragment(s = (acc = 7.0,))),
                            at(fresh(3), fragment(m = (state = :armed,))),
                            fragment(u = (u = 6.0, e = 5.5)))
-        apply!(sim.exec, plan, computed)             # other objects, same paths: the sweep passes
-        @test sim.exec.xbuf == [9.0, 8.0]
+        apply!(sim.model.exec, plan, computed)             # other objects, same paths: the sweep passes
+        @test sim.model.exec.xbuf == [9.0, 8.0]
         @test state(sim, "ctl") === (acc = 7.0,)
         @test port(sim, "", :u) === 6.0
     end
 
     @testset "the converters are baked per leaf, at the activation (§14.3)" begin
         sim = Simulation(tri(), D8; h = 1//10)
-        build = sim.deployment.build
+        build = sim.model.deployment.build
 
         # A plain `Float64` leaf against a seeded activation: the zero-partial
         # embedding, which is semantically exact for a value held at the operating
         # point and in no other case.
         held = at("plant", fragment(x = (q = SVector(1.0, 2.0),)))
-        apply!(sim.exec, compile_plan(held, build, D8), held)
-        @test sim.exec.xbuf == D8[1.0, 2.0]
-        @test all(iszero, ForwardDiff.partials(sim.exec.xbuf[1]))
+        apply!(sim.model.exec, compile_plan(held, build, D8), held)
+        @test sim.model.exec.xbuf == D8[1.0, 2.0]
+        @test all(iszero, ForwardDiff.partials(sim.model.exec.xbuf[1]))
 
         # A leaf already at the activation's scalar — decision-descended — takes the
         # type's own methods, partials flowing through untouched.
         seed = ForwardDiff.Dual{Nothing}(2.5, ntuple(i -> i == 1 ? 1.0 : 0.0, 8)...)
         seeded = at("plant", fragment(x = (q = SVector(seed, zero(seed)),)))
-        apply!(sim.exec, compile_plan(seeded, build, D8), seeded)
-        @test ForwardDiff.value(sim.exec.xbuf[1]) === 2.5
-        @test ForwardDiff.partials(sim.exec.xbuf[1])[1] === 1.0
+        apply!(sim.model.exec, compile_plan(seeded, build, D8), seeded)
+        @test ForwardDiff.value(sim.model.exec.xbuf[1]) === 2.5
+        @test ForwardDiff.partials(sim.model.exec.xbuf[1])[1] === 1.0
 
         # And the one case no converter covers: a discrete `s` is frozen at a
         # non-nominal activation (§9.4), so a decision variable authored into it is

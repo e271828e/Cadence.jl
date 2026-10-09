@@ -117,15 +117,63 @@ True once the loop's tail has written the run's termination record (§12.6,
 closed(run::Run) = run.termination !== nothing
 
 """
-The five things a simulation is (§12.6, D-256). Every other value belongs to
-one of them.
+    Model(deployment::Deployment, T = Float64; chunk_size = 16)
+    Model(build::Build, T = Float64; h, N_base = nothing, Δt_base = nothing,
+          algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
+          localization_budget = 8, chunk_size = 16)
+    Model(root, T = Float64; …)
+
+A deployment materialized at one scalar `T` (§9.2, D-317): the `Deployment` and
+the `Executor` compiled from it, the activation that can be written to,
+evaluated and stepped. It runs nothing in real time, talks to no device and
+records nothing; a `Simulation` does that around a `Model{Float64}`.
+
+Deploying and materializing are two steps (D-254). The `Deployment` is
+scalar-free and one backs many models; this call fixes the scalar, allocating
+the buffers. The scalar picks the activation the entries compile over, through
+`activation(deployment.build, T)`, which serves the nominal `Float64` entry the
+build inserted and derives and caches any other (§9.4). `chunk_size` is the
+unroll width `compile` takes. The two other forms are *defined as* the
+compositions: `Model(build; kw…)` is `Model(Deployment(build; grid kw…), T;
+chunk_size)`, and `Model(root; kw…)` calls `build` first.
 
 - `deployment`: what the grid parameters fixed (§9.1, D-254), and through it
   the build, the schema authority a condition resolves against (§14.3). Held
   once: a second reference would be an invariant with no enforcer (§12.1,
   D-256).
-- `exec`: the nominal executor this simulation owns (§9.2, §9.7), with its
-  stepper, arrival buffers and `chunk_size`.
+- `exec`: the executor this model owns (§9.2, §9.7), with its stepper,
+  arrival buffers and `chunk_size`. Every buffer set has exactly one owner, so
+  a service invocation instantiates an executor of its own from the same
+  cached layouts rather than writing through this one.
+"""
+struct Model{T,E}
+    deployment::Deployment
+    exec::E
+end
+
+function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size::Int = 16) where {T}
+    act = activation(deployment.build, T)
+    exec = compile(deployment.build, act, deployment.schedule; chunk_size,
+                   algorithm = deployment.algorithm)
+    Model{T,typeof(exec)}(deployment, exec)
+end
+
+# The two sugar forms, each *defined as* the composition (§9.2, D-254).
+Model(build::Build, ::Type{T} = Float64; h = nothing, N_base = nothing,
+      Δt_base = nothing, algorithm = RK4, firing_budget = 4,
+      localization_tol = 1e-6, localization_budget = 8, kw...) where {T} =
+    Model(Deployment(build; h, N_base, Δt_base, algorithm, firing_budget,
+                     localization_tol, localization_budget), T; kw...)
+Model(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
+    Model(build(root), T; kw...)
+
+"""
+The four things a simulation is (§12.6, D-256, D-317). Every other value
+belongs to one of them.
+
+- `model`: the `Model` it runs, the deployment and the nominal executor
+  (§9.2, D-317). The build is held once, through `sim.model.deployment.build`,
+  the schema authority a condition resolves against (§14.3).
 - `plane`: the §11.3 roster, the harness and loop writers and §11.2's
   published holder.
 - `control`: §12.1's stop word, pause flag and two knobs, `pace` and
@@ -133,44 +181,33 @@ one of them.
 - `run`: §12.6's run state, the one field a door rebinds (D-255, D-260).
 """
 mutable struct Simulation{T,E}
-    const deployment::Deployment
-    const exec::E
+    const model::Model{T,E}
     const plane::DataPlane
     const control::Control
     run::Run{T}
 end
 
 """
+    Simulation(model::Model; join_timeout = 5.0)
     Simulation(deployment::Deployment, T = Float64; join_timeout = 5.0, chunk_size = 16)
     Simulation(build::Build, T = Float64; h, N_base = nothing, Δt_base = nothing,
                algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                localization_budget = 8, kw...)
     Simulation(root, T = Float64; …)
 
-Materialization (§9.2, D-254): deploying and materializing are two steps, with
-two sugar forms over them. The `Deployment` is scalar-free and one backs many
-`Simulation`s; this call fixes the scalar, allocating the buffers and the
-stopped-sim services. The scalar picks the activation the entries compile over,
-through `activation(deployment.build, T)`, which serves the nominal `Float64`
-entry the build inserted and derives and caches any other (§9.4). The two
-convenience forms are *defined as* the compositions: `Simulation(build; kw…)` is
-`Simulation(Deployment(build; grid kw…), T; rest…)`, and `Simulation(root; kw…)`
-calls `build` first. Entry compilation lives behind the deployment because `Δt`,
-`D` and `Φ` are entry data, and one `Build` backs many deployments.
-
-The build is held once, through the deployment (§12.1, D-256): `sim.deployment.build`
-is the schema authority a condition resolves against (§14.3), and a second
-reference on the `Simulation` would be an invariant with no enforcer.
-
-What compilation returns is one `Executor` (§9.7), and the `Simulation` owns
-it: every buffer set has exactly one owner (§9.2), so a service invocation
-instantiates an executor of its own from the same cached layouts rather than
-writing through this one.
+The simulation around a materialized `Model` (§9.2, D-317): the data plane, the
+control plane and the run beside it. The three other forms are *defined as* the
+compositions: `Simulation(deployment, T; join_timeout, chunk_size)` is
+`Simulation(Model(deployment, T; chunk_size); join_timeout)`,
+`Simulation(build; kw…)` is `Simulation(Deployment(build; grid kw…), T;
+rest…)`, and `Simulation(root; kw…)` calls `build` first. Entry compilation
+lives behind the deployment because `Δt`, `D` and `Φ` are entry data, and one
+`Build` backs many deployments.
 
 The grid parameters, the algorithm and the three event parameters are the
-`Deployment`'s, documented there and validated under `DeploymentInvalid`. The
-keywords below are this call's, and they validate under `ArgumentInvalid`
-(D-256).
+`Deployment`'s, documented there and validated under `DeploymentInvalid`;
+`chunk_size` is the `Model`'s. The keywords below are this call's, and they
+validate under `ArgumentInvalid` (D-256).
 
 `join_timeout` is §12.4's: the shutdown tail's join cap in seconds of wall
 clock — a positive real defaulting to 5, generous for GUI teardown and socket
@@ -189,8 +226,7 @@ no keywords here either: they configure the run's log and trace, which the
 doors build, so `init!`, `restore!` and `replay!` take them, each for the run it
 opens (§12.6, Appendix B, D-261).
 """
-function Simulation(deployment::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
-                    chunk_size::Int = 16) where {T}
+function Simulation(model::Model{T,E}; join_timeout = 5.0) where {T,E}
     # This call's own keyword is not a deployment parameter, so it is an
     # `ArgumentInvalid` (D-256, Appendix C), collected as the call's one throw
     # (§9.1, D-229). The stop policy and the recording keywords are not among
@@ -200,20 +236,20 @@ function Simulation(deployment::Deployment, ::Type{T} = Float64; join_timeout = 
         push!(diags, ArgumentInvalid(call = :Simulation, reason = :range,
                                      argument = :join_timeout, value = join_timeout))
     isempty(diags) || throw(DiagnosticError(diags))
-    act = activation(deployment.build, T)
-    exec = compile(deployment.build, act, deployment.schedule; chunk_size,
-                   algorithm = deployment.algorithm)
     # §12.6's placeholder run (D-255, D-261): an empty log at the defaults that
     # nothing reads and no trace, so every accessor has a run to read. It
     # carries no configuration; the first door builds the run that records.
     run = Run{T}(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing)
-    Simulation{T,typeof(exec)}(deployment, exec, DataPlane(act.layout),
-                               Control(Float64(join_timeout)), run)
+    Simulation{T,E}(model, DataPlane(model.exec.act.layout),
+                    Control(Float64(join_timeout)), run)
 end
 
-# The two sugar forms, each *defined as* the composition (§9.2, D-254): every
-# existing call site deploys and materializes in one call, and nothing in the
-# artifact is lost by composing.
+# The three sugar forms, each *defined as* the composition (§9.2, D-254,
+# D-317): every existing call site deploys and materializes in one call, and
+# nothing in the artifact is lost by composing.
+Simulation(deployment::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
+           chunk_size::Int = 16) where {T} =
+    Simulation(Model(deployment, T; chunk_size); join_timeout)
 Simulation(build::Build, ::Type{T} = Float64; h = nothing, N_base = nothing,
            Δt_base = nothing, algorithm = RK4, firing_budget = 4,
            localization_tol = 1e-6, localization_budget = 8, kw...) where {T} =
@@ -223,14 +259,16 @@ Simulation(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
     Simulation(build(root), T; kw...)
 
 """
+    warnings(model::Model) → Vector{Diagnostic}
     warnings(sim::Simulation) → Vector{Diagnostic}
 
-The concatenation of the simulation's artifacts' lists, the build's first and
-the deployment's second (§9.2, D-250). Warnings raised while *mutating state*
-live in that state's status record instead (§11.8), so nothing runtime reaches
-here.
+The concatenation of the model's artifacts' lists, the build's first and
+the deployment's second (§9.2, D-250); a simulation's are its model's.
+Warnings raised while *mutating state* live in that state's status record
+instead (§11.8), so nothing runtime reaches here.
 """
-warnings(sim::Simulation) = vcat(warnings(sim.deployment.build), warnings(sim.deployment))
+warnings(model::Model) = vcat(warnings(model.deployment.build), warnings(model.deployment))
+warnings(sim::Simulation) = warnings(sim.model)
 
 # §13.5's clock bound, validated identically at the three binding sites, and an
 # `ArgumentInvalid` at each: `t_end` is a keyword of the advance, never a
@@ -268,7 +306,7 @@ function _frames_to(t::Real, t₀::Real, h::Float64)
 end
 _frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, t₀, h))
 _t_end_frame(sim::Simulation, t_end::Float64) =
-    _frames_to(t_end, sim.exec.clock.t₀, sim.deployment.h)
+    _frames_to(t_end, sim.model.exec.clock.t₀, sim.model.deployment.h)
 
 # §13.5's ignore-list validation and compilation, run identically at the three
 # binding sites — `run!`, `replay!` and `step!` (§12.7, D-316): `:all` expands
@@ -314,7 +352,7 @@ end
 # call naming both a bad bound and a bad path is refused for the bound.
 function _bind_policy(sim::Simulation, t_end, ignore_stop_requests, site::Symbol)
     bound = _t_bound(t_end, site)
-    (ignored, ignore_mask) = _ignored_requests(sim.exec.act.layout, ignore_stop_requests; site)
+    (ignored, ignore_mask) = _ignored_requests(sim.model.exec.act.layout, ignore_stop_requests; site)
     (StopPolicy(bound, ignored), ignore_mask)
 end
 
@@ -387,11 +425,11 @@ _record(sim::Simulation{T}, policy::StopPolicy, source::TerminationSource,
 function _stop_hit(sim::Simulation{T}, ignore_mask::Vector{Bool}) where {T}
     all(ignore_mask) && return nothing          # none honoured, the empty roster included
     # asserted, since the plane's type does not fix the snapshot's
-    snapshot = latest(sim)::Snapshot{T,typeof(sim.exec.store)}
+    snapshot = latest(sim)::Snapshot{T,typeof(sim.model.exec.store)}
     buffer = getfield(snapshot.store.stores, STOP_FLAG_KEY).buffer
     for i in eachindex(ignore_mask)
         !ignore_mask[i] && buffer[i] === STOP_REQUESTED &&
-            return sim.exec.act.layout.requesters[i]
+            return sim.model.exec.act.layout.requesters[i]
     end
     nothing
 end
@@ -413,10 +451,11 @@ function _assert_advanceable(sim::Simulation, op::Symbol)
 end
 
 """
+    phase_bodies(model)
     phase_bodies(sim)
 
-The compiled bodies of the nominal activation, bound over this simulation's own
-buffers — **these are the bodies the loop runs**, not re-derivations, which is
+The compiled bodies of the model's activation, bound over its own buffers, and
+a simulation's are its nominal model's — **these are the bodies the loop runs**, not re-derivations, which is
 what makes the §7.5 measurement honest. The roster is fixed and total: a model
 with no discrete components still gets `ticks`, empty, compiling to a no-op
 whose `@ballocated` assertion passes vacuously, so consumers iterate uniformly
@@ -425,7 +464,8 @@ and handler per event keyed by `(path, name)`, and `projections`, the
 `x_projection` call per component keyed by path — each a zero-argument
 callable over the same buffers.
 """
-phase_bodies(sim::Simulation) = sim.exec.bodies
+phase_bodies(model::Model) = model.exec.bodies
+phase_bodies(sim::Simulation) = phase_bodies(sim.model)
 
 # --- evaluation ---------------------------------------------------------------
 
@@ -443,7 +483,8 @@ whatever `xbuf` holds.
     nothing
 end
 
-@inline evaluate!(sim::Simulation) = evaluate!(sim.exec)
+@inline evaluate!(model::Model) = evaluate!(model.exec)
+@inline evaluate!(sim::Simulation) = evaluate!(sim.model)
 
 """
 The boundary macro-sequence at a base tick, final form (§5.3, §10.6):
@@ -458,16 +499,21 @@ post-transition values off the settled table. Output stages before updates, so
 a discrete component's cells carry `y[k]` computed from `s[k]` while
 `s_update` produces `s[k+1]` — the sampled-data recursion, ordered by
 construction rather than by convention.
+
+The three boundary routines run on the model; `loop_diag` is the cell the event
+phase reports a `FiringBudget` into, and a simulation's forwarding method
+passes the plane's.
 """
-@inline function boundary!(sim::Simulation, tick::Int)
-    cursor = sim.exec.cursor
+@inline function boundary!(model::Model, tick::Int, loop_diag::DiagCell)
+    cursor = model.exec.cursor
     _phase!(cursor, :project)
-    _projects!(sim.exec.events, sim.exec.xbuf)
-    event_phase!(sim, tick)
+    _projects!(model.exec.events, model.exec.xbuf)
+    event_phase!(model, tick, loop_diag)
     _phase!(cursor, :ticks)
-    sim.exec.bodies.ticks(tick)
+    model.exec.bodies.ticks(tick)
     nothing
 end
+@inline boundary!(sim::Simulation, tick::Int) = boundary!(sim.model, tick, sim.plane.loop_diag)
 
 """
 The macro-sequence at a step boundary that is *not* a base tick: the tick
@@ -478,12 +524,13 @@ entry gated out, so consistency is restored and nothing discrete can move;
 projection and the event phase run in full — every step boundary is a boundary
 (§10.4).
 """
-@inline function offtick_boundary!(sim::Simulation)
-    _phase!(sim.exec.cursor, :project)
-    _projects!(sim.exec.events, sim.exec.xbuf)
-    event_phase!(sim, nothing)
+@inline function offtick_boundary!(model::Model, loop_diag::DiagCell)
+    _phase!(model.exec.cursor, :project)
+    _projects!(model.exec.events, model.exec.xbuf)
+    event_phase!(model, nothing, loop_diag)
     nothing
 end
+@inline offtick_boundary!(sim::Simulation) = offtick_boundary!(sim.model, sim.plane.loop_diag)
 
 """
 Boundary zero's macro-sequence (§14.5, D-205): the ordinary one, with the
@@ -504,15 +551,16 @@ everywhere.
 Never called bare: `_host_boundary_zero!` below hosts it for `init!`, the one
 door that runs it (D-274), wrapping a throw as §13.4's catch does (D-223).
 """
-@inline function boundary_zero!(sim::Simulation)
-    cursor = sim.exec.cursor
+@inline function boundary_zero!(model::Model, loop_diag::DiagCell)
+    cursor = model.exec.cursor
     _phase!(cursor, :project)
-    _projects!(sim.exec.events, sim.exec.xbuf)
-    event_phase!(sim, ESTABLISH)
+    _projects!(model.exec.events, model.exec.xbuf)
+    event_phase!(model, ESTABLISH, loop_diag)
     _phase!(cursor, :ticks)
-    sim.exec.bodies.ticks(0)
+    model.exec.bodies.ticks(0)
     nothing
 end
+@inline boundary_zero!(sim::Simulation) = boundary_zero!(sim.model, sim.plane.loop_diag)
 
 # One iteration round's sweep: the whole gated schedule (§10.6), in the due-set
 # arity the boundary fixed — never the update laws, which wait for quiescence.
@@ -523,7 +571,7 @@ end
 # Boundary zero's round: the whole schedule, gated by nothing (§14.5, D-205).
 @inline _round!(exec::Executor, tick::Establish) =
     (exec.bodies.sweep_1(tick); exec.bodies.sweep_2(tick); nothing)
-@inline _round!(sim::Simulation, tick) = _round!(sim.exec, tick)
+@inline _round!(model::Model, tick) = _round!(model.exec, tick)
 
 """
 The event phase (§10.6): [sweep → guards → handlers] iterated to quiescence,
@@ -543,18 +591,18 @@ boundary, while every other event iterates untouched. At quiescence the prior
 is updated unconditionally from the final samples — every prior an honest
 observation of a settled boundary.
 """
-function event_phase!(sim::Simulation, tick)
-    events, cursor = sim.exec.events, sim.exec.cursor
+function event_phase!(model::Model, tick, loop_diag::DiagCell)
+    events, cursor = model.exec.events, model.exec.cursor
     _phase!(cursor, :round, 1)       # §13.4: the boundary sweep is round 1, and the guard
-    _round!(sim, tick)            # walk and the fire walk of a round carry its index
+    _round!(model, tick)            # walk and the fire walk of a round carry its index
     n_events = length(events.prior)
     n_events == 0 && return nothing
     copyto!(events.last, events.prior)
     fill!(events.count, 0)
     fill!(events.warned, false)
-    budget = sim.deployment.firing_budget
+    budget = model.deployment.firing_budget
     while true
-        _guards!(events, sim.exec.store, sim.exec.xbuf)
+        _guards!(events, model.exec.store, model.exec.xbuf)
         fill!(events.comp_fired, false)
         any_fired = false
         for i in 1:n_events
@@ -564,8 +612,8 @@ function event_phase!(sim::Simulation, tick)
                 events.warned[i] = true       # at most one report per event per boundary
                 (path, name) = events.names[i]
                 # the loop's own cell (§11.8): folded at the next frame top
-                report_cell!(sim.plane.loop_diag,
-                             FiringBudget(path, name, _seconds(sim.exec.clock.t), budget,
+                report_cell!(loop_diag,
+                             FiringBudget(path, name, _seconds(model.exec.clock.t), budget,
                                           events.count[i]))
             end
             firing = eligible && !events.comp_fired[events.owner[i]]
@@ -580,9 +628,9 @@ function event_phase!(sim::Simulation, tick)
             (eligible && !firing) || (events.last[i] = events.now[i])
         end
         any_fired || break
-        _fire!(events, sim.exec.store, sim.exec.xbuf)
+        _fire!(events, model.exec.store, model.exec.xbuf)
         cursor.index += 1
-        _round!(sim, tick)
+        _round!(model, tick)
     end
     copyto!(events.prior, events.last)
     nothing
@@ -591,6 +639,7 @@ end
 # --- the stepper seam, framework side (§10.2) ----------------------------------
 
 """
+    integrate!(model, h)
     integrate!(sim, h)
 
 Advance the continuous state from `t` by `h`, delegated across the stepper
@@ -599,12 +648,13 @@ entered empty: with no continuous state the step degenerates to advancing `t`,
 the backend is simply not called, and no backend contract has to say what it
 would do at N = 0.
 """
-@inline function integrate!(sim::Simulation, h)
-    _phase!(sim.exec.cursor, :integrate)     # §13.4: `evaluate!` counts the stages from here
-    isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : integrate!(sim.exec.stepper, sim, h)
-    _check_finite!(sim)
+@inline function integrate!(model::Model, h)
+    _phase!(model.exec.cursor, :integrate)     # §13.4: `evaluate!` counts the stages from here
+    isempty(model.exec.xbuf) ? (model.exec.clock.t += h) : integrate!(model.exec.stepper, model, h)
+    _check_finite!(model)
     nothing
 end
+@inline integrate!(sim::Simulation, h) = integrate!(sim.model, h)
 
 # The boundary's first act (D-157, §13.4): one pass over the flat state buffer,
 # immediately after the backend returns and before anything reads the state —
@@ -613,10 +663,10 @@ end
 # not participate: a nonfinite derivative contaminates its own block's step
 # result within that very step, so this is the same detection with the same
 # attribution, and `ẋ` is integrator scratch besides.
-@inline function _check_finite!(sim::Simulation)
-    x = sim.exec.xbuf
+@inline function _check_finite!(model::Model)
+    x = model.exec.xbuf
     @inbounds for i in eachindex(x)
-        isfinite(x[i]) || _nonfinite(sim, i)      # the throw is the cold path
+        isfinite(x[i]) || _nonfinite(model, i)      # the throw is the cold path
     end
     nothing
 end
@@ -624,8 +674,8 @@ end
 # The owner of `flat_index` and its leaf within that component's block, both
 # read off the layout's `xblocks`. Thrown as a fail-fast `DiagnosticError`, which
 # the catch site's species rule unwraps into the `StepError`'s `cause`.
-@noinline function _nonfinite(sim::Simulation, flat_index::Int)
-    exec = sim.exec
+@noinline function _nonfinite(model::Model, flat_index::Int)
+    exec = model.exec
     xblocks = exec.act.layout.xblocks
     owner = findfirst(b -> flat_index in b, xblocks)::Int
     cursor = exec.cursor                    # the phase stays `:integrate`, but the sweep is the
@@ -633,7 +683,7 @@ end
     cursor.index = 0                        # boundary — no stage of its own, so no ordinal
     x_leaf_names = leaf_names(typeof(exec.act.decls[owner].x))
     throw(DiagnosticError(NonfiniteState(
-        path = sim.deployment.build.structure.components[owner].path,
+        path = model.deployment.build.structure.components[owner].path,
         leaf = x_leaf_names[flat_index - first(xblocks[owner]) + 1],
         value = exec.xbuf[flat_index],
         t = _seconds(exec.clock.t),
@@ -643,11 +693,11 @@ end
 # The trajectory's opening at `init!` (§12.6): the clock anchored at `t₀` and
 # every event prior cleared (§10.6), then the opening every door shares.
 function _open_trajectory!(sim::Simulation, t₀::Float64)
-    sim.exec.clock.t = t₀         # into the deployment's scalar (D-260)
-    sim.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
-    sim.exec.clock.frame = 0
-    sim.exec.clock.boundary = 0
-    fill!(sim.exec.events.prior, false)
+    sim.model.exec.clock.t = t₀         # into the deployment's scalar (D-260)
+    sim.model.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
+    sim.model.exec.clock.frame = 0
+    sim.model.exec.clock.boundary = 0
+    fill!(sim.model.exec.events.prior, false)
     _reset_periphery!(sim)
     nothing
 end
@@ -702,12 +752,12 @@ end
 # open.
 function _open_run!(sim::Simulation{T}, header, schemas, feed,
                     trace_switch::Bool, log_switch::Bool, log_every::Int, log_max) where {T}
-    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], sim.exec.clock.frame) :
+    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], sim.model.exec.clock.frame) :
                          nothing
     sim.run = Run{T}(SnapshotLog(log_switch, log_every,
                                  log_max === Inf ? typemax(Int) : Int(log_max)),
                      trc, feed, nothing)
-    _install_writers!(sim.plane, sim.exec.store, trc)
+    _install_writers!(sim.plane, sim.model.exec.store, trc)
     nothing
 end
 
@@ -805,11 +855,11 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
     lifecycle_state === :errored && throw(DiagnosticError(
         ServiceLifecycle(op = :init!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     _check_recording(:init!, trace, log, log_every, log_max)   # the run's keywords (D-261)
-    plan = resolve_condition(condition, sim.deployment.build, T)      # both refusals precede every write
-    assert_total(plan, sim.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
-    establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores,
-                        sim.deployment.build.structure.components,
-                        activation(sim.deployment.build, T).decls)   # D-063's reset
+    plan = resolve_condition(condition, sim.model.deployment.build, T)      # both refusals precede every write
+    assert_total(plan, sim.model.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
+    establish_defaults!(sim.model.exec.xbuf, sim.model.exec.sstores, sim.model.exec.mstores,
+                        sim.model.deployment.build.structure.components,
+                        activation(sim.model.deployment.build, T).decls)   # D-063's reset
     apply!(sim, plan)
     _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
     _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, trace, log,
@@ -850,7 +900,7 @@ function checkpoint(sim::Simulation)
     # clock's scalar, whatever the origin; a `t*` stop leaves the clock short of it.
     # At rest the latest snapshot is that top's, which an abandoned frame never
     # published, a `t*` boundary it did publish included.
-    clock = sim.exec.clock
+    clock = sim.model.exec.clock
     t_frame = _grid_time(sim, clock.frame)
     published = latest(sim)
     clock.t == oftype(clock.t, t_frame) && published.frame == clock.frame &&
@@ -870,11 +920,11 @@ end
 function _enter_checkpoint!(sim::Simulation{T}, cp::Checkpoint{T}, schemas, feed,
                             trace_switch::Bool, log_switch::Bool, log_every::Int,
                             log_max) where {T}
-    _restore_state!(sim.exec, cp)
+    _restore_state!(sim.model.exec, cp)
     _reset_periphery!(sim)
     _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, trace_switch,
                log_switch, log_every, log_max)
-    sim.exec.clock.boundary -= 1
+    sim.model.exec.clock.boundary -= 1
     publish!(sim, sim.plane.roster)
     nothing
 end
@@ -940,11 +990,11 @@ the simulation's own clock, so its origin must be the recording's, and its
 frame one the recording can feed from.
 """
 function _compile_feed(sim::Simulation{T}, trc::Trace{T}, restore::Bool = true) where {T}
-    faces = Symbol[f for (f, _) in sim.exec.act.layout.root_inputs]
+    faces = Symbol[f for (f, _) in sim.model.exec.act.layout.root_inputs]
     diags = Diagnostic[]
     _check_checkpoint!(diags, sim, trc.header)
     if !restore
-        clock = sim.exec.clock
+        clock = sim.model.exec.clock
         trc.header.t₀ == clock.t₀ || push!(diags, CheckpointMismatch(
             what = :clock, name = :t₀, expected = trc.header.t₀, found = clock.t₀))
         feedable = trc.header.frame:(trc.frames - 1)  # the frames the simulation may stand at
@@ -1073,7 +1123,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     # feed starts from — the header's, or the simulation's own under `restore =
     # false` — and no further than the recording reaches; every frame top is
     # one, so it counts frames
-    first_frame = restore ? trc.header.frame : sim.exec.clock.frame
+    first_frame = restore ? trc.header.frame : sim.model.exec.clock.frame
     to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ first_frame &&
         to_boundary ≤ trc.frames) || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
@@ -1263,7 +1313,7 @@ function _settle_mode!(sim::Simulation)
     feed = run.feed
     feed === nothing && return nothing
     # the detach is the flip: the mode is the feed's absence (§12.6, D-260)
-    sim.exec.clock.frame ≥ feed.frames && (run.feed = nothing)
+    sim.model.exec.clock.frame ≥ feed.frames && (run.feed = nothing)
     nothing
 end
 
@@ -1509,9 +1559,9 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # outside the frame's `try`.
 function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                    t_end_frame::Int, roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer})
-    plane, control, clock = sim.plane, sim.control, sim.exec.clock
-    N_base = sim.deployment.N_base
-    h = sim.deployment.h
+    plane, control, clock = sim.plane, sim.control, sim.model.exec.clock
+    N_base = sim.model.deployment.N_base
+    h = sim.model.deployment.h
     advanced = 0
     requester = _stop_hit(sim, ignore_mask)
     requester === nothing || return (ModelRequestedStop(requester), advanced)
@@ -1524,16 +1574,16 @@ function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                 reanchor!(pacer, _seconds(clock.t), @atomic control.pace)
             issuer = @atomic control.stop_issuer
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
-            sim.exec.clock.frame < t_end_frame || return (EndTimeReached(), advanced)
-            sim.exec.clock.frame < upto || return (nothing, advanced)
+            sim.model.exec.clock.frame < t_end_frame || return (EndTimeReached(), advanced)
+            sim.model.exec.clock.frame < upto || return (nothing, advanced)
             isempty(roster) || yield()
             pacer === nothing ||              # the pacer's wait: an unmask point (§12.4)
                 wait_deadline!(control, pacer, plane.loop_diag, _seconds(clock.t), h)
-            entry_boundary = sim.exec.clock.frame  # the frame-entry boundary index (§13.4)
+            entry_boundary = sim.model.exec.clock.frame  # the frame-entry boundary index (§13.4)
             Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
             try
                 drain!(sim, roster)
-                k = (sim.exec.clock.frame += 1)
+                k = (sim.model.exec.clock.frame += 1)
                 hit = frame!(sim, k, ignore_mask, roster, pacer)
                 if hit === nothing
                     k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
@@ -1597,11 +1647,11 @@ function _wrap_step(sim::Simulation, entry_boundary::Int, host::Symbol, err)
     err isa StepError && throw(InternalInvariant(
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
-    cursor = sim.exec.cursor
+    cursor = sim.model.exec.cursor
     StepError(CursorFrame(cursor.comp == 0 ? nothing :
-                              sim.deployment.build.structure.components[cursor.comp].path,
+                              sim.model.deployment.build.structure.components[cursor.comp].path,
                           cursor.fn, cursor.phase, cursor.index),
-              _seconds(sim.exec.clock.t), entry_boundary, host, _species(sim, err))
+              _seconds(sim.model.exec.clock.t), entry_boundary, host, _species(sim, err))
 end
 
 # The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
@@ -1618,12 +1668,12 @@ _species(::Simulation, err::DiagnosticError{<:Diagnostic}) = err.carried
 # cause it is. `UserCodeFraming` gets no runtime arm: the carrier already names
 # the frame and the function through the cursor.
 function _species(sim::Simulation, err::FieldError)
-    cursor = sim.exec.cursor
+    cursor = sim.model.exec.cursor
     cursor.comp == 0 && return err
     ci, family = cursor.comp, cursor.fn
-    comp_entry = sim.deployment.build.structure.components[ci]
+    comp_entry = sim.model.deployment.build.structure.components[ci]
     comp, tier = comp_entry.instance, comp_entry.tier
-    stage1_ports = tuple(sim.deployment.build.outputs.components[ci].stage1...)
+    stage1_ports = tuple(sim.model.deployment.build.outputs.components[ci].stage1...)
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
     legal_names = try
@@ -1720,8 +1770,8 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     else
         t_plus isa Real && isfinite(t_plus) && t_plus > 0 || throw(DiagnosticError(
             ArgumentInvalid(call = :step!, reason = :range, argument = :t_plus, value = t_plus)))
-        t = sim.exec.clock.t                  # the frame top the duration counts from
-        frame_count = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
+        t = sim.model.exec.clock.t                  # the frame top the duration counts from
+        frame_count = max(1, _frames_to(t + Float64(t_plus), t, sim.model.deployment.h))
     end
     (policy, ignore_mask) = _bind_policy(sim, t_end, ignore_stop_requests, :step!)   # this advance's policy (§13.5, D-255)
     t_end_frame = _t_end_frame(sim, policy.t_end)
@@ -1735,7 +1785,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         # §12.7: in `:replay` the recording is the bound, so a `step!` past its
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
-        upto = _replay_bound(sim, sim.exec.clock.frame + frame_count)
+        upto = _replay_bound(sim, sim.model.exec.clock.frame + frame_count)
         (source, advanced) = _advance!(sim, ignore_mask, upto, t_end_frame, roster, nothing)
         returned = true
     catch err
@@ -1916,7 +1966,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBind
             binding = _typename(binding(_handle(entry))))))
     end
     claim = is_input(new_binding) ?
-        _claim(plane, sim.exec.act.layout, new_binding, _typename(dev)) : Symbol[]
+        _claim(plane, sim.model.exec.act.layout, new_binding, _typename(dev)) : Symbol[]
     claim_diags = Diagnostic[]
     for face in claim                                 # claims: face exclusivity
         haskey(plane.claimedby, face) && push!(claim_diags, ClaimConflict(
@@ -1925,21 +1975,21 @@ function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBind
     isempty(claim_diags) || throw(DiagnosticError(claim_diags))
     # The output side: reads → one gather, resolved before admission commits.
     gatherer = is_output(new_binding) ?
-        _compile_gather(sim.exec.act.layout, reads(new_binding), typeof(new_binding),
+        _compile_gather(sim.model.exec.act.layout, reads(new_binding), typeof(new_binding),
                         _typename(dev)) : nothing
     device_id = plane.next_id                             # assigned on admission alone: a
     plane.next_id += 1                             # rejected attach consumes no id
-    writer = Writer(sim.exec.act.layout, claim)
+    writer = Writer(sim.model.exec.act.layout, claim)
     diag_cell = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
     handle = DeviceHandle("device $device_id ($(_typename(dev)))", new_binding, writer,
                           plane.claimedby, sim.control, sim.plane.published, diag_cell,
-                          gatherer, sim.deployment.build.structure, sim.exec.act.layout,
+                          gatherer, sim.model.deployment.build.structure, sim.model.exec.act.layout,
                           sim.control.counter, false)
     push!(plane.roster,
           RosterEntry(dev, device_id, _no_drain, should_abort, WriterAccount(), handle))
     # the thunk above is the sentinel: `reclaim!` appends the new writer set to
     # the trace's schema list and compiles every thunk against it (§11.5, D-261)
-    reclaim!(plane, sim.exec.act.layout, sim.exec.store, sim.run.trace)
+    reclaim!(plane, sim.model.exec.act.layout, sim.model.exec.store, sim.run.trace)
     if is_greedy(new_binding) && isempty(claim)
         # `attach!` mutates the roster, so the warning lives in the entry's own
         # cell (§11.3, §11.8, D-250): the first frame-top drain folds it into the
@@ -1973,7 +2023,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
     @atomic :release plane.roster[slot].handle.detached = true   # D-244
     deleteat!(plane.roster, slot)
-    reclaim!(plane, sim.exec.act.layout, sim.exec.store, sim.run.trace)
+    reclaim!(plane, sim.model.exec.act.layout, sim.model.exec.store, sim.run.trace)
     nothing
 end
 
@@ -2031,7 +2081,7 @@ recording, which is what the input mode the caller reads *is* (§12.6, D-260).
 """
 function drain!(sim::Simulation, roster::Vector{RosterEntry})
     plane = sim.plane
-    cursor = sim.exec.cursor         # the one store per frame that keeps a stale frame from
+    cursor = sim.model.exec.cursor         # the one store per frame that keeps a stale frame from
     cursor.comp = 0; cursor.fn = :none  # being reported for a drain-side throw (§13.4)
     _phase!(cursor, :drain)
     # one drain per frame, counted before any thunk runs, on both paths: the
@@ -2079,7 +2129,7 @@ the kill switch there is no trace to read it from (D-260).
 """
 function _replay_drain!(sim::Simulation, roster::Vector{RosterEntry}, feed::ReplayFeed)
     plane = sim.plane
-    frame = sim.exec.clock.frame + 1
+    frame = sim.model.exec.clock.frame + 1
     for entry in roster
         handle = _handle(entry)
         _discard_staged!(handle.writer, handle.diag_cell, frame)
@@ -2145,9 +2195,9 @@ predicate's alone.
 function publish!(sim::Simulation, roster::Vector{RosterEntry},
                   pacer::Union{Nothing,Pacer} = nothing)
     control = sim.control
-    clock = sim.exec.clock
-    snapshot = Snapshot(clock.t, clock.frame, clock.boundary, capture_stores(sim.exec.store),
-                        sim.exec.act.layout, _status(sim, roster, pacer))
+    clock = sim.model.exec.clock
+    snapshot = Snapshot(clock.t, clock.frame, clock.boundary, capture_stores(sim.model.exec.store),
+                        sim.model.exec.act.layout, _status(sim, roster, pacer))
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
     # reloaded, so the log stores the box the release-store made (§7.5)
@@ -2217,13 +2267,13 @@ hazard class as a mid-run `attach!`; a concurrent reader's inspection read is
 `latest(sim)`, and it holds snapshots or loses them (§11.2). Empty before
 the first `init!`, and empty under `log = false` — the switch gates
 retention wholesale. The element type is the run's concrete snapshot type,
-`Snapshot{T,typeof(sim.exec.store)}`, the type of what `latest(sim)` holds,
+`Snapshot{T,typeof(sim.model.exec.store)}`, the type of what `latest(sim)` holds,
 empty or not.
 """
 function logged(sim::Simulation{T}) where {T}
     assert_stopped(sim.control, :logged)
     snapshot_log = sim.run.log
-    retained = Snapshot{T,typeof(sim.exec.store)}[]
+    retained = Snapshot{T,typeof(sim.model.exec.store)}[]
     snapshot_log.first === nothing && return retained
     push!(retained, snapshot_log.first)
     for snapshot in snapshot_log.snaps
@@ -2266,24 +2316,28 @@ end
 # §8.6's canonical strings, and an assembly's own path addresses its faces —
 # which resolve to the cells they derive from.
 
-port(sim::Simulation, path::String, name::Symbol) =
-    gather_cell(sim.exec.store, sim.exec.act.layout.addr[(path, name)])
+port(model::Model, path::String, name::Symbol) =
+    gather_cell(model.exec.store, model.exec.act.layout.addr[(path, name)])
+port(sim::Simulation, path::String, name::Symbol) = port(sim.model, path, name)
 
 """
 State at `path`, from whichever home owns it: `x` in the flat buffer on the
 continuous tier, `s` in the component's own store on the discrete one (§7.3).
 """
-function state(sim::Simulation{T}, path::String) where {T}
-    ci = index_of(sim.deployment.build.structure, path)
-    sim.exec.sstores[ci] === nothing || return sim.exec.sstores[ci][]
-    _tier(i) = sim.deployment.build.structure.components[i].tier
-    _decls(i) = declarations(sim.deployment.build.structure.components[i].instance, _tier(i), T)
+function state(model::Model{T}, path::String) where {T}
+    ci = index_of(model.deployment.build.structure, path)
+    model.exec.sstores[ci] === nothing || return model.exec.sstores[ci][]
+    _tier(i) = model.deployment.build.structure.components[i].tier
+    _decls(i) = declarations(model.deployment.build.structure.components[i].instance, _tier(i), T)
     x_offset = 0
     for i in 1:(ci-1)
         _tier(i) === CONTINUOUS && (x_offset += nleaves(typeof(_decls(i).x)))
     end
-    reconstruct(typeof(_decls(ci).x), sim.exec.xbuf, x_offset)
+    reconstruct(typeof(_decls(ci).x), model.exec.xbuf, x_offset)
 end
+state(sim::Simulation, path::String) = state(sim.model, path)
 
 """Modes at `path` (§7.3). Read-only here: modes are written by handlers alone."""
-modes(sim::Simulation, path::String) = sim.exec.mstores[index_of(sim.deployment.build.structure, path)][]
+modes(model::Model, path::String) =
+    model.exec.mstores[index_of(model.deployment.build.structure, path)][]
+modes(sim::Simulation, path::String) = modes(sim.model, path)

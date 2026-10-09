@@ -58,7 +58,7 @@ function test_localization()
         stage!(sim, "in" => 1.0)                     # staged, drained at the next frame top (§11.4)
         step!(sim; t_plus = 0.3)
         @test modes(sim, "c").count == 1
-        @test modes(sim, "c").t_fired == 4 * sim.deployment.h     # the grid point itself
+        @test modes(sim, "c").t_fired == 4 * sim.model.deployment.h     # the grid point itself
     end
 
     @testset "t* = tₙ₊₁ exactly degenerates to the grid boundary (§10.4)" begin
@@ -71,7 +71,7 @@ function test_localization()
         init!(sim)
         run!(sim; t_end = 0.6)
         @test modes(sim, "s").count == 1
-        @test modes(sim, "s").t_fired == 4 * sim.deployment.h
+        @test modes(sim, "s").t_fired == 4 * sim.model.deployment.h
     end
 
     @testset "multiple crossings in one frame: earliest first, re-localized on the remainder" begin
@@ -107,7 +107,7 @@ function test_localization()
         init!(distinct_sim)
         run!(distinct_sim; t_end = 0.5)             # the degradation reports on the loop's cell (§11.8)
         @test modes(distinct_sim, "s1").t_fired ≈ 0.31 atol = 1e-6
-        @test modes(distinct_sim, "s2").t_fired == 4 * distinct_sim.deployment.h
+        @test modes(distinct_sim, "s2").t_fired == 4 * distinct_sim.model.deployment.h
         loop_status = writer_status(latest(distinct_sim), "loop")
         # frame 4's report, folded at frame 5's top
         d = only(loop_status.recent)
@@ -131,8 +131,8 @@ function test_localization()
         init!(sim)
         @test_logs run!(sim; t_end = 0.5)
         @test modes(sim, "s1").t_fired ≈ 0.399 atol = 1e-4
-        @test modes(sim, "s1").t_fired < 4 * sim.deployment.h
-        @test modes(sim, "s2").t_fired == 4 * sim.deployment.h
+        @test modes(sim, "s1").t_fired < 4 * sim.model.deployment.h
+        @test modes(sim, "s2").t_fired == 4 * sim.model.deployment.h
         @test modes(sim, "s1").count == 1 && modes(sim, "s2").count == 1
     end
 
@@ -179,7 +179,7 @@ function test_localization()
         stage!(sim2, "gate" => true)                            # the u seam, through the drain (§11.4)
         step!(sim2; t_plus = 0.3)
         @test modes(sim2, "s").count == 1
-        @test modes(sim2, "s").t_fired == 6 * sim2.deployment.h
+        @test modes(sim2, "s").t_fired == 6 * sim2.model.deployment.h
     end
 
     @testset "ticks are never due at t*: the discrete tier holds through it (§10.4)" begin
@@ -210,7 +210,7 @@ function test_localization()
         # Events are outside every non-nominal executable set, so the frame loop's
         # fast-path key is off: the bare step, no arrival machinery, no reset.
         sim = Simulation(single(Bouncer(1.0, 0.315)), D8; h = 1//10)
-        @test !sim.exec.has_localized
+        @test !sim.model.exec.has_localized
         init!(sim)
         run!(sim; t_end = 0.5)
         @test ForwardDiff.value(state(sim, "c").q) ≈ 0.5 rtol = 1e-12

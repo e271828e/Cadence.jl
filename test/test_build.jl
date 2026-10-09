@@ -103,10 +103,10 @@ function build_schedule()
         sim = Simulation(feedback_model(); h = 1//1000)
         # sum first (both its inputs are loop-breaking), then ctl, then plant
         order = [e.comp isa Sum ? :sum : e.comp isa Gain ? :ctl : :plant
-                 for e in walked(sim.exec.bodies.sweep_2)]
+                 for e in walked(sim.model.exec.bodies.sweep_2)]
         @test order == [:sum, :ctl, :plant]
-        @test length(walked(sim.exec.bodies.sweep_1)) == 1
-        @test length(walked(sim.exec.bodies.rhs)) == 1
+        @test length(walked(sim.model.exec.bodies.sweep_1)) == 1
+        @test length(walked(sim.model.exec.bodies.rhs)) == 1
     end
 
     @testset "the nominal evaluation's products are names and an order (§9.1, D-253, D-261)" begin
@@ -2110,8 +2110,8 @@ function build_warnings()
         sim = @test_logs (:warn, r"^EmptyFaceSelection") (:info, r"derived") (:warn, r"^GridUtilization") Simulation(
             EmptySelectionRated(Gain(2.0), Gain(3.0), TickCounter()); h = 1//500,
             Δt_base = :derive)
-        @test only(warnings(sim.deployment.build)) isa EmptyFaceSelection
-        @test only(warnings(sim.deployment)) isa GridUtilization
+        @test only(warnings(sim.model.deployment.build)) isa EmptyFaceSelection
+        @test only(warnings(sim.model.deployment)) isa GridUtilization
         @test [typeof(w) for w in warnings(sim)] == [EmptyFaceSelection, GridUtilization]
     end
 

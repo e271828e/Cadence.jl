@@ -25,7 +25,7 @@ fed(c, face) = Group((; c = c); input_wires = ("in" => "c/$face",))
 # is exactly what the drain-equivalence tests need as their reference. Not
 # framework API, and used nowhere else.
 poke!(sim, face, v) =
-    (scatter_cell!(sim.exec.store, sim.exec.act.layout.addr[("", Symbol(face))], v);
+    (scatter_cell!(sim.model.exec.store, sim.model.exec.act.layout.addr[("", Symbol(face))], v);
      nothing)
 
 # Two signal tables buffer by buffer: a `StoreBundle` defines no `==`, and a

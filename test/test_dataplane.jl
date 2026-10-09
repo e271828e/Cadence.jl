@@ -109,7 +109,7 @@ function dataplane_exchange()
 
         step!(sim; t_plus = 0.5)
         snapshot = latest(sim)
-        @test snapshot.frame == 5 && snapshot.t == sim.exec.clock.t
+        @test snapshot.frame == 5 && snapshot.t == sim.model.exec.clock.t
         # Boundary-consistent and whole-table: every port bitwise the live table's,
         # the root inputs riding along as the source cells they are (§11.2).
         for (path, name) in (("p", :y), ("p", :power),
@@ -169,7 +169,7 @@ function dataplane_exchange()
         stop[] = true
         (seen, bad, mono) = fetch(reader)
         @test seen > 0 && bad == 0 && mono
-        @test latest(sim).t == sim.exec.clock.t
+        @test latest(sim).t == sim.model.exec.clock.t
     end
 
     @testset "staging from another task: the CAS merge loses nothing it shouldn't (§11.4)" begin

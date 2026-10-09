@@ -55,11 +55,11 @@ end
 # writes it into the checkpoint and the check compares against it, since two
 # spellings of one fingerprint would be a silent way for a restore to pass.
 function _fingerprint(sim)
-    exec = sim.exec
+    exec = sim.model.exec
     layout = exec.act.layout
     Fingerprint(copy(layout.sizes),
                 Symbol[f for (f, _) in layout.root_inputs],
-                String[entry.path for entry in sim.deployment.build.structure.components],
+                String[entry.path for entry in sim.model.deployment.build.structure.components],
                 Any[isempty(decl.x) ? nothing : typeof(decl.x) for decl in exec.act.decls],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.sstores],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores],
@@ -72,14 +72,14 @@ end
 # The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
 # The stores are copied by value, being isbits (D-231).
 function _take_checkpoint(sim)
-    exec = sim.exec
+    exec = sim.model.exec
     clock = exec.clock
     T = eltype(exec.xbuf)      # the deployment's scalar, off the buffer that carries it
     s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
     m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
     checkpoint_stepper(exec.stepper)   # empty for a one-step method (stepper.jl)
     Checkpoint{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
-                  clock.t, clock.frame, clock.boundary, clock.t₀, sim.deployment,
+                  clock.t, clock.frame, clock.boundary, clock.t₀, sim.model.deployment,
                   _fingerprint(sim))
 end
 
@@ -161,8 +161,8 @@ function _check_checkpoint!(diags::Vector{Diagnostic}, sim, cp::Checkpoint)
             push!(diags, CheckpointMismatch(what = :store, name = :events,
                                             expected = recorded.events, found = target.events))
     end
-    cp.deployment == sim.deployment ||
-        _walk_deployment!(diags, cp.deployment, sim.deployment)
+    cp.deployment == sim.model.deployment ||
+        _walk_deployment!(diags, cp.deployment, sim.model.deployment)
     nothing
 end
 

@@ -131,7 +131,7 @@ function linearize(sim::Simulation{Float64}, tap_set::Taps; about = nothing,
     status in legal ||
         throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = status, legal = legal)))
     cp = about === nothing ? checkpoint(sim) : nothing
-    build = sim.deployment.build
+    build = sim.model.deployment.build
     T = ForwardDiff.Dual{LinearizeTag,Float64,width}
     (x_entries, u_entries, y_entries) = _resolve_taps(tap_set, build, T)
 

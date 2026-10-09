@@ -4,7 +4,7 @@
 # changing. The contract has three clauses, each answered by dispatch on the
 # stepper:
 #
-#   - **advance by arbitrary `h`** — `integrate!(stepper, sim, h)`: the loop lands on
+#   - **advance by arbitrary `h`** — `integrate!(stepper, model, h)`: the loop lands on
 #     tick boundaries and resumes from localized event times;
 #   - **dense output on demand over the last completed step** — `dense!`, built
 #     lazily on the pair `startpoint` retains, because only event localization
@@ -13,7 +13,7 @@
 #     one-step method restarts from a new state for free (D-017).
 #
 # The seam is never entered empty (§10.2): the framework short-circuits an
-# empty state on its own side — `integrate!(sim, h)` in sim.jl — so no backend ever
+# empty state on its own side — `integrate!(model, h)` in sim.jl — so no backend ever
 # faces N = 0. Both first-cut backends are fixed-step, zero-allocation and
 # generic in the scalar; the backend is a deployment binding (`algorithm = RK4`,
 # the default), and nothing outside this file knows which one ran.
@@ -59,19 +59,19 @@ struct RK4{T} <: AbstractStepper
 end
 RK4(::Type{T}, n_x::Int) where {T} = RK4{T}(ntuple(_ -> zeros(T, n_x), 5)...)
 
-function integrate!(stepper::RK4, sim, h)
-    x, ẋ = sim.exec.xbuf, sim.exec.ẋbuf
+function integrate!(stepper::RK4, model, h)
+    x, ẋ = model.exec.xbuf, model.exec.ẋbuf
     (; x₀, k₁, k₂, k₃, k₄) = stepper
-    t = sim.exec.clock.t
+    t = model.exec.clock.t
     copyto!(x₀, x)
 
-    evaluate!(sim); copyto!(k₁, ẋ)
-    _stage_point!(x, x₀, k₁, h / 2); sim.exec.clock.t = t + h / 2
-    evaluate!(sim); copyto!(k₂, ẋ)
+    evaluate!(model); copyto!(k₁, ẋ)
+    _stage_point!(x, x₀, k₁, h / 2); model.exec.clock.t = t + h / 2
+    evaluate!(model); copyto!(k₂, ẋ)
     _stage_point!(x, x₀, k₂, h / 2)
-    evaluate!(sim); copyto!(k₃, ẋ)
-    _stage_point!(x, x₀, k₃, h); sim.exec.clock.t = t + h
-    evaluate!(sim); copyto!(k₄, ẋ)
+    evaluate!(model); copyto!(k₃, ẋ)
+    _stage_point!(x, x₀, k₃, h); model.exec.clock.t = t + h
+    evaluate!(model); copyto!(k₄, ẋ)
 
     @inbounds for i in eachindex(x)
         x[i] = x₀[i] + (h / 6) * (k₁[i] + 2k₂[i] + 2k₃[i] + k₄[i])
@@ -95,15 +95,15 @@ struct Heun{T} <: AbstractStepper
 end
 Heun(::Type{T}, n_x::Int) where {T} = Heun{T}(ntuple(_ -> zeros(T, n_x), 3)...)
 
-function integrate!(stepper::Heun, sim, h)
-    x, ẋ = sim.exec.xbuf, sim.exec.ẋbuf
+function integrate!(stepper::Heun, model, h)
+    x, ẋ = model.exec.xbuf, model.exec.ẋbuf
     (; x₀, k₁, k₂) = stepper
-    t = sim.exec.clock.t
+    t = model.exec.clock.t
     copyto!(x₀, x)
 
-    evaluate!(sim); copyto!(k₁, ẋ)
-    _stage_point!(x, x₀, k₁, h); sim.exec.clock.t = t + h
-    evaluate!(sim); copyto!(k₂, ẋ)
+    evaluate!(model); copyto!(k₁, ẋ)
+    _stage_point!(x, x₀, k₁, h); model.exec.clock.t = t + h
+    evaluate!(model); copyto!(k₂, ẋ)
 
     @inbounds for i in eachindex(x)
         x[i] = x₀[i] + (h / 2) * (k₁[i] + k₂[i])

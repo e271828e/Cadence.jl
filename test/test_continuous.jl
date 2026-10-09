@@ -23,9 +23,10 @@ function continuous_skeleton()
 
     @testset "a simulation owns one executor, and it is the one the loop runs (§9.2, §9.7)" begin
         sim = Simulation(feedback_model(); h = 1//100)
-        exec = sim.exec
+        exec = sim.model.exec
         @test exec isa Executor{Float64}
-        @test exec.act === activation(sim.deployment.build, Float64)  # the activation it was compiled from
+        @test sim.model isa Model{Float64}
+        @test exec.act === activation(sim.model.deployment.build, Float64)  # the activation it was compiled from
         @test phase_bodies(sim) === exec.bodies           # the loop's bodies, not a re-derivation
 
         # The evaluation entry points are the executor's; the `Simulation` forms

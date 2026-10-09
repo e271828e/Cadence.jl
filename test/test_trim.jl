@@ -136,7 +136,7 @@ function test_trim()
         # The commit is an `init!` in every respect: the lifecycle, the anchor, the
         # authored state and the root input the solver decided.
         @test lifecycle(sim) === :initialized
-        @test sim.exec.clock.t === 0.25 && sim.exec.clock.t₀ === 0.25
+        @test sim.model.exec.clock.t === 0.25 && sim.model.exec.clock.t₀ === 0.25
         @test state(sim, "c") === (θ = 0.5, ω = 0.0)
         @test port(sim, "", :in) === report.solution.u
 
@@ -606,14 +606,14 @@ function test_trim()
         init!(sim, combine(at("c", condition(Pendulum(); θ = 0.2)),
                            fragment(u = (in = 1.0,))))
         run!(sim; t_end = 0.4)
-        @test lifecycle(sim) === :stopped && sim.exec.clock.frame == 4
+        @test lifecycle(sim) === :stopped && sim.model.exec.clock.frame == 4
 
         # The commit is an `init!`: `t0` re-anchors the clock and the origin
         # together, and the frame count starts over.
         report = trim!(sim, u_problem(); baseline = pend_base(), t0 = 0.4)
         @test report.converged && report.committed_residuals !== nothing
         @test lifecycle(sim) === :initialized
-        @test sim.exec.clock.t === 0.4 && sim.exec.clock.t₀ === 0.4 && sim.exec.clock.frame == 0
+        @test sim.model.exec.clock.t === 0.4 && sim.model.exec.clock.t₀ === 0.4 && sim.model.exec.clock.frame == 0
         @test state(sim, "c") === (θ = 0.5, ω = 0.0)      # the problem's condition won
         @test port(sim, "", :in) === report.solution.u
     end
@@ -624,11 +624,11 @@ function test_trim()
         # the service's own seeded scalar. The user's residual lambda is theirs, so
         # the gates are on the two the framework owns.
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)
-        build = sim.deployment.build
+        build = sim.model.deployment.build
         TD = ForwardDiff.Dual{TrimTag,Float64,1}
-        exec = compile(build, activation(build, TD), sim.deployment.schedule;
-                       chunk_size = sim.exec.chunk_size,
-                       algorithm = sim.deployment.algorithm)
+        exec = compile(build, activation(build, TD), sim.model.deployment.schedule;
+                       chunk_size = sim.model.exec.chunk_size,
+                       algorithm = sim.model.deployment.algorithm)
         seeded(v) = (θ = ForwardDiff.Dual{TrimTag}(v, 1.0),)
         plan = compile_plan(override(pend_base(), decide_θ(seeded(0.1))), build, TD)
         reader = _compile_reads(torque_reads(), build, TD)
