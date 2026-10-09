@@ -255,8 +255,12 @@ function test_localization()
         run!(quiet_sim; t_end = 0.2)
         no_mask = Bool[]                    # the advance's argument (D-260, D-261)
         # The model's frame allocates nothing; the loop's hooks add the frame
-        # top's publication, the carve-out (§7.5, §11.2, D-317).
-        @test @ballocated(frame!($(quiet_sim.model), 3)) == 0
+        # top's publication, the carve-out (§7.5, §11.2, D-317). The no-hooks
+        # frame runs on a standalone model, the simulation's being claimed (D-318).
+        quiet_standalone = Model(quiet_sim.model.deployment)
+        init!(quiet_standalone)
+        frames!(quiet_standalone, 2)
+        @test @ballocated(frame!($quiet_standalone, 3)) == 0
         quiet_hooks = LoopHooks(quiet_sim, quiet_sim.plane.roster, nothing, no_mask)
         quiet_bytes = @ballocated publish!($quiet_sim, $(quiet_sim.plane.roster))
         @test @ballocated(frame!($(quiet_sim.model), 3, $quiet_hooks)) == quiet_bytes
@@ -272,7 +276,8 @@ function test_localization()
         publish_bytes = @ballocated publish!($localizing_sim, $(localizing_sim.plane.roster))
         hooks = LoopHooks(localizing_sim, localizing_sim.plane.roster, nothing, no_mask)
         @test @ballocated(frame!($(localizing_sim.model), 1, $hooks), setup = (init!($localizing_sim; log = false)), evals = 1) == 2 * publish_bytes
-        @test @ballocated(frame!($(localizing_sim.model), 1), setup = (init!($localizing_sim; log = false)), evals = 1) == 0
+        localizing_standalone = Model(localizing_sim.model.deployment)
+        @test @ballocated(frame!($localizing_standalone, 1), setup = (init!($localizing_standalone)), evals = 1) == 0
     end
 
     @testset "a model steps its frame under no hooks, and the hooks see every settled boundary (§10.4, D-317)" begin

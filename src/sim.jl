@@ -449,7 +449,7 @@ end
 
 # The model's doors on the simulation, each forwarded to its model (model.jl, D-317).
 phase_bodies(sim::Simulation) = phase_bodies(sim.model)
-apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.model, plan)
+apply!(sim::Simulation, plan::ConditionPlan) = _apply_plan!(sim.model, plan)
 @inline evaluate!(sim::Simulation) = evaluate!(sim.model)
 @inline boundary!(sim::Simulation, tick::Int) = boundary!(sim.model, tick)
 @inline offtick_boundary!(sim::Simulation) = offtick_boundary!(sim.model)
@@ -1281,6 +1281,9 @@ struct LoopHooks{S<:Simulation} <: FrameHooks
     pacer::Union{Nothing,Pacer}     # the run's, `nothing` under `step!` and `init!` (§10.7)
     ignore_mask::Vector{Bool}       # the advance's policy against the requesters (D-316)
 end
+
+# The simulation's own doors pass the claim's gate, which is model.jl's (D-318).
+_claimed_gate(::Model, ::LoopHooks, ::Symbol) = nothing
 
 frame_top!(hooks::LoopHooks) = drain!(hooks.sim, hooks.roster)
 settled!(hooks::LoopHooks) =

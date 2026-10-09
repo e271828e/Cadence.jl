@@ -176,6 +176,29 @@ function test_lifecycle()
         # The sugar form materializes a fresh model and claims it.
         composed = Simulation(deployment)
         @test lifecycle(composed) === :built && composed.model.claimed === true
+        # A claimed model's doors are its simulation's: each direct call is
+        # refused on its own call, and the simulation stays `built`.
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} init!(model, fragment(u = (ref = 0.0,))))
+        @test d.reason === :claimed && d.call === :init! && lifecycle(sim) === :built
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} frame!(model, 1))
+        @test d.reason === :claimed && d.call === :frame! && lifecycle(sim) === :built
+        plan = resolve_condition(fragment(u = (ref = 0.0,)), model.deployment.build)
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} apply!(model, plan))
+        @test d.reason === :claimed && d.call === :apply! && lifecycle(sim) === :built
+        other = Simulation(deployment)
+        init!(other, fragment(u = (ref = 0.0,)))
+        cp = checkpoint(other)
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} _restore_state!(model, cp))
+        @test d.reason === :claimed && d.call === :restore! && lifecycle(sim) === :built
+        # The simulation's own doors pass the gate.
+        init!(sim, fragment(u = (ref = 0.0,)))
+        run!(sim; t_end = 0.1)
+        @test lifecycle(sim) === :stopped && sim.run.frame == 5
+        # A standalone model, claimed by nobody, keeps every door.
+        unclaimed = Model(deployment)
+        init!(unclaimed, fragment(u = (ref = 0.0,)))
+        frames!(unclaimed, 2)
+        @test unclaimed.status === :consistent && unclaimed.exec.clock.t == 0.04
     end
 
     @testset "t_end is the advance's own bound, validated per call (§13.5)" begin

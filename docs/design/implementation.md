@@ -476,7 +476,8 @@ D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
 - `StopRequestInvalid`, the refusal of an `ignore_stop_requests` path (§13.5,
   D-316).
 - `ArgumentInvalid`'s `:not_built` and `:claimed`, the `Simulation`
-  constructor's refusals of its model (§9.2, D-318).
+  constructor's refusals of its model, and `:claimed` on a claimed model's
+  door (§9.2, D-318).
 
 Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §13.5, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
@@ -517,7 +518,7 @@ D-249, D-255, D-261, D-289, D-317.
 - The model's `frame!(model, k, hooks)` and `_grid_time` (D-317): the top
   hook, the integration, the frame-top boundary and the settled hook, inside
   §13.4's one `try`, whose catch writes the model's status and builds the
-  `StepError` with `_wrap_step`.
+  `StepError` with `_wrap_step`. The claim's gate precedes the `try` (D-318).
 - The localization loop, with the arrival sweep, the θ = 0 validation, ITP
   bracketing `_crossing`, `t*` boundaries, the localization budget and the
   `ChatteringBudget` degradation, reported into the model's diagnostic cell.
@@ -526,7 +527,7 @@ D-249, D-255, D-261, D-289, D-317.
   the frame's remainder and is `frame!`'s return (§13.5, D-261, D-317).
 
 Spec: §10.2, §10.4, §11.8, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
-D-261, D-317.
+D-261, D-317, D-318.
 
 ### `src/leaves.jl`
 
@@ -601,13 +602,20 @@ soon as nothing in it names a `Simulation` in a signature, and below
   claim flag once and nothing clears it (D-318).
 - The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, and the
   no-op `NoHooks` (§11.2, §13.5, D-317).
-- The model's doors (D-317):
+- The claim's gate `_claimed_gate`, which refuses a claimed model's direct
+  call as `ArgumentInvalid` `:claimed`. Its `LoopHooks` method is sim.jl's
+  and compiles the check away on the loop's path (D-318).
+- The model's doors (D-317), each gated on the claim (D-318):
   - `init!`, whose condition method resolves and whose plan method does the
     writes, runs boundary zero under §13.4's catch and settles it through the
     hooks (§14.5, D-223);
-  - `apply!` on a model;
+  - `apply!` on a model, gated under `NoHooks` before the inner
+    `_apply_plan!`, which `init!` and the simulation's forwarding method call;
   - `_restore_state!` on a model, which settles the restored boundary through
     the hooks and writes `:consistent` last (D-274).
+  `frame!` (frame.jl) is the fourth gated door. The stepping primitives
+  `evaluate!`, `integrate!`, `boundary!`, `offtick_boundary!` and
+  `boundary_zero!` stay ungated (D-318).
 - `phase_bodies`, and `evaluate!` on the executor and the model.
 - The boundary macro-sequence `boundary!`, `offtick_boundary!`,
   `boundary_zero!` and `_round!`, and the §10.6 event phase `event_phase!`,
@@ -754,6 +762,8 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - The loop's `LoopHooks`, one per advance, per `init!` and per restore: the
   drain at the top, and publication then the stop sample at every settled
   boundary (§11.2, §13.5, D-317). `FrameHooks` and `NoHooks` are model.jl's.
+  The claim's gate has its `LoopHooks` method here, a no-op, so the
+  simulation's doors pass (D-318).
 - Publication's `task_state`, read off `run_tasks` by `_status` (§12.2,
   D-270).
 - §12.6's input mode: `mode(sim)`, `to_time` and `live!` (D-260).
@@ -773,7 +783,8 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - A one-line forwarding method on the simulation for each of the model's
   `port`, `state`, `modes`, `phase_bodies`, `apply!`, `evaluate!`,
   `integrate!`, `boundary!`, `offtick_boundary!` and `boundary_zero!`, which
-  are model.jl's (D-317).
+  are model.jl's (D-317). `apply!` forwards to the ungated `_apply_plan!`
+  (D-318).
 
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.4–§13.6,
 §14, §14.5, §14.6, D-027, D-101, D-203, D-218, D-219,

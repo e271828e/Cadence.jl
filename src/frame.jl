@@ -37,6 +37,7 @@ pointer the frame-entry boundary `k - 1` and its host `:loop`. An
 `InterruptException` is never wrapped and writes no status (D-268).
 """
 function frame!(model::Model{T}, k::Int, hooks::FrameHooks = NoHooks()) where {T}
+    _claimed_gate(model, hooks, :frame!)
     try
         cursor = model.exec.cursor
         cursor.comp = 0; cursor.fn = :none   # no stale frame for a top-side throw (§13.4)

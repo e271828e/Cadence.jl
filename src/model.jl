@@ -99,6 +99,13 @@ struct NoHooks <: FrameHooks end
 frame_top!(::NoHooks) = nothing
 settled!(::NoHooks) = false
 
+# The claim's gate at the top of each model door (D-318): a claimed model
+# refuses every hooks but its simulation's. The `LoopHooks` method (sim.jl)
+# returns `nothing`, so dispatch compiles the check away on the loop's path.
+_claimed_gate(model::Model, ::FrameHooks, call::Symbol) =
+    (@atomic :acquire model.claimed) && throw(DiagnosticError(ArgumentInvalid(
+        call = call, reason = :claimed, argument = :model)))
+
 """
     init!(model, condition = fragment(); t0 = 0.0, hooks = NoHooks())
     init!(model, plan::ConditionPlan; t0 = 0.0, hooks = NoHooks())
@@ -125,11 +132,12 @@ end
 
 function init!(model::Model{T}, plan::ConditionPlan; t0::Real = 0.0,
                hooks::FrameHooks = NoHooks()) where {T}
+    _claimed_gate(model, hooks, :init!)
     exec = model.exec
     establish_defaults!(exec.xbuf, exec.sstores, exec.mstores,
                         model.deployment.build.structure.components,
                         activation(model.deployment.build, T).decls)   # D-063's reset
-    apply!(model, plan)
+    _apply_plan!(model, plan)
     exec.clock.t = Float64(t0)        # the origin at the door, into the deployment's scalar (D-260)
     exec.clock.t₀ = Float64(t0)       # exact: the clock's origin is a `Float64` too
     fill!(exec.events.prior, false)   # every prior not-holding (§10.6)
@@ -145,7 +153,11 @@ function init!(model::Model{T}, plan::ConditionPlan; t0::Real = 0.0,
     nothing
 end
 
-apply!(model::Model, plan::ConditionPlan) = apply!(model.exec, plan)
+# The public door gates; the simulation's forwarding method and `init!` take
+# the inner one (D-318).
+apply!(model::Model, plan::ConditionPlan) =
+    (_claimed_gate(model, NoHooks(), :apply!); _apply_plan!(model, plan))
+_apply_plan!(model::Model, plan::ConditionPlan) = apply!(model.exec, plan)
 
 """
     phase_bodies(model)
@@ -525,6 +537,7 @@ end
 # copied back, the restored boundary settled through `settled!(hooks)`, whose
 # return nothing reads here, and the status written `:consistent` last.
 function _restore_state!(model::Model, cp::Checkpoint; hooks::FrameHooks = NoHooks())
+    _claimed_gate(model, hooks, :restore!)
     _restore_state!(model.exec, cp)
     settled!(hooks)                   # the restored boundary's snapshot (§11.2, §12.6)
     @atomic :release model.status = :consistent

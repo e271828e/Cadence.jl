@@ -2025,10 +2025,15 @@ function message(d::ArgumentInvalid)
         return "`Simulation` was given a model whose status is $(repr(d.value)), and a " *
                "simulation runs only a model it initializes itself — build a fresh `Model` " *
                "from the same deployment, or call `Simulation(deployment)` (§9.2, D-318)"
-    d.reason === :claimed &&
+    d.reason === :claimed && d.call === :Simulation &&
         return "`Simulation` was given a model that already belongs to a simulation, and a " *
                "model is never shared — build another `Model` from the same deployment " *
                "(§9.2, D-318)"
+    if d.reason === :claimed       # a model door's direct call, the frame's door being the advances
+        door = d.call === :frame! ? "`step!` or `run!`" : "`$(d.call)`"
+        return "`$(d.call)` was called on a model that belongs to a simulation, and its " *
+               "doors are the simulation's — call $door on the simulation (§9.2, D-318)"
+    end
     # The materialization's `join_timeout` (D-256) and the doors' four recording
     # keywords (D-261): each carries the constraint text and section its
     # `DeploymentInvalid` row carried before the keywords moved off the
