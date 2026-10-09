@@ -1,6 +1,6 @@
 # The control plane (§12.1) and the pacer that rides on it (§10.7): the few
 # atomic words anyone may poke — the stop word, the pause flag, the two pacing
-# knobs — beside §12.3's counter-plus-condition wait, §12.6's lifecycle and
+# knobs — beside §12.3's counter-plus-condition wait, the running flag and
 # §12.4's join cap; the stop word's one write path; the pause block; the two
 # lifecycle gates; and the pacer's schedule with its wait, the hybrid
 # sleep-then-spin of §10.7 and §12.2. Included ahead of devices.jl, whose
@@ -10,7 +10,7 @@
 # dataplane.jl beside the status it rides in.
 
 """
-The control surface — §12.1's stop and §12.6's lifecycle. `stop_issuer` is
+The control surface — §12.1's stop and the running flag. `stop_issuer` is
 the control-plane stop word, and it carries its issuer (D-203): set by
 `stop!` from any task through a compare-and-swap from `nothing` — the first
 writer wins, so the recorded issuer is the request that actually initiated
@@ -30,14 +30,14 @@ issued while paused ends the run at that frame top (§12.4(2)). The tail
 clears it beside `stopped`; a run's start never does, which is what lets a
 `pause!` before `run!` start the run paused.
 
-`lifecycle` is §12.6's five-state machine: `:built`, `:initialized`,
-`:running`, and terminally `:stopped` or `:errored` (§13.6). `:running` is
-the §11.3 freeze, and it deliberately spans the whole of `run!` — tail
-included, the terminal state landing in the outermost `finally` — while
-`stopped` flips at tail step (1), so device loops exit while the joins are
-still ahead. A run's *outcome* is not a control surface, so §13.5's termination
-record is the `Run`'s and not here (§12.1, §12.6, D-255); the control plane is
-what anyone may poke.
+`running` is the §11.3 freeze (D-317): set as `run!` or `step!` takes the
+loop, and it deliberately spans the whole of the call — tail included, the
+flag clearing in the outermost `finally` — while `stopped` flips at tail
+step (1), so device loops exit while the joins are still ahead. §12.6's
+lifecycle is stored nowhere: `lifecycle(sim)` derives it from this flag, the
+model's status and whether the run is closed. A run's *outcome* is not a
+control surface, so §13.5's termination record is the `Run`'s and not here
+(§12.1, §12.6, D-255); the control plane is what anyone may poke.
 
 `wake` and `counter` are §12.3's two artifacts: the counter counts *published
 boundaries* — grid, `t*`, boundary zero — mirrored under the lock right
@@ -67,11 +67,11 @@ mutable struct Control
     @atomic margin::Float64   # §10.7's one knob, seconds
     wake::Threads.Condition
     counter::Int
-    @atomic lifecycle::Symbol
+    @atomic running::Bool
     join_timeout::Float64
 end
 Control(join_timeout::Float64) =
-    Control(nothing, true, false, Inf, 0.002, Threads.Condition(), 0, :built, join_timeout)
+    Control(nothing, true, false, Inf, 0.002, Threads.Condition(), 0, false, join_timeout)
 
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
 # the same arbitration as the loop reacting to the first holding stop request —
@@ -110,24 +110,26 @@ function wait_resume!(control::Control)
 end
 
 """
-The §11.3 freeze, keyed on the lifecycle (§12.6), as two gates. The readers'
-gate, `assert_stopped`, refuses exactly while `run!` or `step!` holds the
-simulation `:running` — which spans the tail, so a roster change cannot race
-the joins — and admits every other state, `:errored` included: post-mortem
-inspection of a terminally stopped simulation is reading (§13.6). The roster's
-gate, `assert_configurable`, adds `:errored` to the refusals (D-232): a
-roster change configures the next run, and an errored simulation has none.
+The §11.3 freeze, keyed on the simulation's lifecycle (§12.6), as two gates.
+The readers' gate, `assert_stopped`, refuses exactly while `run!` or `step!`
+holds the simulation `:running` — which spans the tail, so a roster change
+cannot race the joins — and admits every other state, `:errored` included:
+post-mortem inspection of a terminally stopped simulation is reading (§13.6).
+The roster's gate, `assert_configurable`, adds `:errored` to the refusals
+(D-232): a roster change configures the next run, and an errored simulation
+has none. Both take the simulation, whose `lifecycle` is defined in sim.jl
+(D-317).
 """
-assert_stopped(control::Control, op::Symbol) =
-    (@atomic control.lifecycle) === :running ?
+assert_stopped(sim, op::Symbol) =
+    lifecycle(sim) === :running ?
     throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
                                            legal = collect(READER_LEGAL)))) : nothing
 
-function assert_configurable(control::Control, op::Symbol)
-    status = @atomic control.lifecycle
-    status === :running && throw(DiagnosticError(ServiceLifecycle(
+function assert_configurable(sim, op::Symbol)
+    lifecycle_state = lifecycle(sim)
+    lifecycle_state === :running && throw(DiagnosticError(ServiceLifecycle(
         op = op, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
-    status === :errored && throw(DiagnosticError(ServiceLifecycle(
+    lifecycle_state === :errored && throw(DiagnosticError(ServiceLifecycle(
         op = op, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     nothing
 end

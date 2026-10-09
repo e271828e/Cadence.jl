@@ -225,8 +225,8 @@ D-289, D-315, D-316.
 
 - `Checkpoint{T}`, the executor's state at a frame top (D-274): the flat
   buffer, the `s` and `m` stores, the signal table with every cell buffer
-  copied, the guard priors, the clock in full (`t`, the frame index, the
-  boundary ordinal and `t₀`, a `Float64` like `h`), and the fingerprint, the
+  copied, the guard priors, the clock's `t` and `t₀` (a `Float64` like `h`),
+  the run's frame index and boundary ordinal (D-317), and the fingerprint, the
   run's `Deployment` and the structural layout `Fingerprint`.
 - `Fingerprint` holds the cell sizes, the root-input faces, the component
   paths and the store types, and what a copy by position relies on: each
@@ -243,7 +243,7 @@ D-289, D-315, D-316.
 - `_check_checkpoint!`, the fingerprint check `restore!` and replay's entry
   pass share, collecting `CheckpointMismatch`.
 
-Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274.
+Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274, D-317.
 
 ### `src/conditions.jl`
 
@@ -273,7 +273,7 @@ D-130, D-204, D-205, D-207, D-226, D-277, D-315, D-317.
   - the stop word, with the pause flag beside it;
   - the two pacing knobs `pace` and `margin`, which the loop reads only at
     frame top (D-269);
-  - the lifecycle;
+  - the running flag `running` (D-317);
   - §12.3's `counter` and condition `wake`, which devices.jl's
     `wait_next_snapshot` waits on;
   - the shutdown cap `join_timeout` (D-256).
@@ -284,8 +284,9 @@ D-130, D-204, D-205, D-207, D-226, D-277, D-315, D-317.
   - `resume!` and every stop request wake the block;
   - the tail's `_finish!`, defined in devices.jl, clears the pause flag;
   - the block returns whether it parked.
-- The two lifecycle gates `assert_stopped` and `assert_configurable`, one for
-  the readers and one for the roster (§11.3, D-232).
+- The two lifecycle gates `assert_stopped` and `assert_configurable` on the
+  simulation, one for the readers and one for the roster (§11.3, D-232,
+  D-317).
 - The `Pacer` holds one `run!` call's schedule and counters. It is never a
   field of anything. `anchor!`, `reanchor!` and the monotonic wall clock
   `_wall_now` sit beside it.
@@ -301,7 +302,7 @@ D-130, D-204, D-205, D-207, D-226, D-277, D-315, D-317.
 - The copy `PacerStatus(::Pacer)`. The `PacerStatus` record is dataplane.jl's.
 
 Spec: §10.7, §11.3, §12.1–§12.4, §12.6, D-021, D-027, D-203, D-232, D-255,
-D-256, D-268, D-269.
+D-256, D-268, D-269, D-317.
 
 ### `src/dataplane.jl`
 
@@ -661,8 +662,10 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   `ModelRequestedStop`, `ControlRequestedStop` and `LoopError`, `StopPolicy`
   and `TerminationRecord` (D-203, D-255). `ModelRequestedStop` carries the
   requester's path, port and reason (D-316).
-- `Run{T}`, §12.6's run state, and `closed(run)` (D-255, D-260).
-- `Model{T,E}`, the deployment and its executor at one scalar (§9.2, D-317).
+- `Run{T}`, §12.6's run state with the frame and boundary counters, and
+  `closed(run)` (D-255, D-260, D-317).
+- `Model{T,E}`, the deployment and its executor at one scalar, and its status
+  (§9.2, §12.6, D-317).
 - The mutable `Simulation` of four fields, the model, the plane, the control
   and the run (§12.1, D-256, D-317).
 - The materialization `Model(deployment, T)`, with `Model(::Build)` and
@@ -695,7 +698,7 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   buffer (D-316).
 - `t_end` and `ignore_stop_requests`, the advances' keywords, and `run!`'s
   `UnboundedRun` advisory (D-255, D-260, D-261, D-316).
-- The lifecycle and the termination record.
+- The lifecycle, derived, and the termination record (D-317).
 - The frame loop's one catch site in `_advance!`, its second host
   `_host_boundary_zero!`, the one constructor `_wrap_step`, and the species
   rule `_species` with the runtime bundle-field match (§13.2, §13.4, D-248).
@@ -731,12 +734,13 @@ Spec: §10.2, D-017.
   `scatter_cell!`/`scatter_group!`. The scatter's check is §9.5's always-on
   check, decided at generation (D-235).
 - `_cell_key`, and `STOP_FLAG_KEY`, the `StopFlag` buffer's key (D-316).
-- The `Clock` (D-260):
+- The `Clock` of `t` and `t₀`, the frame and boundary counters being the
+  run's (D-260, D-317):
   - its `t` is in the deployment's scalar;
   - its origin `t₀` is a `Float64`;
   - the constructor takes `t₀` and converts it into `t`.
 
-Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316.
+Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316, D-317.
 
 ### `src/trace.jl`
 

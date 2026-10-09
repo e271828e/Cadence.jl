@@ -549,7 +549,7 @@ function reproduction(model, quiet::Int)
     replay!(sim2, trace(sim); to_boundary = err.boundary, t_end = 5.0)
     @test lifecycle(sim2) === :initialized          # the pointer is always a legal halt
     @test mode(sim2) === :replay                    # …with the recording still ahead of it
-    @test sim2.model.exec.clock.frame == err.boundary
+    @test sim2.run.frame == err.boundary
     twin_err = failure(() -> step!(sim2; t_end = 5.0))
     @test twin_err isa StepError
     @test twin_err.cursor == err.cursor && twin_err.t == err.t &&
@@ -599,8 +599,8 @@ function failures_pointer_twin()
         init!(sim2, fragment(u = (ref = 0.0,)))
         replay!(sim2, trc; to_boundary = 3, t_end = 5.0)
         @test lifecycle(sim2) === :initialized
-        @test sim2.model.exec.clock.frame == 3                # the halt is at `k`, never at `k · n`
-        @test sim2.model.exec.clock.frame % sim2.model.deployment.N_base == 1       # and 3 is an off-tick frame top here
+        @test sim2.run.frame == 3                # the halt is at `k`, never at `k · n`
+        @test sim2.run.frame % sim2.model.deployment.N_base == 1       # and 3 is an off-tick frame top here
         @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 3])
 
         # `to_time` counts the same boundaries: 0.3 is boundary 3's own time here,
@@ -608,7 +608,7 @@ function failures_pointer_twin()
         sim4 = grid()
         init!(sim4, fragment(u = (ref = 0.0,)))
         replay!(sim4, trc; to_time = 0.3)
-        @test sim4.model.exec.clock.frame == 3
+        @test sim4.run.frame == 3
 
         # The range is the recording's frame count, so one past it refuses.
         bad = trc.frames + 1

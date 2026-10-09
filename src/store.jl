@@ -114,24 +114,21 @@ end
 """
 The clock, in its own mutable cell so the zero-arg phase bodies can close over
 it. `t` is a bundle field for every stage (§5.2's bundle law) and varies within
-a step — RK stages evaluate at internal times. `frame` is the frame index, the
-count of completed continuous steps since `t₀`; every `N_base`-th step boundary is a base tick (§10.5),
-and no entry reads it — it is the loop's, not the bundle's. `t₀` anchors the
-indexed grid: frame tops are `t₀ + k·h`, computed from the index and never
-accumulated, so a remainder step's float arithmetic cannot drift the grid
-(§10.4). `t₀` is a `Float64`, like `h` and `t_end`, while `t` stays in the
-deployment's scalar: the origin is the grid's anchor and no design reader wants
-it perturbed, and a `Float64` origin is what lets `init!` take `t0 = 0.25` on a
-`Dual` simulation (§12.6, D-260). The constructor below takes it and converts
-it into `t`.
+a step — RK stages evaluate at internal times. `t₀` anchors the indexed grid:
+frame tops are `t₀ + k·h`, computed from the index and never accumulated, so a
+remainder step's float arithmetic cannot drift the grid (§10.4). The frame
+index `k` and the boundary ordinal are not the clock's: they are the run's two
+counters (§12.6, D-317). `t₀` is a `Float64`, like `h` and `t_end`, while `t`
+stays in the deployment's scalar: the origin is the grid's anchor and no design
+reader wants it perturbed, and a `Float64` origin is what lets `init!` take
+`t0 = 0.25` on a `Dual` simulation (§12.6, D-260). The constructor below takes
+it and converts it into `t`.
 """
 mutable struct Clock{T}
     t::T
-    frame::Int
-    boundary::Int   # the trajectory's published-boundary ordinal (§12.3, D-230); boundary zero = 0
     t₀::Float64
 end
-Clock{T}(t₀::Float64) where {T} = Clock{T}(T(t₀), 0, 0, t₀)
+Clock{T}(t₀::Float64) where {T} = Clock{T}(T(t₀), t₀)
 
 "The activation scalar an executor runs at, read off its clock (§9.4)."
 activation_scalar(::Clock{T}) where {T} = T

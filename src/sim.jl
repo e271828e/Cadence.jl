@@ -80,8 +80,10 @@ end
 """
 The state one run owns (§12.6, D-255, D-260): what lasts from one door to the
 next and the state that evolves in between, and nothing else — the log and the
-trace, fixed by the constructing entry point, and two fields that evolve, the
-attached recording and the termination record the loop's tail writes once.
+trace, fixed by the constructing entry point, and four fields that evolve, the
+attached recording, the termination record the loop's tail writes once, and the
+trajectory's two counters, the frame index and the boundary ordinal, which the
+door sets as it builds the run and the loop advances (D-317).
 `init!`, `restore!` and `replay!` construct one and rebind `sim.run`; nothing
 else rebinds it. A change of mode is a *write* to the run, not a change of run — `live!`,
 and the flip at a recording's end, both clear `feed` (D-218, D-260).
@@ -105,6 +107,8 @@ mutable struct Run{T}
     const trace::Union{Nothing,Trace{T}}          # §11.5's recording, `nothing` under the switch
     feed::Union{Nothing,ReplayFeed}               # the attached recording: the mode's one source
     termination::Union{Nothing,TerminationRecord{T}}   # the tail's one write (§13.5)
+    frame::Int                                    # the frame index, completed frames since `t₀`
+    boundary::Int    # the published-boundary ordinal (§12.3, D-230); boundary zero = 0
 end
 
 """
@@ -145,17 +149,22 @@ chunk_size)`, and `Model(root; kw…)` calls `build` first.
   arrival buffers and `chunk_size`. Every buffer set has exactly one owner, so
   a service invocation instantiates an executor of its own from the same
   cached layouts rather than writing through this one.
+- `status`: `:built` until boundary zero completes, `:consistent` once it has
+  completed or a checkpoint has been restored, and `:inconsistent` after a
+  throw inside a sequence. Only the model's own doors and catch sites write it, and
+  `lifecycle(sim)` reads it (§12.6, D-317).
 """
-struct Model{T,E}
-    deployment::Deployment
-    exec::E
+mutable struct Model{T,E}
+    const deployment::Deployment
+    const exec::E
+    @atomic status::Symbol
 end
 
 function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size::Int = 16) where {T}
     act = activation(deployment.build, T)
     exec = compile(deployment.build, act, deployment.schedule; chunk_size,
                    algorithm = deployment.algorithm)
-    Model{T,typeof(exec)}(deployment, exec)
+    Model{T,typeof(exec)}(deployment, exec, :built)
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254).
@@ -239,7 +248,7 @@ function Simulation(model::Model{T,E}; join_timeout = 5.0) where {T,E}
     # §12.6's placeholder run (D-255, D-261): an empty log at the defaults that
     # nothing reads and no trace, so every accessor has a run to read. It
     # carries no configuration; the first door builds the run that records.
-    run = Run{T}(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing)
+    run = Run{T}(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing, 0, 0)
     Simulation{T,E}(model, DataPlane(model.exec.act.layout),
                     Control(Float64(join_timeout)), run)
 end
@@ -366,8 +375,21 @@ advance, the state `init!` establishes and a completed `step!` returns to;
 `:running` — `run!` or `step!` holds the loop, and the §11.3 freeze with it; and
 the two terminal states, `:stopped` and `:errored` (§13.6). Readable from any
 task.
+
+Derived, never stored (D-317): a set running flag reads `:running`; with it
+clear, the model's `:built` reads `:built`, its `:inconsistent` reads
+`:errored`, and its `:consistent` reads `:initialized` while the run is open
+and `:stopped` once it is closed. The flag and the status are acquire loads,
+and every writer stores the run's termination and the model's status before it
+clears the flag.
 """
-lifecycle(sim::Simulation) = @atomic :acquire sim.control.lifecycle
+function lifecycle(sim::Simulation)
+    (@atomic :acquire sim.control.running) && return :running
+    model_status = @atomic :acquire sim.model.status
+    model_status === :built && return :built
+    model_status === :inconsistent && return :errored
+    closed(sim.run) ? :stopped : :initialized
+end
 
 """
     mode(sim)
@@ -439,7 +461,7 @@ end
 # its own way out — the `:running` sentence discriminating on the op, since
 # `live!` meets a running loop as a stopped-sim operation.
 function _assert_advanceable(sim::Simulation, op::Symbol)
-    lifecycle_state = @atomic sim.control.lifecycle
+    lifecycle_state = lifecycle(sim)
     lifecycle_state === :initialized && return nothing
     lifecycle_state === :built && throw(DiagnosticError(
         MissingInit(op = op, status = lifecycle_state)))
@@ -687,16 +709,17 @@ end
         leaf = x_leaf_names[flat_index - first(xblocks[owner]) + 1],
         value = exec.xbuf[flat_index],
         t = _seconds(exec.clock.t),
-        boundary = exec.clock.frame - 1)))  # the frame-entry index: this frame's own top
+        # the frame-entry index, off the grid the clock sits on: the counters
+        # are the run's, which the model never sees (D-317)
+        boundary = _frames_to(_seconds(exec.clock.t), exec.clock.t₀, model.deployment.h) - 1)))
 end
 
-# The trajectory's opening at `init!` (§12.6): the clock anchored at `t₀` and
-# every event prior cleared (§10.6), then the opening every door shares.
+# The trajectory's opening at `init!` (§12.6): the model's clock anchored at
+# `t₀` and every event prior cleared (§10.6), then the opening every door
+# shares. The counters are the fresh run's (D-317).
 function _open_trajectory!(sim::Simulation, t₀::Float64)
     sim.model.exec.clock.t = t₀         # into the deployment's scalar (D-260)
     sim.model.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
-    sim.model.exec.clock.frame = 0
-    sim.model.exec.clock.boundary = 0
     fill!(sim.model.exec.events.prior, false)
     _reset_periphery!(sim)
     nothing
@@ -744,19 +767,20 @@ end
 # and the next door may declare otherwise. Under the switch the trace is
 # `nothing`, nothing is recorded and `trace(sim)` refuses for the switch.
 # `header` is the checkpoint the run opens from, `nothing` from `init!`, which
-# writes it after boundary zero's first publication (D-274). The trace's length
-# starts at the clock's frame index, so its records carry the trajectory's own
-# frame ordinals. `feed` goes in at construction: `nothing` from `init!` and
+# writes it after boundary zero's first publication (D-274). `frame` and
+# `boundary` are the run's two counters as the door sets them, zero from `init!`
+# and the checkpoint's from `restore!` and `replay!` (D-317). The trace's length
+# starts at the frame index, so its records carry the trajectory's own frame
+# ordinals. `feed` goes in at construction: `nothing` from `init!` and
 # `restore!`, the compiled recording from `replay!`. `_install_writers!` then
 # compiles the drain's thunks against the new trace for the trajectory about to
 # open.
-function _open_run!(sim::Simulation{T}, header, schemas, feed,
+function _open_run!(sim::Simulation{T}, header, schemas, feed, frame::Int, boundary::Int,
                     trace_switch::Bool, log_switch::Bool, log_every::Int, log_max) where {T}
-    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], sim.model.exec.clock.frame) :
-                         nothing
+    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], frame) : nothing
     sim.run = Run{T}(SnapshotLog(log_switch, log_every,
                                  log_max === Inf ? typemax(Int) : Int(log_max)),
-                     trc, feed, nothing)
+                     trc, feed, nothing, frame, boundary)
     _install_writers!(sim.plane, sim.model.exec.store, trc)
     nothing
 end
@@ -848,8 +872,7 @@ reproduces it.
 """
 function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace = true,
                log = true, log_every = 1, log_max = 65536) where {T}
-    control = sim.control
-    lifecycle_state = @atomic control.lifecycle
+    lifecycle_state = lifecycle(sim)
     lifecycle_state === :running && throw(DiagnosticError(
         ServiceLifecycle(op = :init!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
     lifecycle_state === :errored && throw(DiagnosticError(
@@ -862,7 +885,7 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
                         activation(sim.model.deployment.build, T).decls)   # D-063's reset
     apply!(sim, plan)
     _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
-    _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, trace, log,
+    _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, 0, 0, trace, log,
                Int(log_every), log_max)   # the fresh run, its header not yet taken (§12.6)
     _host_boundary_zero!(sim)
     publish!(sim, sim.plane.roster)   # the boundary-zero snapshot (§11.2, §14.5)
@@ -870,7 +893,7 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
     # inside it leaves no header and no trace to hand back (D-274)
     trc = sim.run.trace
     trc === nothing || (trc.header = _take_checkpoint(sim))
-    @atomic :release control.lifecycle = :initialized
+    @atomic :release sim.model.status = :consistent   # boundary zero completed (D-317)
     nothing
 end
 
@@ -879,9 +902,10 @@ end
 
 The executor's state at a frame top as one value (§12.6, D-274): the flat
 buffer, the `s` and `m` stores, the whole signal table, the guard priors, the
-clock in full and the fingerprint. A stopped-sim service, legal in
-`initialized` and `stopped`, whose stores are committed and boundary-consistent;
-`built`, `running` and `errored` are one `ServiceLifecycle`. A stopped
+clock's `t` and `t₀`, the run's two counters and the fingerprint. A stopped-sim
+service, legal in `initialized` and `stopped`, whose stores are committed and
+boundary-consistent; `built`, `running` and `errored` are one
+`ServiceLifecycle`. A stopped
 simulation not at the rest a published frame top leaves is refused too
 (`CheckpointMidFrame`). A `t*` stop abandons the frame's remainder with the clock
 inside the frame, and the loop integrates whole frames, so a checkpoint there
@@ -901,12 +925,13 @@ function checkpoint(sim::Simulation)
     # At rest the latest snapshot is that top's, which an abandoned frame never
     # published, a `t*` boundary it did publish included.
     clock = sim.model.exec.clock
-    t_frame = _grid_time(sim, clock.frame)
+    frame = sim.run.frame
+    t_frame = _grid_time(sim, frame)
     published = latest(sim)
-    clock.t == oftype(clock.t, t_frame) && published.frame == clock.frame &&
+    clock.t == oftype(clock.t, t_frame) && published.frame == frame &&
         published.t == clock.t ||
         throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
-                                                 frame = clock.frame)))
+                                                 frame = frame)))
     _take_checkpoint(sim)
 end
 
@@ -916,16 +941,19 @@ end
 # sweep, no guard, no update, no prior reset. A checkpoint is taken after the
 # publication of its boundary, so its ordinal is one past that boundary's; the
 # snapshot re-publishes it under the same ordinal, and the trajectory's
-# ordinals continue as the original's did (§12.3, D-230).
+# ordinals continue as the original's did (§12.3, D-230). The counters come
+# with the checkpoint into the run this opens (D-317), and the restored model
+# is consistent.
 function _enter_checkpoint!(sim::Simulation{T}, cp::Checkpoint{T}, schemas, feed,
                             trace_switch::Bool, log_switch::Bool, log_every::Int,
                             log_max) where {T}
     _restore_state!(sim.model.exec, cp)
     _reset_periphery!(sim)
-    _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, trace_switch,
-               log_switch, log_every, log_max)
-    sim.model.exec.clock.boundary -= 1
+    _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, cp.frame, cp.boundary,
+               trace_switch, log_switch, log_every, log_max)
+    sim.run.boundary -= 1
     publish!(sim, sim.plane.roster)
+    @atomic :release sim.model.status = :consistent
     nothing
 end
 
@@ -949,8 +977,7 @@ boundary ordinal continues (§12.3, D-230). The mode returns to `:live`.
 """
 function restore!(sim::Simulation{T}, cp::Checkpoint{T}; trace = true, log = true,
                   log_every = 1, log_max = 65536) where {T}
-    control = sim.control
-    lifecycle_state = @atomic control.lifecycle
+    lifecycle_state = lifecycle(sim)
     lifecycle_state === :running && throw(DiagnosticError(
         ServiceLifecycle(op = :restore!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
     lifecycle_state === :errored && throw(DiagnosticError(
@@ -961,7 +988,6 @@ function restore!(sim::Simulation{T}, cp::Checkpoint{T}; trace = true, log = tru
     isempty(diags) || throw(DiagnosticError(diags))
     _enter_checkpoint!(sim, cp, Pair{String,Vector{Symbol}}[], nothing, trace, log,
                        Int(log_every), log_max)
-    @atomic :release control.lifecycle = :initialized
     nothing
 end
 
@@ -998,8 +1024,8 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}, restore::Bool = true) 
         trc.header.t₀ == clock.t₀ || push!(diags, CheckpointMismatch(
             what = :clock, name = :t₀, expected = trc.header.t₀, found = clock.t₀))
         feedable = trc.header.frame:(trc.frames - 1)  # the frames the simulation may stand at
-        clock.frame in feedable || push!(diags, CheckpointMismatch(
-            what = :clock, name = :frame, expected = feedable, found = clock.frame))
+        sim.run.frame in feedable || push!(diags, CheckpointMismatch(
+            what = :clock, name = :frame, expected = feedable, found = sim.run.frame))
     end
     _check_schemas!(diags, faces, trc.schemas)
     isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
@@ -1045,7 +1071,7 @@ forms, since a deployment mismatch is never a what-if.
 Everything else is the loop as specified. The frame budget is the recording's
 length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
 running *through* the frame that publishes boundary `k`, and every frame top is
-a grid boundary (§10.4), so the halt is exactly at `clock.frame == k` and a
+a grid boundary (§10.4), so the halt is exactly at `run.frame == k` and a
 replay always halts at a frame top; a `t*` boundary inside a frame is
 reproduced but is not stoppable-at (§10.4 keeps the two indices apart). `k`
 runs from the frame the feed starts at, the header's or under `restore = false`
@@ -1103,7 +1129,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  restore = true) where {T}
     control = sim.control
     if restore !== false     # a non-`Bool` is refused with the keywords below
-        lifecycle_state = @atomic control.lifecycle
+        lifecycle_state = lifecycle(sim)
         lifecycle_state === :running && throw(DiagnosticError(
             ServiceLifecycle(op = :replay!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
         lifecycle_state === :errored && throw(DiagnosticError(
@@ -1123,7 +1149,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     # feed starts from — the header's, or the simulation's own under `restore =
     # false` — and no further than the recording reaches; every frame top is
     # one, so it counts frames
-    first_frame = restore ? trc.header.frame : sim.model.exec.clock.frame
+    first_frame = restore ? trc.header.frame : sim.run.frame
     to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ first_frame &&
         to_boundary ≤ trc.frames) || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
@@ -1313,7 +1339,7 @@ function _settle_mode!(sim::Simulation)
     feed = run.feed
     feed === nothing && return nothing
     # the detach is the flip: the mode is the feed's absence (§12.6, D-260)
-    sim.model.exec.clock.frame ≥ feed.frames && (run.feed = nothing)
+    run.frame ≥ feed.frames && (run.feed = nothing)
     nothing
 end
 
@@ -1354,7 +1380,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, ignore_mask::Vector{Boo
         # The §11.3 freeze: the roster is fixed for the run. The `try`'s first
         # statement, so an interrupt past it meets the masked bookkeeping and
         # never leaves the lifecycle `running` (§12.4).
-        @atomic :release control.lifecycle = :running
+        @atomic :release control.running = true
         @atomic control.stop_issuer = nothing # ahead of any safepoint: the arm reads the word
         append!(roster, plane.roster)         # read once (§11.3)
         _reset_accounts!(sim, roster)         # §11.8: totals count since the run began
@@ -1470,16 +1496,17 @@ function _run_body!(sim::Simulation, policy::StopPolicy, ignore_mask::Vector{Boo
             # record itself is assembled here, after the sweep (D-203).
             error_source = LoopError(cause)
             sim.run.termination = _record(sim, policy, error_source, residue)
-            @atomic :release control.lifecycle = :errored
+            @atomic :release sim.model.status = :inconsistent   # reads `errored` (D-317)
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
-            if source === nothing               # the frame budget ran out: a replay ended at a
-                @atomic :release control.lifecycle = :initialized  # frame top (§12.7)
-            elseif (@atomic control.lifecycle) === :running
+            # A source fired: the record closes the run, and the flag's clearing
+            # reads `stopped`. Otherwise the frame budget ran out, a replay ended
+            # at a frame top (§12.7), and the open run reads `initialized`.
+            if source !== nothing && lifecycle(sim) === :running
                 sim.run.termination = _record(sim, policy, source, residue)
-                @atomic :release control.lifecycle = :stopped
             end
         end
+        @atomic :release control.running = false   # once, after the record and the status
         Base.sigatomic_end()
     end
     logged_cause === nothing ||
@@ -1559,7 +1586,7 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # outside the frame's `try`.
 function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                    t_end_frame::Int, roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer})
-    plane, control, clock = sim.plane, sim.control, sim.model.exec.clock
+    plane, control, clock, run = sim.plane, sim.control, sim.model.exec.clock, sim.run
     N_base = sim.model.deployment.N_base
     h = sim.model.deployment.h
     advanced = 0
@@ -1574,16 +1601,16 @@ function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                 reanchor!(pacer, _seconds(clock.t), @atomic control.pace)
             issuer = @atomic control.stop_issuer
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
-            sim.model.exec.clock.frame < t_end_frame || return (EndTimeReached(), advanced)
-            sim.model.exec.clock.frame < upto || return (nothing, advanced)
+            run.frame < t_end_frame || return (EndTimeReached(), advanced)
+            run.frame < upto || return (nothing, advanced)
             isempty(roster) || yield()
             pacer === nothing ||              # the pacer's wait: an unmask point (§12.4)
                 wait_deadline!(control, pacer, plane.loop_diag, _seconds(clock.t), h)
-            entry_boundary = sim.model.exec.clock.frame  # the frame-entry boundary index (§13.4)
+            entry_boundary = run.frame  # the frame-entry boundary index (§13.4)
             Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
             try
                 drain!(sim, roster)
-                k = (sim.model.exec.clock.frame += 1)
+                k = (run.frame += 1)
                 hit = frame!(sim, k, ignore_mask, roster, pacer)
                 if hit === nothing
                     k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
@@ -1704,14 +1731,14 @@ end
 # user-code surfaces with the cursor maintained through them, so a throw inside
 # it takes the one `StepError` constructor — frame from the cursor, `t₀`,
 # pointer 0, host `:boundary_zero`, the species rule — under the service's
-# disposition: the simulation returns to `built`, nothing published, no record
-# written. An interrupt is not model code failing and has no stop path to route
-# to here, so it moves the lifecycle and propagates raw.
+# disposition: the model returns to `:built`, which reads `built`, nothing
+# published, no record written. An interrupt is not model code failing and has
+# no stop path to route to here, so it moves the status and propagates raw.
 function _host_boundary_zero!(sim::Simulation)
     try
         boundary_zero!(sim)
     catch err
-        @atomic :release sim.control.lifecycle = :built
+        @atomic :release sim.model.status = :built
         err isa InterruptException && rethrow()
         rethrow(_wrap_step(sim, 0, :boundary_zero, err))
     end
@@ -1780,12 +1807,12 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     returned = false
     try
         # the freeze holds within the call; first in the `try`, as in `_run_body!`
-        @atomic :release control.lifecycle = :running
+        @atomic :release control.running = true
         append!(roster, sim.plane.roster)     # read once (§11.3)
         # §12.7: in `:replay` the recording is the bound, so a `step!` past its
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
-        upto = _replay_bound(sim, sim.model.exec.clock.frame + frame_count)
+        upto = _replay_bound(sim, sim.run.frame + frame_count)
         (source, advanced) = _advance!(sim, ignore_mask, upto, t_end_frame, roster, nothing)
         returned = true
     catch err
@@ -1811,17 +1838,15 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         if cause !== nothing                  # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
             sim.run.termination = _record(sim, policy, LoopError(cause), _sweep_tail!(sim, roster))
-            @atomic :release control.lifecycle = :errored
+            @atomic :release sim.model.status = :inconsistent   # reads `errored` (D-317)
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
-            if source === nothing
-                @atomic :release control.lifecycle = :initialized
-            else                              # a §13.5 source fired inside the call:
+            if source !== nothing             # a §13.5 source fired inside the call:
                 _finish!(sim)                 # the deviceless §12.4 tail, then terminal
                 sim.run.termination = _record(sim, policy, source, _sweep_tail!(sim, roster))
-                @atomic :release control.lifecycle = :stopped
-            end
+            end                               # otherwise the run stays open: `initialized`
         end
+        @atomic :release control.running = false   # once, after the record and the status
         Base.sigatomic_end()
     end
     advanced
@@ -1957,7 +1982,7 @@ device's task.
 function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBinding;
                  should_abort::Bool = false)
     plane = sim.plane
-    assert_configurable(sim.control, :attach!)
+    assert_configurable(sim, :attach!)
     check_binding(new_binding)
     check_device(dev, new_binding)
     for entry in plane.roster                          # identity, before claims (§11.3)
@@ -2017,7 +2042,7 @@ The handle `attach!` returned outlives the entry as an object only: its
 """
 function detach!(sim::Simulation, dev::AbstractDevice)
     plane = sim.plane
-    assert_configurable(sim.control, :detach!)
+    assert_configurable(sim, :detach!)
     slot = findfirst(e -> e.dev === dev, plane.roster)
     slot === nothing && throw(DiagnosticError(NotAttached(
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
@@ -2086,7 +2111,7 @@ function drain!(sim::Simulation, roster::Vector{RosterEntry})
     _phase!(cursor, :drain)
     # one drain per frame, counted before any thunk runs, on both paths: the
     # count is the recording's length (§11.5) *and* the ordinal each record
-    # takes (D-260). The drain runs before the clock's frame increments, so a
+    # takes (D-260). The drain runs before the run's frame index increments, so a
     # batch taken at the top of frame `k` is recorded — and replayed — at `k`.
     trc = sim.run.trace
     trc === nothing || (trc.frames += 1)
@@ -2123,13 +2148,13 @@ here either — and re-records each one under the recording's own writer index,
 the header having been inherited (§12.7). The cursor only advances: the feed is
 in drain order, and the loop visits frames in it.
 
-The frame ordinal is computed from the clock here rather than read off the
-trace: the records are keyed by it and the discard reports name it, and under
-the kill switch there is no trace to read it from (D-260).
+The frame ordinal is computed from the run's frame index here rather than read
+off the trace: the records are keyed by it and the discard reports name it, and
+under the kill switch there is no trace to read it from (D-260).
 """
 function _replay_drain!(sim::Simulation, roster::Vector{RosterEntry}, feed::ReplayFeed)
     plane = sim.plane
-    frame = sim.model.exec.clock.frame + 1
+    frame = sim.run.frame + 1
     for entry in roster
         handle = _handle(entry)
         _discard_staged!(handle.writer, handle.diag_cell, frame)
@@ -2189,16 +2214,17 @@ enters the log (§11.2) — logging dissolves into publication, retention being
 the only thing the log adds — and the §12.3 counter increments under its
 lock, *after* the release-store: the normative order, so a waiter observing
 the new count finds at least this boundary in `latest`. The snapshot's
-ordinal is the trajectory's, off the clock (D-230); the counter is the wait
-predicate's alone.
+ordinal is the trajectory's, off the run (D-230, D-317); the counter is the
+wait predicate's alone.
 """
 function publish!(sim::Simulation, roster::Vector{RosterEntry},
                   pacer::Union{Nothing,Pacer} = nothing)
     control = sim.control
-    clock = sim.model.exec.clock
-    snapshot = Snapshot(clock.t, clock.frame, clock.boundary, capture_stores(sim.model.exec.store),
+    run = sim.run
+    snapshot = Snapshot(sim.model.exec.clock.t, run.frame, run.boundary,
+                        capture_stores(sim.model.exec.store),
                         sim.model.exec.act.layout, _status(sim, roster, pacer))
-    clock.boundary += 1
+    run.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
     # reloaded, so the log stores the box the release-store made (§7.5)
     log!(sim.run.log, (@atomic :monotonic sim.plane.published.latest)::Snapshot,
@@ -2271,7 +2297,7 @@ retention wholesale. The element type is the run's concrete snapshot type,
 empty or not.
 """
 function logged(sim::Simulation{T}) where {T}
-    assert_stopped(sim.control, :logged)
+    assert_stopped(sim, :logged)
     snapshot_log = sim.run.log
     retained = Snapshot{T,typeof(sim.model.exec.store)}[]
     snapshot_log.first === nothing && return retained

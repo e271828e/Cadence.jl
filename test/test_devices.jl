@@ -273,7 +273,7 @@ function test_devices()
         handle = attach!(sim, dev, Enumerated("a"); should_abort = true)
         init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 1000.0)                        # ends by the device's stop, not t_end
-        @test sim.model.exec.clock.frame < 10000            # the stop truncated the run
+        @test sim.run.frame < 10000            # the stop truncated the run
         @test dev.log[1:3] == [:init, :loop, :shutdown]
         # the sticky status, read off the handle
         @test !running(handle)
@@ -330,7 +330,7 @@ function test_devices()
         stopper = Threads.@spawn (sleep(0.05); stop!(sim))
         run!(sim; t_end = 1.0e6)
         wait(stopper)
-        @test sim.model.exec.clock.frame < 10^7             # truncated, and stopped is sticky:
+        @test sim.run.frame < 10^7             # truncated, and stopped is sticky:
         @test !running(sim.plane.roster[1].handle)
         # One channel, and the record names who spoke (§13.5, D-203): stop!(sim)
         # is calling code from any task, issuer :code.
@@ -338,7 +338,7 @@ function test_devices()
         # A fresh trajectory owes nothing to this stop: init! clears the word.
         init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         @test step!(sim; frames = 3) == 3
-        @test sim.model.exec.clock.frame == 3
+        @test sim.run.frame == 3
     end
 
     @testset "pause! from another task parks the loop at a frame top, and resume! lets it advance (§12.1)" begin
@@ -353,7 +353,7 @@ function test_devices()
             parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
             first_read = latest(sim)
             # the parked frame top's last publication is its own boundary
-            consistent = first_read.frame == sim.model.exec.clock.frame && first_read.t == sim.model.exec.clock.t
+            consistent = first_read.frame == sim.run.frame && first_read.t == sim.model.exec.clock.t
             state_read = (paused(sim), lifecycle(sim))
             second_read = latest(sim)
             still_parked = parked_in(loop_task, sim.control.wake)
@@ -390,7 +390,7 @@ function test_devices()
             run!(sim; t_end = 1.0e6)
             (parked, frozen, ended) = fetch(observer)
             @test parked && ended
-            @test frozen > 0 && sim.model.exec.clock.frame == frozen && latest(sim).frame == frozen
+            @test frozen > 0 && sim.run.frame == frozen && latest(sim).frame == frozen
             @test termination(sim).source === ControlRequestedStop(issuer)
             @test !paused(sim)                   # the tail cleared the flag
         end
@@ -411,7 +411,7 @@ function test_devices()
         end
         (parked, first_top, ended) = fetch(observer)
         @test parked && first_top == 0 && ended
-        @test sim.model.exec.clock.frame == 0
+        @test sim.run.frame == 0
         @test termination(sim).source === ControlRequestedStop(:code)
         @test !paused(sim)
         # No frame top drained the thread budget's warning where one device and
@@ -438,7 +438,7 @@ function test_devices()
         end
         @test step!(sim; frames = 5) == 5
         @test fetch(resumer) == 0
-        @test sim.model.exec.clock.frame == 5 && !paused(sim)
+        @test sim.run.frame == 5 && !paused(sim)
         @test lifecycle(sim) === :initialized
     end
 
@@ -462,7 +462,7 @@ function test_devices()
         @test fetch(observer)
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:interrupt)
-        @test sim.model.exec.clock.frame == 0 && latest(sim).frame == 0  # no frame in flight
+        @test sim.run.frame == 0 && latest(sim).frame == 0  # no frame in flight
         @test !paused(sim)                       # the tail cleared the flag
         # No frame top drained the thread budget's warning where one device and
         # the loop are tight, so the run's-end sweep presents it (§12.2, §11.8).
@@ -749,7 +749,7 @@ function test_devices()
         logs, _ = Test.collect_test_logs() do
             run!(sim; t_end = 0.5)
         end
-        @test sim.model.exec.clock.frame == 5               # the run reached t_end regardless
+        @test sim.run.frame == 5               # the run reached t_end regardless
         @test dev.log == [:loop, :shutdown]      # the bracket held on the crash path
         @test crash_accounted(sim, logs, "device 1 (Crasher)")
         # Death is not detach: the claim stands, and the harness cannot take the face.
@@ -765,7 +765,7 @@ function test_devices()
         logs, _ = Test.collect_test_logs() do
             run!(sim; t_end = 1000.0)
         end
-        @test sim.model.exec.clock.frame < 10000            # ended by the crash's stop, not t_end
+        @test sim.run.frame < 10000            # ended by the crash's stop, not t_end
         @test crash_accounted(sim, logs, "device 1 (Crasher)")
     end
 
@@ -776,7 +776,7 @@ function test_devices()
         init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 0.5)
         @test dev.log == [:init, :shutdown]      # loop never ran: no task was spawned
-        @test sim.model.exec.clock.frame == 5               # flag clear: the run proceeds without it
+        @test sim.run.frame == 5               # flag clear: the run proceeds without it
         # The report was written pre-spawn, addressed by the entry (§12.4), so it
         # deterministically makes the first frame top's fold: the first frame's
         # snapshot carries the delta, the terminal status the totals.
@@ -800,7 +800,7 @@ function test_devices()
         logs, _ = Test.collect_test_logs() do
             run!(sim2; t_end = 0.5)
         end
-        @test sim2.model.exec.clock.frame == 0
+        @test sim2.run.frame == 0
         @test any(occursin("DeviceCrash from device 1 (BadInit), past the final", string(l.message))
                   for l in logs)
         # The same crash is recorded, not just presented (D-203): the residue
@@ -842,7 +842,7 @@ function test_devices()
         end
         @test dev.log == [:init, :shutdown]      # released; no task, so its loop never ran
         @test probe.log == [:init, :shutdown]    # the other entry still initialized, then the tail
-        @test sim.model.exec.clock.frame == 0          # the stop was pending at the first frame top
+        @test sim.run.frame == 0          # the stop was pending at the first frame top
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:interrupt)
         status = writer_status(latest(sim), "device 1 (InitInterrupted)")
@@ -1008,7 +1008,7 @@ function test_devices()
         end
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:interrupt)
-        @test sim.model.exec.clock.frame < 10000       # ended by the forwarded stop, not t_end
+        @test sim.run.frame < 10000       # ended by the forwarded stop, not t_end
         @test writer_status(latest(sim), "device 1 (Interrupting)").totals.crash == 0
         @test !any(occursin("DeviceCrash", string(l.message)) for l in logs)
         @test isempty(termination(sim).residue)

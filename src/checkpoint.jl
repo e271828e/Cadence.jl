@@ -28,10 +28,11 @@ end
 """
 The executor's state at a frame top (§12.6, D-274): the flat buffer, the `s`
 and `m` stores (`nothing` where a component owns none), the whole signal table
-with every cell buffer copied, the guard priors, the clock in full and the
-fingerprint. The priors are the one event register that crosses a boundary:
-`last` equals them at rest. What every frame rewrites before reading it, the
-derivative buffer, the arrival pair and the localization samples, stays out.
+with every cell buffer copied, the guard priors, the clock's `t` and `t₀`, the
+run's frame index and boundary ordinal (D-317), and the fingerprint. The
+priors are the one event register that crosses a boundary: `last` equals them
+at rest. What every frame rewrites before reading it, the derivative buffer,
+the arrival pair and the localization samples, stays out.
 
 The table holds the root-input cells as values, never the authored overlay
 (D-038). A checkpoint is not a condition and has no algebra (D-273). `==` is
@@ -43,10 +44,10 @@ struct Checkpoint{T}
     m::Vector{Any}                   # likewise for the mode stores
     table::StoreBundle               # the signal table, every cell buffer copied
     prior::Vector{Bool}              # the guard priors
-    t::T                             # the clock, in full
-    frame::Int
+    t::T                             # the clock's time
+    frame::Int                       # the run's two counters (D-317)
     boundary::Int
-    t₀::Float64
+    t₀::Float64                      # the clock's origin
     deployment::Deployment           # compared as a value at restore (§12.7)
     layout::Fingerprint              # compared against the `Build`
 end
@@ -70,22 +71,24 @@ function _fingerprint(sim)
 end
 
 # The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
-# The stores are copied by value, being isbits (D-231).
+# The stores are copied by value, being isbits (D-231). The counters are the
+# run's (D-317).
 function _take_checkpoint(sim)
     exec = sim.model.exec
-    clock = exec.clock
+    clock, run = exec.clock, sim.run
     T = eltype(exec.xbuf)      # the deployment's scalar, off the buffer that carries it
     s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
     m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
     checkpoint_stepper(exec.stepper)   # empty for a one-step method (stepper.jl)
     Checkpoint{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
-                  clock.t, clock.frame, clock.boundary, clock.t₀, sim.model.deployment,
+                  clock.t, run.frame, run.boundary, clock.t₀, sim.model.deployment,
                   _fingerprint(sim))
 end
 
-# The inverse: every field copied back into the executor, the clock written as
-# the checkpoint has it. Nothing is published here and nothing runs, so a
-# caller that publishes owns the ordinal.
+# The inverse: every field copied back into the executor, the clock's `t` and
+# `t₀` written as the checkpoint has them. The counters are the run's, which
+# the door opens from the checkpoint (D-317). Nothing is published here and
+# nothing runs, so a caller that publishes owns the ordinal.
 function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     copyto!(exec.xbuf, cp.x)
     _restore_stores!(exec, cp)
@@ -94,7 +97,7 @@ function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     copyto!(exec.events.prior, cp.prior)
     copyto!(exec.events.last, cp.prior)
     clock = exec.clock
-    clock.t, clock.frame, clock.boundary, clock.t₀ = cp.t, cp.frame, cp.boundary, cp.t₀
+    clock.t, clock.t₀ = cp.t, cp.t₀
     restore_stepper!(exec.stepper, cp)
     nothing
 end

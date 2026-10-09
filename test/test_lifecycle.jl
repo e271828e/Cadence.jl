@@ -72,8 +72,8 @@ function test_lifecycle()
         # placeholder carries an empty log, no trace, no feed and no
         # termination, and the lifecycle is what says it never started. The
         # origin, the policy and the mode are not fields of it (D-260), and
-        # neither is any configuration (D-261).
-        @test fieldnames(Run) === (:log, :trace, :feed, :termination)
+        # neither is any configuration (D-261). The two counters are (D-317).
+        @test fieldnames(Run) === (:log, :trace, :feed, :termination, :frame, :boundary)
         sim = Simulation(feedback_model(); h = 1//50)
         placeholder = sim.run
         @test mode(sim) === :live && placeholder.feed === nothing && !closed(placeholder)
@@ -131,6 +131,30 @@ function test_lifecycle()
         @test termination(sim).source === ModelRequestedStop("stop", :flag, "input at level")
     end
 
+    @testset "`lifecycle(sim)` is derived from the model's status, the running flag and the closed run (§12.6, D-317)" begin
+        sim = Simulation(feedback_model(); h = 1//50)
+        @test lifecycle(sim) === :built && sim.model.status === :built
+        init!(sim, fragment(u = (ref = 0.0,)))
+        @test lifecycle(sim) === :initialized && sim.model.status === :consistent
+        @test !closed(sim.run)
+        run!(sim; t_end = 0.1)
+        @test lifecycle(sim) === :stopped && sim.model.status === :consistent
+        @test closed(sim.run)
+        init!(sim, fragment(u = (ref = 0.0,)))
+        @test step!(sim; frames = 2) == 2
+        @test lifecycle(sim) === :initialized && sim.model.status === :consistent
+        @test !closed(sim.run) && !sim.control.running
+
+        # A throw inside a frame leaves the model inconsistent, which reads errored.
+        tripped = Simulation(fed(Tripwire(0.05), "arm"); h = 1//10)
+        init!(tripped, fragment(u = (in = true,)))
+        @test failure(() -> run!(tripped; t_end = 5.0)) isa StepError{Tripped}
+        @test lifecycle(tripped) === :errored && tripped.model.status === :inconsistent
+        @test !tripped.control.running
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(tripped))
+        @test d.op === :init! && d.status === :errored
+    end
+
     @testset "t_end is the advance's own bound, validated per call (§13.5)" begin
         sim = Simulation(feedback_model(); h = 1//50)
         init!(sim, fragment(u = (ref = 0.0,)))
@@ -139,7 +163,7 @@ function test_lifecycle()
         @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§9.4, D-203)
         @test record.source === EndTimeReached() && record.t == 1.0
         @test isempty(record.residue)                         # a quiet tail contributes no record
-        @test sim.model.exec.clock.frame == 50
+        @test sim.run.frame == 50
 
         # §12.4: the run ends at the first frame top reaching or exceeding
         # `t_end`, whole frames from `t₀` — an off-grid bound overshoots by
@@ -150,19 +174,19 @@ function test_lifecycle()
         # `t_plus` is the same rule)
         init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 0.99)
-        @test termination(sim).t == 1.0 && sim.model.exec.clock.frame == 50
+        @test termination(sim).t == 1.0 && sim.run.frame == 50
         init!(sim, fragment(u = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 12.0)
-        @test termination(sim).t == 12.0 && sim.model.exec.clock.frame == 100
+        @test termination(sim).t == 12.0 && sim.run.frame == 100
         init!(sim, fragment(u = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 5.0)
-        @test termination(sim).source === EndTimeReached() && sim.model.exec.clock.frame == 0
+        @test termination(sim).source === EndTimeReached() && sim.run.frame == 0
         late = Simulation(feedback_model(); h = 1//50)   # the advance below carries the bound:
                                                         # one before `t0` advances nothing
         init!(late, fragment(u = (ref = 0.0,)); t0 = 86400.0)
         @test step!(late; t_plus = 1.0) == 50
         run!(late; t_end = 86402.0)
-        @test termination(late).t == 86402.0 && late.model.exec.clock.frame == 100
+        @test termination(late).t == 86402.0 && late.run.frame == 100
 
         # An origin far from zero and a bound near it: at `t0 = -0.3` the loop
         # writes frame 3's time as `-0.3 + 3 * 0.1`, about `5.6e-17`. That time
@@ -174,7 +198,7 @@ function test_lifecycle()
         t_three = shifted.model.exec.clock.t
         init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         run!(shifted; t_end = t_three)
-        @test termination(shifted).t == t_three && shifted.model.exec.clock.frame == 3
+        @test termination(shifted).t == t_three && shifted.run.frame == 3
         init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         @test step!(shifted; t_plus = 3 * shifted.model.deployment.h) == 3
         @test shifted.model.exec.clock.t == t_three
@@ -275,7 +299,7 @@ function test_lifecycle()
         # kind + payload, one typed value (D-203)
         @test record.source === ModelRequestedStop("stop", :flag, "ramp at level")
         @test record.t == 4 * sim.model.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
-        @test sim.model.exec.clock.frame == 4                       # the run ended there, not at t_end
+        @test sim.run.frame == 4                       # the run ended there, not at t_end
         # that snapshot is the final one
         @test latest(sim).t === record.t
     end
@@ -287,7 +311,7 @@ function test_lifecycle()
         run!(sim; t_end = 5.0)
         record = termination(sim)
         @test record.source === ModelRequestedStop("stop", :flag, "input at level") && record.t == 0.0
-        @test sim.model.exec.clock.frame == 0             # zero frames: the check precedes the first step
+        @test sim.run.frame == 0             # zero frames: the check precedes the first step
     end
 
     @testset "a localized stop ends the run at t*, the crossing state final (§13.5, §10.4)" begin
@@ -318,11 +342,11 @@ function test_lifecycle()
         init!(sim)
         run!(sim; t_end = 1.0)
         @test termination(sim).source === ModelRequestedStop("a/stop", :flag, "a at level")
-        @test sim.model.exec.clock.frame == 2
+        @test sim.run.frame == 2
         init!(sim)
         run!(sim; t_end = 1.0, ignore_stop_requests = ("a/stop",))
         @test termination(sim).source === ModelRequestedStop("b/stop", :flag, "b at level")
-        @test sim.model.exec.clock.frame == 4
+        @test sim.run.frame == 4
         # the ignored request is still a cell in the snapshot
         @test port(latest(sim), "a/stop", :flag) === STOP_REQUESTED
         init!(sim)
@@ -340,7 +364,7 @@ function test_lifecycle()
         init!(sim)
         run!(sim; t_end = 1.0)
         @test termination(sim).source === ModelRequestedStop("a/stop", :flag, "a at level")
-        @test sim.model.exec.clock.frame == 4
+        @test sim.run.frame == 4
         @test port(latest(sim), "b/stop", :flag) === STOP_REQUESTED     # both hold there
         # The declaration order swapped, the roster and the record follow it.
         swapped = Simulation(two_ramps_swapped(0.35, 0.35); h = 1//10)
@@ -348,7 +372,7 @@ function test_lifecycle()
         run!(swapped; t_end = 1.0)
         @test [r.path for r in swapped.model.exec.act.layout.requesters] == ["b/stop", "a/stop"]
         @test termination(swapped).source === ModelRequestedStop("b/stop", :flag, "b at level")
-        @test swapped.model.exec.clock.frame == 4
+        @test swapped.run.frame == 4
     end
 
     @testset "two requests on one component share its path, named once (§13.5, D-316)" begin
@@ -388,7 +412,7 @@ function test_lifecycle()
         run!(sim; t_end = 5.0)
         record = termination(sim)
         @test record.source === ModelRequestedStop("stop", :flag, "three ticks counted")
-        @test record.t === tick.t && sim.model.exec.clock.frame == 9
+        @test record.t === tick.t && sim.run.frame == 9
     end
 
     @testset "the record carries the terminating advance's policy (§13.5, D-255)" begin

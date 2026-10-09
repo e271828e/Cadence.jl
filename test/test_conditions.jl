@@ -356,7 +356,7 @@ function conditions_algebra()
                            fragment(u = (u = 0.0, e = 0.0))))
         @test modes(sim, "trig") === (state = :fired, count = 1)
         @test port(sim, "trig", :on) === true
-        @test latest(sim).t == 0.0 && sim.model.exec.clock.frame == 0
+        @test latest(sim).t == 0.0 && sim.run.frame == 0
     end
 
     @testset "the fragment-function idiom composes by pull across two levels (§14.2)" begin
