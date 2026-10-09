@@ -152,7 +152,7 @@ launch.
 - The "model" vocabulary sweep over the spec and the companions, the
   glossary `nominal` sentence, and the three companions that spell the old
   forms (`flight_case_studies.md`, `linearization_walkthrough.md`,
-  `trim_environment_walkthrough.md`): increment three. The simulation forms
+  `trim_environment_walkthrough.md`): increment 72. The simulation forms
   they show stay true.
 - `R12`: `CursorFrame`/`ExecutionCursor`, the sampled-data activation.
 - Any change to `frame!`, the hooks, the loop or the drain. The frame
@@ -166,7 +166,8 @@ launch.
 
 - `docs/design/briefs/roadmap_model_split.md` whole (280 lines), then
   `notes_increment_70.md` rulings 15 to 21 and the open points.
-- `docs/design/pending.md` 16 to 27.
+- `docs/design/pending.md` 16 to 32, as the commit after bd2d7ae left it;
+  the one range here not from 6730b90.
 - `docs/design/decisions.md` D-274 (11382 to 11475), D-282 (11841 to
   11871), D-317 (13467 to 13627), D-318 (13628 to 13698); the linkify
   marker is 13699.
@@ -321,11 +322,11 @@ applies to every paragraph touched.
   `check_glossary.jl --strict` demands one for `ModelState`; otherwise the
   `checkpoint` entry carries the name.
 
-**`docs/design/pending.md`**, 20 to 26: the increment-two sub-bullet is
-rewritten as increment 71's, stating what the code owes D-319 by stage (the
-checkpoint split and the two doors, stage 1; the services on the model and
-the include order, stage 2), and increment three's line stays. Stage 2
-retires the stage lines.
+**`docs/design/pending.md`**, 22 to 29: the increment 71 sub-bullet is
+rewritten to state what the code owes D-319 by stage (the checkpoint split
+and the two doors, stage 1; the services on the model and the include
+order, stage 2), its brief line kept and its "not yet launched" dropped;
+increment 72's sub-bullet stays. Stage 2 retires the stage lines.
 
 ### The battery
 
@@ -609,8 +610,8 @@ foreground, 600 s.
   `checkpoint` and `restore!`. `### src/Redstone.jl`: the include order.
   `### src/diagnostics.jl`: `:non_nominal` raised on a `Model`. The routing
   table's `trim`/`linearize` row stands.
-- `docs/design/pending.md`: stage 2's line retires; increment three's line
-  stays. Run the battery.
+- `docs/design/pending.md`: stage 2's line retires; increment 72's
+  sub-bullet stays. Run the battery.
 
 ## The cold review
 

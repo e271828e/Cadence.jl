@@ -14,22 +14,22 @@ last, because it sweeps the whole surface and the library and the bridge
 both add names.
 
 - **The model split**, ruled 2026-10-09 in D-317, three increments in
-  working order. It closes the silent frozen run at a non-`Float64` scalar
-  by type, since only a `Model{Float64}` can be run. Increment 70 delivered
-  the first, and the code owes D-317 the other two.
-  - Increment two moves `trim!` and `linearize` onto `Model{Float64}`,
+  working order, their register and staging `briefs/roadmap_model_split.md`.
+  It closes the silent frozen run at a non-`Float64` scalar by type, since
+  only a `Model{Float64}` can be run. Increment 70 delivered the first
+  (`briefs/brief_increment_70_model_split_1.md`), and the code owes D-317
+  the other two.
+  - Increment 71 moves `trim!` and `linearize` onto `Model{Float64}`,
     their files above `sim.jl`, and re-raises the `:non_nominal` refusals
     on the model; splits the checkpoint into the model's inner value and
     the run's cursor, with `checkpoint` and `restore!` on both levels; and
     gives Appendix B the `Model` block that lists the model's API and
     places the primitives outside it (§14.8, §14.10, Appendix B, D-282,
-    D-318). The roadmap's increment two paragraph is the register.
-  - Increment three sweeps the spec's and the companions' "model" vocabulary
+    D-318). Its brief is `briefs/brief_increment_71_model_split_2.md`,
+    approved 2026-10-09 and not yet launched.
+  - Increment 72 sweeps the spec's and the companions' "model" vocabulary
     off the component tree, and gives the glossary's `nominal` the sentence
     that only a `Model{Float64}` can be run.
-
-  The brief is `briefs/brief_increment_70_model_split_1.md`, and the register
-  and the staging are `briefs/roadmap_model_split.md`.
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `descriptor` together, at the tip of increment
