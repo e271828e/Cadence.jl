@@ -21,10 +21,13 @@ for the user. Nothing here is pushed.
 | 90adef3 | the layout brief amended with the `ResidueRecord` ruling and the corrected ranges |
 | c1ef572 | docs: D-318, the claim, and the spec sentences it governs |
 | b3fb063 | the claim: `claimed` on `Model`, the two refusals, their tests |
+| 9cfd69a | these notes, extended |
+| ad81aad | docs: D-318 rewritten in place with the gate on a claimed model's doors (the user's call, the entry being unpushed) |
+| 33a57d6 | the gate: `_claimed_gate`, the four doors, `_apply_plan!`, the door message, the tests |
 
 Gate on the real tree at 29c3f5b: 5888 of 5888 on Julia 1.13.1; at
 22cc4db: 5902; at e96ccef: 5904 (the peer's test included); at b3fb063:
-5919. The
+5919; at 33a57d6: 5941. The
 review's bit-identity against 49592cc held on every fixture and door,
 replay included; `frame!` allocates nothing beyond the `Snapshot` under
 `LoopHooks` and nothing under `NoHooks`; `LoopHooks` is stack-allocated;
@@ -166,6 +169,34 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
     diagnostic-kinds occurrence list rather than the `occursin` rendering
     assertions.
 
+19. **The gate keys on the hooks.** The reviewer's F6: after the claim the
+    caller still held the model, and a direct `init!` wedged the
+    simulation as F1 did, while `frames!` between two `step!` calls moved
+    the model off the run's grid silently. A claimed model's `init!`,
+    `frame!` and restore door accept only `LoopHooks`, and `apply!`
+    reaches an inner `_apply!` through the simulation's forwarding;
+    dispatch on `LoopHooks` leaves the loop's path with no check. The
+    stepping primitives stay ungated internals. The reviewer's nested
+    `finally` around the termination record was declined and recorded in
+    D-318's rejections: with the gate the path has no caller, and a flag
+    left set keeps a framework fault loud.
+20. **Compile cost of the hooks was measured, not argued.** Time to first
+    `init!` + `run!` at 49592cc against 9cfd69a on three fixtures
+    (feedback loop at `h = 1//50`, `MultiRate` at `1//500`, a localized
+    `Stamper` at `1//10`) was 1.45 against 1.46 s, 1.38 against 1.38 s and
+    1.56 against 1.58 s, construction 0.66 to 0.80 s on both; `frame!`
+    keys on the same executor type as before, wrapped once more.
+
+21. **The gate stage's deviations stand.** The inner method is
+    `_apply_plan!`, since `_apply!` already names the data plane's batch
+    write and a prefixed twin is off the naming rules; the two `NoHooks`
+    canary arms in `test_localization.jl` run on standalone models built
+    from the same deployment, since a simulation's model is now claimed;
+    and a direct `init!(model, condition)` on a claimed model resolves the
+    condition before the plan method's gate, so an incomplete condition
+    reports `UninitializedInputs` ahead of `:claimed`. D-318 does not rule
+    on that order and the simulation is unaffected; flagged below.
+
 ## Open points for the user
 
 - Two docstring sentences in `src/deployment.jl` (289 at 49592cc,
@@ -177,6 +208,9 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
   conformance commit follows. The reviewer's third test, the running flag
   clearing after a failed advance, has no reachable path once the claim
   lands and was dropped.
+- A direct `init!(model, condition)` on a claimed model reports a condition
+  error before the claim (ruling 21). Gating the condition method too,
+  under `NoHooks()`, would put the claim first at no cost to the loop.
 - The `restore!` docstring in `sim.jl` still narrates the old internal
   order (state copied back, batches dropped, run built); the order is now
   run first, then the model's restore door. No visible effect; a
