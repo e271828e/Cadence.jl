@@ -77,15 +77,15 @@ function discrete_frozen_activation()
         # zero's wide gate included (D-205 admits entries, and a frozen component
         # has none) — and its cell holds the nominal products §9.4 carried across,
         # pinned for the whole run.
-        dual_sim = Simulation(sampled_loop(), D8; h = 1//50)
-        @test isempty(walked(dual_sim.model.exec.bodies.ticks))
-        @test length(walked(dual_sim.model.exec.bodies.sweep_1)) == 1          # plant only; ctl frozen
-        @test port(dual_sim, "ctl", :u) isa Float64
+        dual_model = Model(sampled_loop(), D8; h = 1//50)
+        @test isempty(walked(dual_model.exec.bodies.ticks))
+        @test length(walked(dual_model.exec.bodies.sweep_1)) == 1          # plant only; ctl frozen
+        @test port(dual_model, "ctl", :u) isa Float64
 
-        init!(dual_sim, fragment(u = (ref = 0.0,)))
-        run!(dual_sim; t_end = 0.04)
-        @test state(dual_sim, "plant").q isa SVector{2,D8}
-        @test port(dual_sim, "ctl", :u) == 0.0              # held, never recomputed
+        init!(dual_model, fragment(u = (ref = 0.0,)))
+        frames!(dual_model, 2)                                # `run!` to 0.04
+        @test state(dual_model, "plant").q isa SVector{2,D8}
+        @test port(dual_model, "ctl", :u) == 0.0              # held, never recomputed
     end
 end
 
@@ -309,7 +309,7 @@ function discrete_deployment()
     @testset "materializing fixes the scalar; one deployment backs many (§9.2, D-254)" begin
         multirate_build = build(MultiRate())
         deployment = Deployment(multirate_build; h = 1//500)
-        sim = Simulation(deployment, Float64)
+        sim = Simulation(deployment)
         @test sim.model.deployment === deployment
         # the sugar, *defined as* the composition
         reference = Simulation(multirate_build; h = 1//500)
@@ -320,12 +320,13 @@ function discrete_deployment()
         @test port(sim, "gnss", :out) == port(reference, "gnss", :out)
 
         # The same deployment at a second scalar: scalar-free means one backs many.
-        dual = Simulation(deployment, D8)
-        @test dual.model.deployment === deployment && eltype(dual.model.exec.xbuf) === D8
-        # The materialization is the `Model`, and a simulation holds one (D-317).
-        model = Model(deployment, D8)
-        @test model.deployment === deployment && eltype(model.exec.xbuf) === D8
-        @test Simulation(deployment, D8).model isa Model{D8}
+        dual = Model(deployment, D8)
+        @test dual.deployment === deployment && eltype(dual.exec.xbuf) === D8
+        # The materialization is the `Model`, and a simulation runs only a
+        # `Float64` one: any other scalar is refused by type (D-317).
+        @test sim.model isa Model{Float64}
+        @test_throws MethodError Simulation(Model(deployment, D8))
+        @test_throws MethodError Simulation(deployment, Float32)
 
         # `warnings(sim)` is the concatenation of its artifacts' lists (D-250);
         # neither has a producer here.

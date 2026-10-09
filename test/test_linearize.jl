@@ -367,9 +367,10 @@ function test_linearize()
 
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} linearize(lin_pend_sim(), (x = (;),)))
         @test d.call === :linearize && d.reason === :not_a_tap_set && d.argument === :taps
-        dual = Simulation(lin_pend(), D8; h = 1//10)
-        d = carried(@test_throws DiagnosticError{ArgumentInvalid} linearize(dual, lin_taps()))
-        @test d.call === :linearize && d.reason === :non_nominal && occursin("Dual", d.value)
+        # A `Dual` model is no simulation, so no method takes it; increment two
+        # moves `linearize` onto the model and gives it a diagnostic (D-317).
+        dual = Model(lin_pend(), D8; h = 1//10)
+        @test_throws MethodError linearize(dual, lin_taps())
     end
 
     @testset "the two table selectors read a component through the leaf address (§14.4, D-276)" begin

@@ -15,18 +15,8 @@ both add names.
 
 - **The model split**, ruled 2026-10-09 in D-317, three increments in
   working order. It closes the silent frozen run at a non-`Float64` scalar
-  by type, since only a `Model{Float64}` can be run. Increment 70 delivers
-  D-317 in four stages, and the code owes it each stage's part.
-  - Stage 1, the split. `Model{T,E}` holds the deployment and the executor,
-    `Simulation` wraps one, and the simulation's model doors forward.
-  - Stage 2, the clock and the lifecycle. The clock keeps `t` and `t₀`, the
-    frame and boundary counters move onto the run, and `lifecycle(sim)` is
-    derived from the model's status, the running flag and the closed run.
-  - Stage 3, the hooked frame. `frame!(model, k, hooks)` with `FrameHooks`,
-    `NoHooks` and the loop's `LoopHooks`, the model's catch building the
-    `StepError`, and the model's diagnostic cell.
-  - Stage 4, the nominal-only simulation. `Simulation(model::Model{Float64})`,
-    and the `Dual` fixtures moved onto `Model`.
+  by type, since only a `Model{Float64}` can be run. Increment 70 delivered
+  the first, and the code owes D-317 the other two.
   - Increment two moves `trim!` and `linearize` onto `Model{Float64}`, with
     their `Dual` scratch a `Model`, and splits the checkpoint (§14.8,
     §14.10, D-282).

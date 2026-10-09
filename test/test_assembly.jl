@@ -599,9 +599,9 @@ function assembly_two_level()
 
         # Tier-neutral, and the tiers are *derived*: at a non-nominal activation the
         # continuous-sourced face walks while the discrete-sourced one stays pinned.
-        dual_sim = Simulation(Vehicle(), D8; h = 1//50)
-        @test port(dual_sim, "", :y) isa D8
-        @test port(dual_sim, "", :cmd) isa Float64
+        dual_model = Model(Vehicle(), D8; h = 1//50)
+        @test port(dual_model, "", :y) isa D8
+        @test port(dual_model, "", :cmd) isa Float64
     end
 
     @testset "each face routes down to the terminal, at every level (§9.1, §9.2, §13.7, D-257, D-315)" begin

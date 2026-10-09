@@ -60,9 +60,9 @@ end
 §13.5's termination record: the run's *outcome*, and the policy of the advance
 that ended it — so a stopped simulation answers "why did it stop?", and "how
 did the stop go?", without its consumer reconstructing either from the clock or
-the log stream (D-203). `t` is the final snapshot's boundary time in the
-deployment's own scalar (§9.4), always present since boundary zero precedes
-every record (D-233); `policy` is the terminating advance's `StopPolicy`, so
+the log stream (D-203). `t` is the final snapshot's boundary time, a `Float64`
+since only a nominal model runs (§9.4, D-317), always present since boundary
+zero precedes every record (D-233); `policy` is the terminating advance's `StopPolicy`, so
 `EndTimeReached`'s bound is read off the record rather than off a constructor
 default that no longer exists (D-255); `source` is the typed source above;
 `residue` is what the run's-end sweep collected — recorded here and presented
@@ -70,8 +70,8 @@ through the logging backend, never published (D-201, D-203). It lives on the
 `Run`, written once by the loop's tail, so a fresh run starts without one
 (§12.6, D-255), and it is the policy's one lasting home (D-260).
 """
-struct TerminationRecord{T}
-    t::T
+struct TerminationRecord
+    t::Float64
     policy::StopPolicy
     source::TerminationSource
     residue::Vector{ResidueRecord}
@@ -102,11 +102,11 @@ feed, no termination — so every accessor has a run to read; `lifecycle(sim)`
 is what says whether that run ever started. It carries no configuration: the
 recording keywords are the doors' (D-261).
 """
-mutable struct Run{T}
+mutable struct Run
     const log::SnapshotLog                        # §11.2's retained snapshots
-    const trace::Union{Nothing,Trace{T}}          # §11.5's recording, `nothing` under the switch
+    const trace::Union{Nothing,Trace}             # §11.5's recording, `nothing` under the switch
     feed::Union{Nothing,ReplayFeed}               # the attached recording: the mode's one source
-    termination::Union{Nothing,TerminationRecord{T}}   # the tail's one write (§13.5)
+    termination::Union{Nothing,TerminationRecord}   # the tail's one write (§13.5)
     frame::Int                                    # the frame index, completed frames since `t₀`
     boundary::Int    # the published-boundary ordinal (§12.3, D-230); boundary zero = 0
 end
@@ -193,27 +193,31 @@ belongs to one of them.
   `margin`, §12.4's sticky status and join cap, §12.3's wait (devices.jl).
 - `run`: §12.6's run state, the one field a door rebinds (D-255, D-260).
 """
-mutable struct Simulation{T,E}
-    const model::Model{T,E}
+mutable struct Simulation{E}
+    const model::Model{Float64,E}
     const plane::DataPlane
     const control::Control
-    run::Run{T}
+    run::Run
 end
 
 """
-    Simulation(model::Model; join_timeout = 5.0)
-    Simulation(deployment::Deployment, T = Float64; join_timeout = 5.0, chunk_size = 16)
-    Simulation(build::Build, T = Float64; h, N_base = nothing, Δt_base = nothing,
+    Simulation(model::Model{Float64}; join_timeout = 5.0)
+    Simulation(deployment::Deployment; join_timeout = 5.0, chunk_size = 16)
+    Simulation(build::Build; h, N_base = nothing, Δt_base = nothing,
                algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                localization_budget = 8, kw...)
-    Simulation(root, T = Float64; …)
+    Simulation(root; …)
 
-The simulation around a materialized `Model` (§9.2, D-317): the data plane, the
-control plane and the run beside it. The three other forms are *defined as* the
-compositions: `Simulation(deployment, T; join_timeout, chunk_size)` is
-`Simulation(Model(deployment, T; chunk_size); join_timeout)`,
-`Simulation(build; kw…)` is `Simulation(Deployment(build; grid kw…), T;
-rest…)`, and `Simulation(root; kw…)` calls `build` first. Entry compilation
+The simulation around a materialized `Model{Float64}` (§9.2, D-317): the data
+plane, the control plane and the run beside it. Only the nominal model runs,
+since the `Float64` activation is the only one that runs in real time (§9.4);
+a model at any other scalar is a `MethodError` here, and is a service's
+scratch, stepped frame by frame with no ticks and no events. The three other
+forms are *defined as* the compositions through a `Float64` model:
+`Simulation(deployment; join_timeout, chunk_size)` is
+`Simulation(Model(deployment; chunk_size); join_timeout)`,
+`Simulation(build; kw…)` is `Simulation(Deployment(build; grid kw…); rest…)`,
+and `Simulation(root; kw…)` calls `build` first. Entry compilation
 lives behind the deployment because `Δt`, `D` and `Φ` are entry data, and one
 `Build` backs many deployments.
 
@@ -239,7 +243,7 @@ no keywords here either: they configure the run's log and trace, which the
 doors build, so `init!`, `restore!` and `replay!` take them, each for the run it
 opens (§12.6, Appendix B, D-261).
 """
-function Simulation(model::Model{T,E}; join_timeout = 5.0) where {T,E}
+function Simulation(model::Model{Float64,E}; join_timeout = 5.0) where {E}
     # This call's own keyword is not a deployment parameter, so it is an
     # `ArgumentInvalid` (D-256, Appendix C), collected as the call's one throw
     # (§9.1, D-229). The stop policy and the recording keywords are not among
@@ -252,24 +256,22 @@ function Simulation(model::Model{T,E}; join_timeout = 5.0) where {T,E}
     # §12.6's placeholder run (D-255, D-261): an empty log at the defaults that
     # nothing reads and no trace, so every accessor has a run to read. It
     # carries no configuration; the first door builds the run that records.
-    run = Run{T}(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing, 0, 0)
-    Simulation{T,E}(model, DataPlane(model.exec.act.layout),
-                    Control(Float64(join_timeout)), run)
+    run = Run(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing, 0, 0)
+    Simulation{E}(model, DataPlane(model.exec.act.layout),
+                  Control(Float64(join_timeout)), run)
 end
 
-# The three sugar forms, each *defined as* the composition (§9.2, D-254,
-# D-317): every existing call site deploys and materializes in one call, and
-# nothing in the artifact is lost by composing.
-Simulation(deployment::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
-           chunk_size::Int = 16) where {T} =
-    Simulation(Model(deployment, T; chunk_size); join_timeout)
-Simulation(build::Build, ::Type{T} = Float64; h = nothing, N_base = nothing,
+# The three sugar forms, each *defined as* the composition through a `Float64`
+# model (§9.2, D-254, D-317): every existing call site deploys and materializes
+# in one call, and nothing in the artifact is lost by composing.
+Simulation(deployment::Deployment; join_timeout = 5.0, chunk_size::Int = 16) =
+    Simulation(Model(deployment; chunk_size); join_timeout)
+Simulation(build::Build; h = nothing, N_base = nothing,
            Δt_base = nothing, algorithm = RK4, firing_budget = 4,
-           localization_tol = 1e-6, localization_budget = 8, kw...) where {T} =
+           localization_tol = 1e-6, localization_budget = 8, kw...) =
     Simulation(Deployment(build; h, N_base, Δt_base, algorithm, firing_budget,
-                          localization_tol, localization_budget), T; kw...)
-Simulation(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
-    Simulation(build(root), T; kw...)
+                          localization_tol, localization_budget); kw...)
+Simulation(root::AbstractComponent; kw...) = Simulation(build(root); kw...)
 
 """
     warnings(model::Model) → Vector{Diagnostic}
@@ -310,8 +312,7 @@ _margin_value(value, call::Symbol) = (value isa Real && value ≥ 0) ? Float64(v
 # at the larger of `|t|` and `|t₀|`, since `t₀ + k·h` and `t - t₀` both round
 # at that magnitude. `0.3/0.1` is `2.9999999999999996`, and at `t₀ = -0.3` the
 # loop writes frame 3's time as `5.6e-17`, whose own ulps absorb none of that.
-# `t` and `t₀` may be the deployment's `T` (a `Dual` included, as `step!`
-# passes its clock for the origin); the step is `Float64` (D-260).
+# `t` and `t₀` are any reals; the step is `Float64` (D-260).
 _frame_slack(t::Real, t₀::Real, h::Float64) = 4 * eps(max(abs(t), abs(t₀))) / h
 function _frames_to(t::Real, t₀::Real, h::Float64)
     isinf(t) && return typemax(Int)
@@ -434,24 +435,24 @@ termination(sim::Simulation) = sim.run.termination
 
 # The record's assembly (§13.5, D-203), once per advance entry in its
 # outermost `finally`, after the sweep has the residue in hand. `t` is the
-# final snapshot's boundary time in the deployment's own scalar: both entries
+# final snapshot's boundary time: both entries
 # refuse a `built` simulation and every door publishes, so the snapshot
 # exists (D-233). `policy` is this advance's, arriving as the argument the call
 # built — the terminating one, the one that explains the stop, and this is
 # where it stops travelling (D-255, D-260).
-_record(sim::Simulation{T}, policy::StopPolicy, source::TerminationSource,
-        residue::Vector{ResidueRecord}) where {T} =
-    TerminationRecord{T}(latest(sim).t, policy, source, residue)
+_record(sim::Simulation, policy::StopPolicy, source::TerminationSource,
+        residue::Vector{ResidueRecord}) =
+    TerminationRecord(latest(sim).t, policy, source, residue)
 
 # §13.5's sampling read, after every publication: the `StopFlag` buffer of the
 # just-published snapshot, scanned in roster order, the first honoured request
 # holding wins and its requester is returned (D-316). `ignore_mask` is
 # index-aligned with the roster and so with the buffer, by `_bind_policy`
 # (D-261). The roster is read on a hit only.
-function _stop_hit(sim::Simulation{T}, ignore_mask::Vector{Bool}) where {T}
+function _stop_hit(sim::Simulation, ignore_mask::Vector{Bool})
     all(ignore_mask) && return nothing          # none honoured, the empty roster included
     # asserted, since the plane's type does not fix the snapshot's
-    snapshot = latest(sim)::Snapshot{T,typeof(sim.model.exec.store)}
+    snapshot = latest(sim)::Snapshot{Float64,typeof(sim.model.exec.store)}
     buffer = getfield(snapshot.store.stores, STOP_FLAG_KEY).buffer
     for i in eachindex(ignore_mask)
         !ignore_mask[i] && buffer[i] === STOP_REQUESTED &&
@@ -767,10 +768,10 @@ end
 # `restore!`, the compiled recording from `replay!`. `_install_writers!` then
 # compiles the drain's thunks against the new trace for the trajectory about to
 # open.
-function _open_run!(sim::Simulation{T}, header, schemas, feed, frame::Int, boundary::Int,
-                    trace_switch::Bool, log_switch::Bool, log_every::Int, log_max) where {T}
-    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], frame) : nothing
-    sim.run = Run{T}(SnapshotLog(log_switch, log_every,
+function _open_run!(sim::Simulation, header, schemas, feed, frame::Int, boundary::Int,
+                    trace_switch::Bool, log_switch::Bool, log_every::Int, log_max)
+    trc = trace_switch ? Trace(header, schemas, TraceBatch[], frame) : nothing
+    sim.run = Run(SnapshotLog(log_switch, log_every,
                                  log_max === Inf ? typemax(Int) : Int(log_max)),
                      trc, feed, nothing, frame, boundary)
     _install_writers!(sim.plane, sim.model.exec.store, trc)
@@ -798,8 +799,8 @@ simulation exactly as it was, and a root input gets a condition value or the
 call errors — the services path contains no call to `probe_value`. `t0` is a
 service argument, never a condition entry: time is not a store of any
 component (§14.5). It is any real, held as a `Float64` origin on the clock
-(D-260), while the clock's `t` stays in the deployment's
-scalar — so a `Dual` simulation takes `t0 = 0.25` like any other.
+(D-260), while the clock's `t` stays in the model's
+scalar — so a `Dual` model takes `t0 = 0.25` like any other.
 
 Boundary zero is an ordinary boundary with an empty integrate (§10.5, §14.5),
 run with the sweep's one amendment: every discrete output stage publishes,
@@ -862,15 +863,15 @@ simulation `built`, with no trace and no checkpoint, `init!`, `restore!` and
 `replay!` legal again (§13.4, D-223, D-274). `init!` under the same condition
 reproduces it.
 """
-function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace = true,
-               log = true, log_every = 1, log_max = 65536) where {T}
+function init!(sim::Simulation, condition = fragment(); t0::Real = 0.0, trace = true,
+               log = true, log_every = 1, log_max = 65536)
     lifecycle_state = lifecycle(sim)
     lifecycle_state === :running && throw(DiagnosticError(
         ServiceLifecycle(op = :init!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
     lifecycle_state === :errored && throw(DiagnosticError(
         ServiceLifecycle(op = :init!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     _check_recording(:init!, trace, log, log_every, log_max)   # the run's keywords (D-261)
-    plan = resolve_condition(condition, sim.model.deployment.build, T)      # both refusals precede every write
+    plan = resolve_condition(condition, sim.model.deployment.build, Float64)   # both refusals precede every write
     assert_total(plan, sim.model.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
     _reset_periphery!(sim)
     _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, 0, 0, trace, log,
@@ -882,7 +883,7 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
     # §11.5's header: the checkpoint at the end of boundary zero, so a throw
     # inside it leaves no header and no trace to hand back (D-274)
     trc = sim.run.trace
-    trc === nothing || (trc.header = _take_checkpoint(sim))
+    trc === nothing || (trc.header = _take_checkpoint(sim.model, sim.run.frame, sim.run.boundary))
     nothing
 end
 
@@ -921,7 +922,7 @@ function checkpoint(sim::Simulation)
         published.t == clock.t ||
         throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
                                                  frame = frame)))
-    _take_checkpoint(sim)
+    _take_checkpoint(sim.model, frame, sim.run.boundary)
 end
 
 # The door body `restore!` and `replay!` share (§12.6, §12.7, D-274): the
@@ -933,9 +934,9 @@ end
 # ordinals continue as the original's did (§12.3, D-230). The counters come
 # with the checkpoint into the run this opens (D-317), and the restored model
 # is consistent.
-function _enter_checkpoint!(sim::Simulation{T}, cp::Checkpoint{T}, schemas, feed,
+function _enter_checkpoint!(sim::Simulation, cp::Checkpoint{Float64}, schemas, feed,
                             trace_switch::Bool, log_switch::Bool, log_every::Int,
-                            log_max) where {T}
+                            log_max)
     _restore_state!(sim.model.exec, cp)
     _reset_periphery!(sim)
     _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, cp.frame, cp.boundary,
@@ -964,8 +965,8 @@ guard holding at the checkpoint does not fire again. The clock came with the
 checkpoint, so the next frame is the original lattice's next frame, and the
 boundary ordinal continues (§12.3, D-230). The mode returns to `:live`.
 """
-function restore!(sim::Simulation{T}, cp::Checkpoint{T}; trace = true, log = true,
-                  log_every = 1, log_max = 65536) where {T}
+function restore!(sim::Simulation, cp::Checkpoint{Float64}; trace = true, log = true,
+                  log_every = 1, log_max = 65536)
     lifecycle_state = lifecycle(sim)
     lifecycle_state === :running && throw(DiagnosticError(
         ServiceLifecycle(op = :restore!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
@@ -980,8 +981,9 @@ function restore!(sim::Simulation{T}, cp::Checkpoint{T}; trace = true, log = tru
     nothing
 end
 
-restore!(sim::Simulation{S}, cp::Checkpoint{T}; kw...) where {S,T} =
-    throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = T, found = S)))
+# A checkpoint taken on a model at another scalar (D-317).
+restore!(::Simulation, cp::Checkpoint{T}; kw...) where {T} =
+    throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = T, found = Float64)))
 
 """
 Replay's entry pass (§12.7), called by `replay!` below before any state is
@@ -995,16 +997,14 @@ then collected in turn, so a trace with three bad entries reports three.
 comes back is the whole recording normalized to compiled scatters against *this*
 layout — the conversion paid once, off the loop (D-101).
 
-The scalar is the outermost structural fact, and it is dispatch rather than a
-comparison: the method below takes a `Trace{T}` against a `Simulation{T}`, and
-the fallback beside it is what a `Trace{Float64}` offered to a
-`Simulation{Dual}` reaches. `restore!` carries exactly the same pair.
+The scalar needs no check: a `Trace` holds a `Checkpoint{Float64}` and a
+simulation runs a `Model{Float64}`, both by type (D-317).
 
 Under `restore = false` the clock joins the header's stage: the feed runs on
 the simulation's own clock, so its origin must be the recording's, and its
 frame one the recording can feed from.
 """
-function _compile_feed(sim::Simulation{T}, trc::Trace{T}, restore::Bool = true) where {T}
+function _compile_feed(sim::Simulation, trc::Trace, restore::Bool = true)
     faces = Symbol[f for (f, _) in sim.model.exec.act.layout.root_inputs]
     diags = Diagnostic[]
     _check_checkpoint!(diags, sim, trc.header)
@@ -1022,9 +1022,6 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}, restore::Bool = true) 
     isempty(diags) || throw(DiagnosticError(diags))
     ReplayFeed(records, 1, trc.frames)
 end
-
-_compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}, restore::Bool = true) where {Ts,Tt} =
-    throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = Tt, found = Ts)))
 
 """
     replay!(sim, trc; to_boundary = nothing, pace = Inf, margin = 0.002, t_end = Inf,
@@ -1111,11 +1108,11 @@ anywhere but `initialized` under `restore = false`. Every refusal — the
 lifecycle gate, the recording keywords, `to_boundary`'s range, `to_time`'s, the
 policy's validation and the whole entry pass — precedes every write.
 """
-function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
+function replay!(sim::Simulation, trc::Trace; to_boundary = nothing,
                  to_time = nothing, pace = Inf, margin = 0.002, t_end = Inf,
                  ignore_stop_requests = (),
                  trace = true, log = true, log_every = 1, log_max = 65536,
-                 restore = true) where {T}
+                 restore = true)
     control = sim.control
     if restore !== false     # a non-`Bool` is refused with the keywords below
         lifecycle_state = lifecycle(sim)
@@ -1172,7 +1169,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     # Under this call's `trace`, the new trace inherits the checkpoint detached
     # and the recording's own schema entries, so neither the growth below nor a
     # continuation's writes ever reach the `Trace` the caller holds.
-    cp = restore ? trc.header : _take_checkpoint(sim)
+    cp = restore ? trc.header : _take_checkpoint(sim.model, sim.run.frame, sim.run.boundary)
     _enter_checkpoint!(sim, cp, trace ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[],
                        feed, trace, log, Int(log_every), log_max)
     # the records at or before the frame the feed starts from are behind it: a
@@ -2313,13 +2310,13 @@ hazard class as a mid-run `attach!`; a concurrent reader's inspection read is
 `latest(sim)`, and it holds snapshots or loses them (§11.2). Empty before
 the first `init!`, and empty under `log = false` — the switch gates
 retention wholesale. The element type is the run's concrete snapshot type,
-`Snapshot{T,typeof(sim.model.exec.store)}`, the type of what `latest(sim)` holds,
-empty or not.
+`Snapshot{Float64,typeof(sim.model.exec.store)}`, the type of what `latest(sim)`
+holds, empty or not.
 """
-function logged(sim::Simulation{T}) where {T}
+function logged(sim::Simulation)
     assert_stopped(sim, :logged)
     snapshot_log = sim.run.log
-    retained = Snapshot{T,typeof(sim.model.exec.store)}[]
+    retained = Snapshot{Float64,typeof(sim.model.exec.store)}[]
     snapshot_log.first === nothing && return retained
     push!(retained, snapshot_log.first)
     for snapshot in snapshot_log.snaps
@@ -2346,14 +2343,14 @@ boundary zero threw before the header was taken, and never the switch. That
 throw leaves no trace, and `init!` under the same condition is its
 reproduction (§13.4, D-274).
 """
-function trace(sim::Simulation{T}) where {T}
+function trace(sim::Simulation)
     lifecycle_state = lifecycle(sim)
     trc = sim.run.trace
     lifecycle_state === :built &&
         throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle_state)))
     trc === nothing &&        # §11.5's kill switch, which rides on the run's trace (D-260)
         throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
-    Trace{T}(_detach(trc.header), copy(trc.schemas), copy(trc.batches), trc.frames)
+    Trace(_detach(trc.header), copy(trc.schemas), copy(trc.batches), trc.frames)
 end
 
 # --- reading and writing the table outside the loop ---------------------------

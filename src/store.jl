@@ -119,9 +119,9 @@ frame tops are `t₀ + k·h`, computed from the index and never accumulated, so 
 remainder step's float arithmetic cannot drift the grid (§10.4). The frame
 index `k` and the boundary ordinal are not the clock's: they are the run's two
 counters (§12.6, D-317). `t₀` is a `Float64`, like `h` and `t_end`, while `t`
-stays in the deployment's scalar: the origin is the grid's anchor and no design
+stays in the model's scalar: the origin is the grid's anchor and no design
 reader wants it perturbed, and a `Float64` origin is what lets `init!` take
-`t0 = 0.25` on a `Dual` simulation (§12.6, D-260). The constructor below takes
+`t0 = 0.25` on a `Dual` model (§12.6, D-260, D-317). The constructor below takes
 it and converts it into `t`.
 """
 mutable struct Clock{T}

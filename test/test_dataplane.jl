@@ -92,13 +92,7 @@ function dataplane_exchange()
               mismatch.declared === Float64
     end
 
-    @testset "the shim converts to the activation's root-input types (§11.4)" begin
-        sim = Simulation(fed(Plant(), "u"), D8; h = 1//10)
-        init!(sim, fragment(u = (in = 0.0,)))
-        stage!(sim, "in" => 1.0)            # convert to the root input's declared type: D8
-        run!(sim; t_end = 0.1)
-        @test port(sim, "", :in) === D8(1.0)
-    end
+    # No shim test at a `Dual` root input: the plane writes only a `Float64` model (D-317).
 
     @testset "publication: one immutable value per frame-top boundary (§11.2)" begin
         sim = Simulation(chain3(); h = 1//10)

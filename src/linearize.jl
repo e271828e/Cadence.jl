@@ -116,7 +116,7 @@ The default width's scalar is `LinearizeDual`, so a build that lists it in
 `activations` linearizes any tap set with no compile at the keyboard (§9.7).
 The width changes the grouping, never the answer.
 """
-function linearize(sim::Simulation{Float64}, tap_set::Taps; about = nothing,
+function linearize(sim::Simulation, tap_set::Taps; about = nothing,
                    t0 = nothing, width::Int = LINEARIZE_WIDTH)
     width ≥ 1 || throw(DiagnosticError(ArgumentInvalid(
         call = :linearize, argument = :width, reason = :nonpositive_width, value = width)))
@@ -136,7 +136,7 @@ function linearize(sim::Simulation{Float64}, tap_set::Taps; about = nothing,
     (x_entries, u_entries, y_entries) = _resolve_taps(tap_set, build, T)
 
     # --- the nominal half (D-213) ------------------------------------------------
-    nominal_exec = _scratch(sim, Float64)
+    nominal_exec = _scratch(sim, Float64).exec
     if about === nothing
         _restore_state!(nominal_exec, cp)            # the held cells are the frozen tier's (D-274)
     else
@@ -150,7 +150,7 @@ function linearize(sim::Simulation{Float64}, tap_set::Taps; about = nothing,
 
     # --- the seeded half ---------------------------------------------------------
     act = activation(build, T)
-    seeded_exec = _scratch(sim, T, act)
+    seeded_exec = _scratch(sim, T).exec
     if about === nothing
         copyto!(seeded_exec.xbuf, cp.x)              # zero partials throughout
         _restore_stores!(seeded_exec, cp)
@@ -198,12 +198,6 @@ function linearize(sim::Simulation{Float64}, tap_set::Taps; about = nothing,
                   NamedTuple{y_labels}(Tuple(y₀)),
                   A, B, C, D, x_labels, u_labels, y_labels)
 end
-
-# A non-nominal deployment is refused rather than served: the seeded scalar is
-# the service's own `Dual` over `Float64`, and the operating point is a nominal
-# world's.
-linearize(sim::Simulation, ::Taps; kw...) = throw(DiagnosticError(
-    ArgumentInvalid(call = :linearize, reason = :non_nominal, value = string(typeof(sim)))))
 
 linearize(::Simulation, other; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :linearize, argument = :taps, reason = :not_a_tap_set,

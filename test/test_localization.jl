@@ -222,11 +222,11 @@ function test_localization()
     @testset "localization compiles out at a non-nominal activation (§9.4, D-052)" begin
         # Events are outside every non-nominal executable set, so the frame loop's
         # fast-path key is off: the bare step, no arrival machinery, no reset.
-        sim = Simulation(single(Bouncer(1.0, 0.315)), D8; h = 1//10)
-        @test !sim.model.exec.has_localized
-        init!(sim)
-        run!(sim; t_end = 0.5)
-        @test ForwardDiff.value(state(sim, "c").q) ≈ 0.5 rtol = 1e-12
+        dual_model = Model(single(Bouncer(1.0, 0.315)), D8; h = 1//10)
+        @test !dual_model.exec.has_localized
+        init!(dual_model)
+        frames!(dual_model, 5)                 # `run!` to 0.5
+        @test ForwardDiff.value(state(dual_model, "c").q) ≈ 0.5 rtol = 1e-12
     end
 
     @testset "gate 3: localized frames do not allocate (§7.5)" begin

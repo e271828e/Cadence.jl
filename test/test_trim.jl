@@ -662,14 +662,10 @@ function test_trim()
     end
 
     @testset "`trim!` is a stopped-sim service on a nominal deployment (§14.8, §12.6)" begin
-        # A non-nominal `Simulation` is refused outright: the commit runs through
-        # boundary zero on the simulation's own stores, and those are the nominal
-        # world's — the seeded activation is the service's scratch, never the
-        # deployment's.
-        dual = Simulation(fed(Pendulum(), :u), D8; h = 1//10)
-        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(dual, u_problem(); baseline = pend_base()))
-        @test d.call === :trim! &&
-              d.reason === :non_nominal && occursin("Dual", d.value)
+        # A `Dual` model is no simulation, so no method takes it; increment two
+        # moves `trim!` onto the model and gives it a diagnostic (D-317).
+        dual = Model(fed(Pendulum(), :u), D8; h = 1//10)
+        @test_throws MethodError trim!(dual, u_problem(); baseline = pend_base())
 
         # And a value that is not a problem is a directive, not a `MethodError`.
         plain = Simulation(fed(Pendulum(), :u); h = 1//10)

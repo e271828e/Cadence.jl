@@ -103,20 +103,21 @@ sibling_fed() = Group((; plant = Plant(), trig = Trigger(0.5));
                       local_wires = ("plant/y" => "trig/sig",), input_wires = ("u" => "plant/u",))
 
 # Every store, the root inputs and the clock, read straight out of an executor.
-world(sim) = (copy(sim.model.exec.xbuf),
-              [s === nothing ? nothing : s[] for s in sim.model.exec.sstores],
-              [m === nothing ? nothing : m[] for m in sim.model.exec.mstores],
-              [port(sim, "", f) for f in sim.model.deployment.build.structure.root_inputs],
-              sim.model.exec.clock.t)
+world(model::Model) = (copy(model.exec.xbuf),
+                       [s === nothing ? nothing : s[] for s in model.exec.sstores],
+                       [m === nothing ? nothing : m[] for m in model.exec.mstores],
+                       [port(model, "", f) for f in model.deployment.build.structure.root_inputs],
+                       model.exec.clock.t)
+world(sim::Simulation) = world(sim.model)
 
 function test_readers()
     @testset "the five selectors read what they name, at either activation (§14.4)" begin
         for T in (Float64, D8)
-            sim = Simulation(readable(), T; h = 1//10)
-            init!(sim, readable_condition())
-            evaluate!(sim.model.exec)                     # `ẋ` is integrator scratch: fill it first
-            r = _compile_reads(readable_reads(), sim.model.deployment.build, T)
-            v = gather_reads(r, sim.model.exec)
+            model = Model(readable(), T; h = 1//10)
+            init!(model, readable_condition())
+            evaluate!(model.exec)                     # `ẋ` is integrator scratch: fill it first
+            r = _compile_reads(readable_reads(), model.deployment.build, T)
+            v = gather_reads(r, model.exec)
 
             @test keys(v) === (:q, :v, :acc, :q̇, :a, :y, :u, :face)
             @test v.q == SVector{2,T}(0.3, -0.2)     # the whole leaf, out of `xbuf`
@@ -135,9 +136,9 @@ function test_readers()
 
             # The leaf address steps into a struct port (§14.4, D-276): a field and
             # a component, a matrix entry by its indices and by its linear place.
-            pose_sim = Simulation(pose_model(), T; h = 1//10)
-            init!(pose_sim)
-            pose = gather_reads(_compile_reads(pose_reads(), pose_sim.model.deployment.build, T), pose_sim.model.exec)
+            posed_model = Model(pose_model(), T; h = 1//10)
+            init!(posed_model)
+            pose = gather_reads(_compile_reads(pose_reads(), posed_model.deployment.build, T), posed_model.exec)
             @test pose.whole isa LeafPose{T} && pose.short === pose.whole  # `:pose` is `"pose"`
             @test pose.v2 === pose.whole.v[2] === T(-0.25)
             @test pose.m12 === pose.whole.m[1, 2] === T(0.5)
@@ -342,19 +343,19 @@ function test_readers()
         end
 
         for T in (Float64, D8)
-            sim = Simulation(wrapped_readable(), T; h = 1//10)
-            init!(sim, at("inner", readable_condition()))
-            evaluate!(sim.model.exec)
-            wrapped_build = sim.model.deployment.build
+            model = Model(wrapped_readable(), T; h = 1//10)
+            init!(model, at("inner", readable_condition()))
+            evaluate!(model.exec)
+            wrapped_build = model.deployment.build
             mounted = gather_reads(_compile_reads(at("inner", readable_reads()), wrapped_build, T),
-                                   sim.model.exec)
+                                   model.exec)
             # Every path carries `inner/`, `get_input(:u)` is the root input the
             # chain lands on, and `get_face(:y)` the face the root re-exports.
             twin = gather_reads(_compile_reads(
                 reads(q = get_state("inner/plant", :q), v = get_state("inner/plant", "q[2]"),
                       acc = get_state("inner/ctl", :acc), q̇ = get_deriv("inner/plant", :q),
                       a = get_deriv("inner/plant", "q[2]"), y = get_output("inner/plant", :y),
-                      u = get_input(:drive), face = get_face(:lift)), wrapped_build, T), sim.model.exec)
+                      u = get_input(:drive), face = get_face(:lift)), wrapped_build, T), model.exec)
             @test mounted === twin                                # field by field, labels included
             @test mounted.q == SVector{2,T}(0.3, -0.2) && mounted.u === T(1.5)
             @test mounted.v === mounted.q[2]                      # the leaf address carried through
@@ -364,7 +365,7 @@ function test_readers()
             # face its own port, its input the root input feeding it.
             at_plant = gather_reads(_compile_reads(
                 at("inner/plant", reads(q = get_state("", :q), y = get_face(:y), u = get_input(:u))),
-                wrapped_build, T), sim.model.exec)
+                wrapped_build, T), model.exec)
             @test at_plant === (q = twin.q, y = twin.y, u = twin.u)
         end
 
@@ -546,32 +547,32 @@ function test_readers()
         # an invariant the services uphold, so the refusal is an internal assertion
         # and carries no kind name.
         nominal = Simulation(readable(); h = 1//10)
-        seeded = Simulation(readable(), D8; h = 1//10)
+        seeded = Model(readable(), D8; h = 1//10)
         init!(seeded, readable_condition())
         before = world(seeded)
 
-        err = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.model.deployment.build), seeded.model.exec))
+        err = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.model.deployment.build), seeded.exec))
         @test err isa InternalInvariant         # not a diagnostic kind, and not a DiagnosticError
         @test occursin("compiled at Float64", err.message) && occursin("Dual{Nothing, Float64, 8}", err.message)
         # `InternalInvariant` carries a message and no payload by design (D-215),
         # so it is matched on text — it is no diagnostic kind.
 
         authored = readable_condition()
-        err = failure(() -> apply!(seeded.model.exec, resolve_condition(authored, nominal.model.deployment.build)))
+        err = failure(() -> apply!(seeded.exec, resolve_condition(authored, nominal.model.deployment.build)))
         @test err isa InternalInvariant
-        err = failure(() -> apply!(seeded.model.exec, compile_plan(authored, nominal.model.deployment.build), authored))
+        err = failure(() -> apply!(seeded.exec, compile_plan(authored, nominal.model.deployment.build), authored))
         @test err isa InternalInvariant
 
         @test world(seeded) == before                # every refusal left the executor alone
     end
 
-    @testset "the origin is a `Float64`, so a seeded simulation takes `t0` (§12.6, D-260)" begin
+    @testset "the origin is a `Float64`, so a seeded model takes `t0` (§12.6, D-260)" begin
         # `t₀` is the grid's anchor and no design reader wants it perturbed, so
-        # it is a `Float64` on the clock while `t` stays in the deployment's
+        # it is a `Float64` on the clock while `t` stays in the model's
         # scalar. A `T`-typed keyword refused `t0 = 0.25` here.
-        seeded = Simulation(readable(), D8; h = 1//10)
+        seeded = Model(readable(), D8; h = 1//10)
         init!(seeded, readable_condition(); t0 = 0.25)
-        @test seeded.model.exec.clock.t₀ === 0.25
-        @test seeded.model.exec.clock.t isa D8 && ForwardDiff.value(seeded.model.exec.clock.t) === 0.25
+        @test seeded.exec.clock.t₀ === 0.25
+        @test seeded.exec.clock.t isa D8 && ForwardDiff.value(seeded.exec.clock.t) === 0.25
     end
 end

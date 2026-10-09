@@ -49,11 +49,11 @@ function continuous_skeleton()
     end
 
     @testset "the whole continuous path is generic over the scalar (§7.2)" begin
-        sim = Simulation(feedback_model(), D8; h = 1//1000)
-        init!(sim, fragment(u = (ref = D8(0.7),)))
-        run!(sim; t_end = 0.05)
-        @test state(sim, "plant").q isa SVector{2,D8}
-        @test ForwardDiff.value(port(sim, "plant", :y)) != 0.0
+        dual_model = Model(feedback_model(), D8; h = 1//1000)
+        init!(dual_model, fragment(u = (ref = D8(0.7),)))
+        frames!(dual_model, 50)                # `run!` to 0.05
+        @test state(dual_model, "plant").q isa SVector{2,D8}
+        @test ForwardDiff.value(port(dual_model, "plant", :y)) != 0.0
     end
 
 end

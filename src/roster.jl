@@ -149,7 +149,7 @@ _who(entry::RosterEntry) = _handle(entry).who
 # would also permit. The run's trace and this writer's index into its schema
 # list ride along (§11.5, D-260), which is why every thunk is compiled at one
 # site alone — `_install_writers!` (trace.jl) — and recompiled whenever the
-# indices move. `trc` is concrete in the closure, a `Trace{T}` or `nothing`, so
+# indices move. `trc` is concrete in the closure, a `Trace` or `nothing`, so
 # the record branch inside `_drain!` folds where there is nothing to record.
 _drain_thunk(store, writer::Writer, trc, writer_index::Int) =
     () -> _drain!(store, writer, trc, writer_index)

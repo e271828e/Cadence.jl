@@ -618,24 +618,24 @@ function conditions_specialized_apply()
     end
 
     @testset "the converters are baked per leaf, at the activation (§14.3)" begin
-        sim = Simulation(tri(), D8; h = 1//10)
-        build = sim.model.deployment.build
+        dual_model = Model(tri(), D8; h = 1//10)
+        build = dual_model.deployment.build
 
         # A plain `Float64` leaf against a seeded activation: the zero-partial
         # embedding, which is semantically exact for a value held at the operating
         # point and in no other case.
         held = at("plant", fragment(x = (q = SVector(1.0, 2.0),)))
-        apply!(sim.model.exec, compile_plan(held, build, D8), held)
-        @test sim.model.exec.xbuf == D8[1.0, 2.0]
-        @test all(iszero, ForwardDiff.partials(sim.model.exec.xbuf[1]))
+        apply!(dual_model.exec, compile_plan(held, build, D8), held)
+        @test dual_model.exec.xbuf == D8[1.0, 2.0]
+        @test all(iszero, ForwardDiff.partials(dual_model.exec.xbuf[1]))
 
         # A leaf already at the activation's scalar — decision-descended — takes the
         # type's own methods, partials flowing through untouched.
         seed = ForwardDiff.Dual{Nothing}(2.5, ntuple(i -> i == 1 ? 1.0 : 0.0, 8)...)
         seeded = at("plant", fragment(x = (q = SVector(seed, zero(seed)),)))
-        apply!(sim.model.exec, compile_plan(seeded, build, D8), seeded)
-        @test ForwardDiff.value(sim.model.exec.xbuf[1]) === 2.5
-        @test ForwardDiff.partials(sim.model.exec.xbuf[1])[1] === 1.0
+        apply!(dual_model.exec, compile_plan(seeded, build, D8), seeded)
+        @test ForwardDiff.value(dual_model.exec.xbuf[1]) === 2.5
+        @test ForwardDiff.partials(dual_model.exec.xbuf[1])[1] === 1.0
 
         # And the one case no converter covers: a discrete `s` is frozen at a
         # non-nominal activation (§9.4), so a decision variable authored into it is

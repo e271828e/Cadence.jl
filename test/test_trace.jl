@@ -227,7 +227,7 @@ end
 # A recording's header and schemas behind a hand-built record list: the entry
 # pass is what the assertions are about, so only the batches vary.
 rebatch(trc, batches, frames) =
-    Trace{Float64}(trc.header, copy(trc.schemas), batches, frames)
+    Trace(trc.header, copy(trc.schemas), batches, frames)
 
 # A fresh, initialized target of the recording's own build.
 function replay_target()
@@ -237,12 +237,10 @@ function replay_target()
 end
 
 function trace_entry_pass()
-    @testset "the scalar is dispatch, not a comparison (§12.7)" begin
+    @testset "the scalar is a type, not a comparison (§12.7, D-317)" begin
         trc = recorded_session()
-        d = carried(@test_throws DiagnosticError{CheckpointMismatch} _compile_feed(Simulation(three_root_inputs(), D8; h = 1//10), trc))
-        @test d.what === :scalar && d.expected === Float64 && d.found === D8
-        # …and the matching pair compiles, which is what makes the refusal dispatch
-        # rather than a comparison anyone could forget to write.
+        # A `Trace` holds a `Checkpoint{Float64}` by type, so `_compile_feed` has
+        # no scalar to mismatch, and its refusal arm retired with its fallback.
         @test _compile_feed(replay_target(), trc) isa ReplayFeed
     end
 
@@ -303,8 +301,8 @@ function trace_entry_pass()
         # The header rebuilt with one foreign name in the harness schema: the
         # positional records are meaningless without the schema, so the schema is
         # what has to agree with this model.
-        bent = Trace{Float64}(trc.header, [("harness" => [:a, :zzz, :c])],
-                              copy(trc.batches), trc.frames)
+        bent = Trace(trc.header, [("harness" => [:a, :zzz, :c])],
+                     copy(trc.batches), trc.frames)
         err = failure(() -> _compile_feed(replay_target(), bent))
         d = only(diagnostics(err))
         @test err isa DiagnosticError && d isa ReplaySchemaMismatch
@@ -314,8 +312,8 @@ function trace_entry_pass()
         # The header's own disagreements come first and alone: a trace that is both
         # schema-bent and entry-bent reports the schema, because a record resolved
         # through a contradicted schema would report noise (§12.7's two stages).
-        bad = Trace{Float64}(trc.header, copy(bent.schemas),
-                             [TraceBatch(1, 1, Pair{Int,Any}[9 => 1.0])], 1)
+        bad = Trace(trc.header, copy(bent.schemas),
+                    [TraceBatch(1, 1, Pair{Int,Any}[9 => 1.0])], 1)
         @test kinds(failure(() -> _compile_feed(replay_target(), bad))) == [ReplaySchemaMismatch]
     end
 
@@ -1256,10 +1254,14 @@ function trace_checkpoints()
         @test d.what === :deployment && d.expected === 0.1 && d.found === 0.05
         @test lifecycle(fine) === :built
 
-        # Another activation is refused by dispatch, with the same kind.
+        # A checkpoint taken on a model at another scalar is refused by dispatch,
+        # with the same kind (D-317).
+        dual_model = Model(replay_model(), D8; h = 1//10)
+        init!(dual_model, fragment(u = (ref = 1.0, rate = 0.0)))
+        dual_cp = _take_checkpoint(dual_model, 0, 0)
         d = carried(@test_throws DiagnosticError{CheckpointMismatch} restore!(
-            Simulation(replay_model(), D8; h = 1//10), cp))
-        @test d.what === :scalar && d.expected === Float64 && d.found === D8
+            Simulation(replay_model(); h = 1//10), dual_cp))
+        @test d.what === :scalar && d.expected === D8 && d.found === Float64
 
         # The recording keywords are the door's own, validated under its name.
         d = only(diagnostics(failure(() -> restore!(Simulation(replay_model(); h = 1//10), cp;
@@ -1396,8 +1398,8 @@ function trace_checkpoints()
 
     @testset "the fingerprint covers the guards: the priors are copied by position (§12.6, D-274)" begin
         # Five frames in, `low` has fired at frame 3 and holds: its prior is set.
-        ramp(names; T = Float64) =
-            (sim = Simulation(single(GuardedRamp{names}()), T; h = 1//10);
+        ramp(names) =
+            (sim = Simulation(single(GuardedRamp{names}()); h = 1//10);
              init!(sim); step!(sim; frames = 5); sim)
         low_high = ramp((:low, :high))
         cp = checkpoint(low_high)
@@ -1430,14 +1432,15 @@ function trace_checkpoints()
         assert_unwritten(target, before)
 
         # Off the nominal activation the events compile out, so the list is
-        # empty, and a checkpoint goes back into its twin.
-        dual = ramp((:low, :high); T = D8)
-        dual_cp = checkpoint(dual)
+        # empty, and a `Dual` model's checkpoint goes back into its twin (D-317).
+        dual = Model(single(GuardedRamp{(:low, :high)}()), D8; h = 1//10)
+        init!(dual); frames!(dual, 5)
+        dual_cp = _take_checkpoint(dual, 5, 5)
         @test isempty(dual_cp.layout.events) && isempty(dual_cp.prior)
-        twin = Simulation(single(GuardedRamp{(:low, :high)}()), D8; h = 1//10)
+        twin = Model(single(GuardedRamp{(:low, :high)}()), D8; h = 1//10)
         init!(twin)
-        restore!(twin, dual_cp)
-        @test twin.run.frame == 5 && state(twin, "c") == state(dual, "c")
+        _restore_state!(twin.exec, dual_cp)
+        @test state(twin, "c") == state(dual, "c")
     end
 
     @testset "`restore = false` feeds on the recording's clock (§12.7, D-274)" begin

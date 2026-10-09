@@ -160,7 +160,7 @@ function test_lifecycle()
         init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 1.0)                           # this advance's bound
         record = termination(sim)
-        @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§9.4, D-203)
+        @test record isa TerminationRecord && record.t isa Float64   # the nominal scalar (§9.4, D-203, D-317)
         @test record.source === EndTimeReached() && record.t == 1.0
         @test isempty(record.residue)                         # a quiet tail contributes no record
         @test sim.run.frame == 50
@@ -203,12 +203,11 @@ function test_lifecycle()
         @test step!(shifted; t_plus = 3 * shifted.model.deployment.h) == 3
         @test shifted.model.exec.clock.t == t_three
         @test step!(shifted; t_plus = 0.3) == 3
-        # The same at a `Dual` activation, whose clock is a `Dual` (D-260).
-        dual_sim = Simulation(feedback_model(), D8; h = 1//10)
-        init!(dual_sim, fragment(u = (ref = D8(0.0),)); t0 = -0.3)
-        @test step!(dual_sim; t_plus = 3 * dual_sim.model.deployment.h) == 3
-        @test dual_sim.model.exec.clock.t isa D8
-        @test step!(dual_sim; t_plus = 0.3) == 3
+        # A `Dual` model's clock is a `Dual`, from the same origin (D-260, D-317).
+        dual_model = Model(feedback_model(), D8; h = 1//10)
+        init!(dual_model, fragment(u = (ref = D8(0.0),)); t0 = -0.3)
+        frames!(dual_model, 3)
+        @test dual_model.exec.clock.t isa D8
 
         # Both helpers against the grid the loop writes, `t₀ + k * h`: every
         # frame top resolves to its own frame, and every midpoint floors onto

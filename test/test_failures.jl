@@ -472,16 +472,8 @@ function failures_runtime()
         # Appendix C's payloads are `Float64` and the clock under a `D8` activation
         # is a `Dual`, which `Float64` has no method for: the framing is what would
         # throw a `MethodError` over the model's own failure, losing the cause.
-        sim = Simulation(fed(Tripwire(0.05), "arm"), D8; h = 1//10)
-        init!(sim, fragment(u = (in = true,)))
-        err = failure(() -> run!(sim; t_end = 5.0))
-        @test err isa StepError{Tripped}
-        @test err.cursor == CursorFrame("c", :x_deriv, :integrate, 2)
-        @test err.t == 0.05 && err.boundary == 0
-        @test lifecycle(sim) === :errored
-
-        # A bare model's frame hosts the same catch: stepped under no hooks, it
-        # throws the same carrier and marks itself inconsistent (D-317).
+        # The model's frame hosts the catch: stepped under no hooks, it throws the
+        # carrier and marks itself inconsistent (D-317).
         dual_model = Model(fed(Tripwire(0.05), "arm"), D8; h = 1//10)
         init!(dual_model, fragment(u = (in = true,)))
         err = failure(() -> frames!(dual_model, 5))
@@ -492,9 +484,9 @@ function failures_runtime()
 
         # The sweep's own species too: `isfinite` is defined on a `Dual`, the value
         # rides as the `Dual` it is, and the payload times are seconds either way.
-        diverging_sim = Simulation(diverging(), D8; h = 1//10)
-        init!(diverging_sim, fragment(u = (in = true,)))
-        err = failure(() -> step!(diverging_sim; t_end = 5.0))
+        diverging_model = Model(diverging(), D8; h = 1//10)
+        init!(diverging_model, fragment(u = (in = true,)))
+        err = failure(() -> frames!(diverging_model, 1))
         @test err isa StepError{NonfiniteState}
         # the species rule unwrapped the carrier
         @test !(err.cause isa DiagnosticError)
@@ -721,10 +713,10 @@ function failures_conformance()
     end
 
     @testset "the constant branch embeds as a zero-partial at the write (§9.5, D-166)" begin
-        sim = Simulation(single(DecayingBranch()), D8; h = 1//100)
-        init!(sim)
-        run!(sim; t_end = 0.2)                  # `a` decays under 0.5 mid-run
-        value = port(sim, "c", :q)
+        dual_model = Model(single(DecayingBranch()), D8; h = 1//100)
+        init!(dual_model)
+        frames!(dual_model, 20)                 # `run!` to 0.2; `a` decays under 0.5 mid-run
+        value = port(dual_model, "c", :q)
         @test value isa D8
         @test ForwardDiff.value(value) == 0.0
         @test iszero(ForwardDiff.partials(value))

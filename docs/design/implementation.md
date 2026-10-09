@@ -235,8 +235,9 @@ D-289, D-315, D-316.
 - What stays out: the derivative buffer, the arrival pair and the
   localization samples, which every frame rewrites before reading them, the
   cursor and the periphery.
-- `_take_checkpoint`, the one read, behind `checkpoint(sim)` and the trace
-  header `init!` takes. `_restore_state!`, its inverse, behind `restore!`,
+- `_take_checkpoint`, the one read, on a model with the run's two counters
+  passed in, behind `checkpoint(sim)` and the trace header `init!` takes
+  (D-317). `_restore_state!`, its inverse, behind `restore!`,
   `replay!` and `linearize`'s default operating point. It is strict about
   the scalar. `_restore_stores!` is the part of it that writes the `s` and
   `m` stores, shared with `linearize`'s seeded half.
@@ -499,11 +500,11 @@ D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316.
   non-inlined call per `EventChunk`, over the executor's buffers the caller
   hands them (D-261).
 - The execution cursor, which every entry stores into. The cursor holds its
-  dispatch fields alone, and the loop's stop hit is `frame!`'s return value
-  (§13.5, D-261).
+  dispatch fields alone, and whether a frame was abandoned is `frame!`'s
+  `Bool` return (§13.5, D-261, D-317).
 
 Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235,
-D-249, D-255, D-261, D-289.
+D-249, D-255, D-261, D-289, D-317.
 
 ### `src/leaves.jl`
 
@@ -538,7 +539,11 @@ D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276, D-316.
 - `Linearization`, the operating point and the four matrices under the tap
   labels.
 - `linearize`, over D-213's two-half scratch world in passes of `width`
-  directions, the seeds written at the resolved taps' own sites.
+  directions, the seeds written at the resolved taps' own sites. Each half is
+  a scratch `Model`, built by trim.jl's `_scratch` (D-317).
+- `linearize` takes a `Simulation`, so a model at another scalar meets no
+  method. `ArgumentInvalid`'s `:non_nominal` has no raiser until increment
+  two moves the service onto the model (D-317).
 - The default operating point is `checkpoint(sim)`, restored into the
   nominal half with no resolve, no `apply!` and no establishment round, so
   the frozen cells are the checkpoint's held cells. The `about` form keeps
@@ -558,7 +563,7 @@ D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276, D-316.
   linear `[k]` names and the two spellings are one site (D-276).
 
 Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
-D-276, D-277.
+D-276, D-277, D-317.
 
 ### `src/localization.jl`
 
@@ -668,18 +673,19 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   `ModelRequestedStop`, `ControlRequestedStop` and `LoopError`, `StopPolicy`
   and `TerminationRecord` (D-203, D-255). `ModelRequestedStop` carries the
   requester's path, port and reason (D-316).
-- `Run{T}`, §12.6's run state with the frame and boundary counters, and
+- `Run`, §12.6's run state with the frame and boundary counters, and
   `closed(run)` (D-255, D-260, D-317).
 - `Model{T,E}`, the deployment and its executor at one scalar, its status and
   its frame's diagnostic cell (§9.2, §11.8, §12.6, D-317).
 - The mutable `Simulation` of four fields, the model, the plane, the control
-  and the run (§12.1, D-256, D-317).
+  and the run, its model a `Model{Float64}` by type (§12.1, D-256, D-317).
 - The materialization `Model(deployment, T)`, with `Model(::Build)` and
-  `Model(::AbstractComponent)` over it, and `Simulation(model)`.
+  `Model(::AbstractComponent)` over it, and `Simulation(model::Model{Float64})`,
+  the one constructor every simulation goes through (D-317).
 - The doors' recording keywords, checked by `_check_recording`.
-- The three sugar forms `Simulation(::Deployment, T)`, `Simulation(::Build)`
-  and `Simulation(::AbstractComponent)`, each a composition through a `Model`
-  (D-254, D-317).
+- The three sugar forms `Simulation(::Deployment)`, `Simulation(::Build)`
+  and `Simulation(::AbstractComponent)`, each a composition through a
+  `Float64` model (D-254, D-317).
 - `warnings(::Model)`, with a forwarding method on the simulation (D-250).
 - The boundary macro-sequence.
 - The §10.6 event phase, with its `FiringBudget` degradation into the model's
@@ -751,7 +757,7 @@ Spec: §10.2, D-017.
 - `_cell_key`, and `STOP_FLAG_KEY`, the `StopFlag` buffer's key (D-316).
 - The `Clock` of `t` and `t₀`, the frame and boundary counters being the
   run's (D-260, D-317):
-  - its `t` is in the deployment's scalar;
+  - its `t` is in the model's scalar;
   - its origin `t₀` is a `Float64`;
   - the constructor takes `t₀` and converts it into `t`.
 
@@ -760,14 +766,15 @@ Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316, D-317.
 ### `src/trace.jl`
 
 - The input trace:
-  - the mutable `Trace{T}`, holding its header, two lists that grow in
+  - the mutable `Trace`, holding its header, two lists that grow in
     place, namely the writers' schemas and one sparse record per drained
     batch, and the length a replay reads its bound off, which is also the
     ordinal each record carries and which the drain advances at its top
     (D-255, D-260);
-  - the header is a `Checkpoint{T}` written once. `init!` writes it after
-    boundary zero's first publication, and `restore!` and `replay!` open
-    their run with the checkpoint they restore. It is `nothing` only between
+  - the header is a `Checkpoint{Float64}`, the nominal simulation's (D-317),
+    written once. `init!` writes it after boundary zero's first publication,
+    and `restore!` and `replay!` open their run with the checkpoint they
+    restore. It is `nothing` only between
     `init!`'s opening of the run and that publication (D-274).
 - `_install_writers!` (D-261):
   - the growth rule;
@@ -785,7 +792,7 @@ Spec: §9.5, §9.7, §13.5, D-162, D-235, D-237, D-260, D-316, D-317.
   scopes by path and column (§12.7).
 
 Spec: §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218,
-D-254, D-255, D-260, D-261, D-274.
+D-254, D-255, D-260, D-261, D-274, D-317.
 
 ### `src/tracer.jl`
 
@@ -806,12 +813,16 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
   read set mounted, the path-free fields and a `reads` that is no read set
   passed through (§14.9, D-277).
 - The `solve` seam, with `LevenbergMarquardt`.
-- `trim!`, over D-213's two-half scratch world.
+- `trim!`, over D-213's two-half scratch world. Each half is a scratch
+  `Model`, built by `_scratch`, which linearize.jl shares (D-317).
+- `trim!` takes a `Simulation`, so a model at another scalar meets no method.
+  `ArgumentInvalid`'s `:non_nominal` has no raiser until increment two moves
+  the service onto the model (D-317).
 - The frozen copy, over the `Outputs`' port list.
 - `TrimReport`, with its `committed_checks` (D-262).
 
 Spec: §9.6, §13.1, §14.5–§14.9, D-070, D-158, D-213, D-224, D-253, D-262,
-D-277.
+D-277, D-317.
 
 ### `test/fixtures.jl`
 

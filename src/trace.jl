@@ -7,7 +7,7 @@
 #
 # This file holds the trace itself and the pure mechanics; the `Simulation`-facing
 # surface — the header's placement in `init!`, the drain's frame stamp,
-# `trace(sim)`, `_compile_feed`'s scalar gate, `replay!` and the drain
+# `trace(sim)`, `_compile_feed`, `replay!` and the drain
 # substitution — lives in sim.jl, beside the loop that runs it. The drain
 # thunks are compiled here too
 # (`_install_writers!`), because the writer's schema index rides in them and
@@ -52,10 +52,12 @@ detached value of the same type, which no drain ever advances.
 
 A record is meaningless without its schema entry: the positions are against
 `schemas[batch.writer]`, and replay does not reconstruct claims (§12.7). The
-tags are §11.8's own writer names, `_who(entry)` and `"harness"`.
+tags are §11.8's own writer names, `_who(entry)` and `"harness"`. The
+recording is the nominal simulation's, so the header is a `Checkpoint{Float64}`
+by type (D-317).
 """
-mutable struct Trace{T}
-    header::Union{Nothing,Checkpoint{T}}          # written once, by the door (D-274)
+mutable struct Trace
+    header::Union{Nothing,Checkpoint{Float64}}    # written once, by the door (D-274)
     const schemas::Vector{Pair{String,Vector{Symbol}}}   # writer tag => face-name-by-position
     const batches::Vector{TraceBatch}              # in drain order: by frame, then by writer index
     frames::Int

@@ -2,8 +2,8 @@
 # value, taken by `checkpoint(sim)` and by `init!` for the trace header, and put
 # back by `restore!` and `replay!`. This file holds the value, the one read, its
 # inverse and the fingerprint check the two restoring doors share; the doors
-# themselves live in sim.jl, beside the loop. `sim` is untyped throughout for
-# include order alone, this file preceding sim.jl.
+# themselves live in sim.jl, beside the loop. `sim` and `model` are untyped
+# throughout for include order alone, this file preceding sim.jl.
 
 """
 The structural fingerprint (§11.5, §12.7): the layout's cell sizes, the root
@@ -52,15 +52,15 @@ struct Checkpoint{T}
     layout::Fingerprint              # compared against the `Build`
 end
 
-# The fingerprint off the simulation, one function for its two sides: the take
+# The fingerprint off the model, one function for its two sides: the take
 # writes it into the checkpoint and the check compares against it, since two
 # spellings of one fingerprint would be a silent way for a restore to pass.
-function _fingerprint(sim)
-    exec = sim.model.exec
+function _fingerprint(model)
+    exec = model.exec
     layout = exec.act.layout
     Fingerprint(copy(layout.sizes),
                 Symbol[f for (f, _) in layout.root_inputs],
-                String[entry.path for entry in sim.model.deployment.build.structure.components],
+                String[entry.path for entry in model.deployment.build.structure.components],
                 Any[isempty(decl.x) ? nothing : typeof(decl.x) for decl in exec.act.decls],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.sstores],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores],
@@ -72,17 +72,17 @@ end
 
 # The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
 # The stores are copied by value, being isbits (D-231). The counters are the
-# run's (D-317).
-function _take_checkpoint(sim)
-    exec = sim.model.exec
-    clock, run = exec.clock, sim.run
-    T = eltype(exec.xbuf)      # the deployment's scalar, off the buffer that carries it
+# run's, passed in, so a standalone model checkpoints too (D-317).
+function _take_checkpoint(model, frame::Int, boundary::Int)
+    exec = model.exec
+    clock = exec.clock
+    T = eltype(exec.xbuf)      # the model's scalar, off the buffer that carries it
     s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
     m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
     checkpoint_stepper(exec.stepper)   # empty for a one-step method (stepper.jl)
     Checkpoint{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
-                  clock.t, run.frame, run.boundary, clock.t₀, sim.model.deployment,
-                  _fingerprint(sim))
+                  clock.t, frame, boundary, clock.t₀, model.deployment,
+                  _fingerprint(model))
 end
 
 # The inverse: every field copied back into the executor, the clock's `t` and
@@ -128,7 +128,7 @@ _detach(cp::Checkpoint{T}) where {T} =
 # as *values*, one `==` as D-254 asks, with `_walk_deployment!` (trace.jl) as
 # its explanation. The clock is restored, never compared.
 function _check_checkpoint!(diags::Vector{Diagnostic}, sim, cp::Checkpoint)
-    target = _fingerprint(sim)
+    target = _fingerprint(sim.model)
     recorded = cp.layout
     recorded.sizes == target.sizes ||
         push!(diags, CheckpointMismatch(what = :store, name = :sizes,

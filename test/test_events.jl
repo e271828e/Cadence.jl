@@ -302,16 +302,16 @@ function test_events()
     end
 
     @testset "events compile out at a non-nominal activation (§9.4, D-052)" begin
-        sim = Simulation(fed(Trigger(0.5), "sig"), D8; h = 1//10)
-        @test isempty(sim.model.exec.events.entries)
-        init!(sim, fragment(u = (in = D8(1.0),)))
-        run!(sim; t_end = 0.3)
-        @test modes(sim, "c").count == 0            # the guard never ran
+        dual_model = Model(fed(Trigger(0.5), "sig"), D8; h = 1//10)
+        @test isempty(dual_model.exec.events.entries)
+        init!(dual_model, fragment(u = (in = D8(1.0),)))
+        frames!(dual_model, 3)                      # `run!` to 0.3
+        @test modes(dual_model, "c").count == 0     # the guard never ran
 
         # Projection is continuous machinery, inside every executable set.
-        rotor_sim = Simulation(single(Rotor(; r₀ = SVector(2.0, 0.0))), D8; h = 1//100)
-        init!(rotor_sim)
-        @test ForwardDiff.value(state(rotor_sim, "c").r[1]) ≈ 1.0 atol = 1e-15
+        rotor_model = Model(single(Rotor(; r₀ = SVector(2.0, 0.0))), D8; h = 1//100)
+        init!(rotor_model)
+        @test ForwardDiff.value(state(rotor_model, "c").r[1]) ≈ 1.0 atol = 1e-15
     end
 
     @testset "gate 3: a quiet boundary with events does not allocate (§7.5)" begin

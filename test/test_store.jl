@@ -21,12 +21,12 @@ function store_pinned_leaf()
         @test keys(sim.model.exec.store.stores) === (_cell_key(Float64),)
         # Off nominal the pin keeps a `Float64` buffer of its own beside the `Dual`
         # one, rather than being flattened into it as a zero-partial.
-        sim = Simulation(single(PinnedLeaf()), D8; h = 1//100)
-        @test Set(keys(sim.model.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
-        init!(sim)
-        @test port(sim, "c", :a) isa D8
-        @test port(sim, "c", :frozen) isa Float64
-        @test port(sim, "c", :frozen) == 2.0  # a stored constant, not a computed product
+        dual_model = Model(single(PinnedLeaf()), D8; h = 1//100)
+        @test Set(keys(dual_model.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
+        init!(dual_model)
+        @test port(dual_model, "c", :a) isa D8
+        @test port(dual_model, "c", :frozen) isa Float64
+        @test port(dual_model, "c", :frozen) == 2.0  # a stored constant, not a computed product
     end
 end
 
@@ -70,10 +70,10 @@ function store_mixed_cell()
         # walks while `ref` stays a pinned `Float64` in its own buffer.
         sim = Simulation(single(PinnedInside()); h = 1//100)
         @test keys(sim.model.exec.store.stores) === (_cell_key(Float64),)
-        sim = Simulation(single(PinnedInside()), D8; h = 1//100)
-        @test Set(keys(sim.model.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
-        init!(sim)
-        out = port(sim, "c", :out)
+        dual_model = Model(single(PinnedInside()), D8; h = 1//100)
+        @test Set(keys(dual_model.exec.store.stores)) == Set([_cell_key(D8), _cell_key(Float64)])
+        init!(dual_model)
+        out = port(dual_model, "c", :out)
         @test out isa PinnedPair{D8}
         @test out.a isa D8 && out.ref === 2.0
     end
@@ -199,11 +199,11 @@ function store_opaque_leaf()
 
         # The handle's declaration carries no `T`, so its cell is the same type
         # at every activation while the numeric ports follow the scalar.
-        dual_sim = Simulation(build(handle_model()), D8; h = 1//10)
-        init!(dual_sim)
-        @test _cell_key(HeightField) in keys(dual_sim.model.exec.store.stores)
-        @test port(dual_sim, "src", :terrain) isa HeightField
-        @test port(dual_sim, "q", :h) isa D8
+        dual_model = Model(build(handle_model()), D8; h = 1//10)
+        init!(dual_model)
+        @test _cell_key(HeightField) in keys(dual_model.exec.store.stores)
+        @test port(dual_model, "src", :terrain) isa HeightField
+        @test port(dual_model, "q", :h) isa D8
 
         # One load and one store: the sweep that gathers and scatters a handle
         # allocates nothing (§9.7's canary, `test_executor.jl`).

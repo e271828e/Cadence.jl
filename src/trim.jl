@@ -439,7 +439,7 @@ operating point an equilibrium?" probe, useful in its own right and free.
 `stopped`, refused while `running` and on an `errored` simulation, exactly as
 `init!` is.
 """
-function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
+function trim!(sim::Simulation, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
     status = lifecycle(sim)
     status === :running && throw(DiagnosticError(ServiceLifecycle(
@@ -461,7 +461,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     tol = Float64[tolerances[k] for k in residual_names]
 
     # --- the nominal half (D-213) ------------------------------------------------
-    nominal_exec = _scratch(sim, Float64)
+    nominal_exec = _scratch(sim, Float64).exec
     plan = resolve_condition(override(baseline, problem.condition(guess)), build, Float64)
     assert_total(plan, build.structure, :trim!)    # (§14.6): pre-evaluation, all-or-nothing
     apply!(nominal_exec, plan)
@@ -486,7 +486,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     # --- the seeded half ---------------------------------------------------------
     T = ForwardDiff.Dual{TrimTag,Float64,N}
     act = activation(build, T)                # the cached activation (§9.4)
-    seeded_exec = _scratch(sim, T, act)
+    seeded_exec = _scratch(sim, T).exec
     _establish_frozen!(seeded_exec, act, nominal_exec, sim.model.deployment.build)
     # The names enter the closure as types: captured as a `Tuple` of `Symbol`s,
     # they would leave every `NamedTuple` `eval!` builds to runtime dispatch.
@@ -550,27 +550,17 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
               _saturated(decision_names, out.d, lower, upper), reader, t0)
 end
 
-# A non-nominal deployment is refused rather than served: the commit runs
-# through boundary zero on the simulation's own stores, and those are the
-# nominal world's. The seeded activation trim needs is the service's scratch,
-# never the deployment's.
-trim!(sim::Simulation, ::TrimProblem; kw...) = throw(DiagnosticError(
-    ArgumentInvalid(call = :trim!, reason = :non_nominal, value = string(typeof(sim)))))
-
 trim!(::Simulation, other; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
                     value = string(typeof(other)))))
 
 # --- the pieces the service is built out of --------------------------------------
 
-# One scratch executor: the same buffer set the `Simulation` owns, at whatever
-# scalar, from the same cached layouts and the same bound entry data — and it
-# dies with the call (§9.2, §14.8, glossary `scratch`).
-_scratch(sim::Simulation, ::Type{T}) where {T} = _scratch(sim, T, activation(sim.model.deployment.build, T))
-function _scratch(sim::Simulation, ::Type{T}, act::Activation{T}) where {T}
-    compile(sim.model.deployment.build, act, sim.model.deployment.schedule;
-            chunk_size = sim.model.exec.chunk_size, algorithm = sim.model.deployment.algorithm)
-end
+# One scratch model: the same buffer set the simulation's model owns, at
+# whatever scalar, from the same cached activation and the same deployment —
+# and it dies with the call (§9.2, §14.8, glossary `scratch`, D-317).
+_scratch(sim::Simulation, ::Type{T}) where {T} =
+    Model(sim.model.deployment, T; chunk_size = sim.model.exec.chunk_size)
 
 # D-213's copy: a frozen component's stages are outside the seeded activation's
 # executable set (§9.4), so its output cells can only come from the nominal half
