@@ -24,10 +24,10 @@ half it shares; the selectors and `_resolve_selector` in `src/readers.jl`;
 Two fixtures from `test/fixtures.jl`, wired into one assembly:
 
 ```julia
-model = Group((; s = Sum(), c = Pendulum());
-              local_wires  = ("s/e" => "c/u",),
-              input_wires  = ("τ" => "s/a", "d" => "s/b"),
-              output_wires = ("c/θ" => "θ", "s/e" => "u_eff"))
+root = Group((; s = Sum(), c = Pendulum());
+             local_wires  = ("s/e" => "c/u",),
+             input_wires  = ("τ" => "s/a", "d" => "s/b"),
+             output_wires = ("c/θ" => "θ", "s/e" => "u_eff"))
 ```
 
 `Sum` is stateless with two inputs and one feedthrough output,
@@ -462,14 +462,15 @@ legibility; the default width is 8 (section 7), and the same four directions
 then occupy four of eight slots.
 
 **Step 1: the operating point.** With no `about` keyword it is
-`checkpoint(sim)`, the executor's state at a frame top as one value: the flat
-buffer, the stores, the whole signal table, the guard priors and the clock
-([§12.6][s12-6], [D-274][d-274]). For our trimmed sim it holds `x = [0.3,
-0.0]` and the root-input cells `τ = 2.899` and `d = 0.0`. A checkpoint is
-not a condition, so nothing is resolved from it. `checkpoint` is legal in
-`initialized` and `stopped`, and it is refused mid-frame after a `t*` stop.
-The default form inherits both. `about = <condition>` bypasses the
-checkpoint, takes `t0` beside it, and is legal wherever `init!` is.
+`checkpoint(sim)`, the `Model`'s state at a frame top as one value beside the
+run's two counters: the state holds the flat buffer, the stores, the whole
+signal table, the guard priors and the clock ([§12.6][s12-6], [D-274][d-274]).
+For our trimmed sim it holds `x = [0.3, 0.0]` and the root-input cells
+`τ = 2.899` and `d = 0.0`. A checkpoint is not a condition, so nothing is
+resolved from it. `checkpoint` is legal in `initialized` and `stopped`, and it
+is refused mid-frame after a `t*` stop. The default form inherits both.
+`about = <condition>` bypasses the checkpoint, takes `t0` beside it, and is
+legal wherever `init!` is.
 
 **Step 2: the nominal half.** A scratch executor at `Float64` (`_scratch`).
 In the default form `_restore_state!` copies the checkpoint into it, and that

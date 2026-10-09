@@ -21,10 +21,10 @@ environment at all.
 
 ## The trigger: a condition that cannot be written
 
-Today, `Model{<:Aircraft}`'s `f_ode!` and `f_init!` take the atmosphere and
-terrain `Model`s as arguments, and `SimpleWorld` is the structural
-acknowledgement of that: a container whose job is to hold the three of them
-and thread the right pair into each aircraft call.
+Today, in Flight.jl, `Model{<:Aircraft}`'s `f_ode!` and `f_init!` take the
+atmosphere and terrain `Model`s as arguments, and `SimpleWorld` is the
+structural acknowledgement of that: a container whose job is to hold the three
+of them and thread the right pair into each aircraft call.
 
 The C172's trim assignment is where this bites hardest
 (`lib/FlightApps/src/c172/c172.jl:825-854`). `Kinematics.Initializer` — the

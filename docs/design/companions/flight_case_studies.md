@@ -270,9 +270,9 @@ three. What each leaves behind is the design's own answer.
 The demo, line by line:
 
 - `SimpleWorld(Cessna172Xv1(), SimpleAtmosphere(), HorizontalTerrain(h_LOWS15))`
-  is pure value construction, with no `Model` wrapper (its jobs move into the
-  build). `HorizontalTerrain`'s elevation is a plain field (a parameter) and
-  its surface type an input port. The parameter/port split that
+  is pure value construction, with no FlightCore `Model` wrapper (its jobs
+  move into the build). `HorizontalTerrain`'s elevation is a plain field (a
+  parameter) and its surface type an input port. The parameter/port split that
   FlightCore kept implicit in its `U()`-vs-field convention is now the
   declaration itself. The aircraft's `input_wires` block carries the
   `pilot.*` face group in one place, hands it one level down to

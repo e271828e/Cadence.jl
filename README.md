@@ -1,10 +1,10 @@
 # Redstone.jl
 
 Redstone is a Julia framework for modeling and simulating hierarchical hybrid
-systems. A model is a tree of components that exchange values through directed
-ports, mixing continuous dynamics, multi-rate periodic discrete dynamics and
-events. Its home domain is aircraft guidance, navigation and control, but the
-formalism is domain-neutral.
+systems. A model is written as a tree of components that exchange values
+through directed ports, mixing continuous dynamics, multi-rate periodic
+discrete dynamics and events. Its home domain is aircraft guidance, navigation
+and control, but the formalism is domain-neutral.
 
 ## Features
 
@@ -95,7 +95,7 @@ imported explicitly.
 Each component has two output stages. `y_state` sees only the state, and
 `y_direct` also sees the inputs. The build derives the execution order
 from that split. Feeding back the plant's stage-2 `power` port instead of `y`
-closes an algebraic loop, and the build refuses the model:
+closes an algebraic loop, and the build refuses the tree:
 
 ```
 julia> build(loop("power"))
