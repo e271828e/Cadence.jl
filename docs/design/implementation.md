@@ -45,7 +45,7 @@ user material inside the package, with no property of its own to own it.
 The package module: the dependencies and the include order the other files load
 in: leaves, diagnostics, declare, assembly, store, executor, build, tracer,
 readers, deployment, dataplane, checkpoint, trace, roster, bindings, control,
-conditions, model, stepper, frame, sim, devices, trim, linearize, show, blocks.
+conditions, model, stepper, frame, trim, linearize, sim, devices, show, blocks.
 The model layer sits between the executor layer and the runtime, by the rule
 in the `src/model.jl` entry.
 
@@ -479,8 +479,9 @@ D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
 - `ArgumentInvalid`'s `:not_built` and `:claimed`, the `Simulation`
   constructor's refusals of its model, and `:claimed` on a claimed model's
   door (§9.2, D-318).
-- `CheckpointMismatch`'s `:scalar` arm naming a `Model`, and
-  `ServiceLifecycle`'s model arm, the refusal off `:consistent` (D-319).
+- `CheckpointMismatch`'s `:scalar` arm naming a `Model`,
+  `ServiceLifecycle`'s model arm, the refusal off `:consistent`, and
+  `ArgumentInvalid`'s `:non_nominal` raised on a `Model` (D-319).
 
 Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §13.5, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
@@ -566,13 +567,17 @@ D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276, D-316.
   pre-materializable scalar.
 - `Linearization`, the operating point and the four matrices under the tap
   labels.
-- `linearize`, over D-213's two-half scratch world in passes of `width`
-  directions, the seeds written at the resolved taps' own sites. Each half is
-  a scratch `Model`, built by trim.jl's `_scratch` (D-317).
-- `linearize` takes a `Simulation`, so a model at another scalar meets no
-  method. `ArgumentInvalid`'s `:non_nominal` has no raiser until increment
-  two moves the service onto the model (D-317).
-- The default operating point is `checkpoint(sim)`, restored into the
+- `linearize` on a `Model{Float64}`, over D-213's two-half scratch world in
+  passes of `width` directions, the seeds written at the resolved taps' own
+  sites. Each half is a scratch `Model`, built by trim.jl's `_scratch`
+  (D-317, D-319).
+- `_check_linearize_call`, the keyword refusals, and `_linearize`, the query
+  over a chosen operating point, which the simulation's method in sim.jl
+  shares (D-319).
+- The misuse fallback on a `Model`, and `ArgumentInvalid`'s `:non_nominal` on
+  a `Model` at another scalar (D-319).
+- The default operating point is `checkpoint(model)`, or `checkpoint(sim)`
+  through the simulation's method (D-319), restored into the
   nominal half with no resolve, no `apply!` and no establishment round, so
   the frozen cells are the checkpoint's held cells. The `about` form keeps
   the resolve, the `apply!` and D-213's round (D-274).
@@ -591,7 +596,7 @@ D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276, D-316.
   linear `[k]` names and the two spellings are one site (D-276).
 
 Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
-D-276, D-277, D-317.
+D-276, D-277, D-317, D-319.
 
 ### `src/model.jl`
 
@@ -758,6 +763,10 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - `checkpoint(sim)`, the wrap of `checkpoint(sim.model)` with the run's two
   counters, and `restore!`'s two forms, of a `Checkpoint` and of a bare
   `ModelState{Float64}`, with the scalar fallback on a bare state (D-319).
+- `trim!` and `linearize` on the simulation, each gated on the lifecycle over
+  the model's `_solve_problem` or `_linearize`, `trim!` committing through
+  the simulation's `init!`, with the misuse forms forwarding to the model's
+  (§14.8, §14.10, D-319).
 - `_reset_periphery!` and `_open_run!`.
 - `attach!`/`detach!`.
 - The pause verbs `pause!`/`resume!`/`paused`, beside `stop!(sim)` (§12.1,
@@ -797,7 +806,7 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   (D-318).
 
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.4–§13.6,
-§14, §14.5, §14.6, D-027, D-101, D-203, D-218, D-219,
+§14, §14.5, §14.6, §14.8, §14.10, D-027, D-101, D-203, D-218, D-219,
 D-223, D-232, D-233, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
 D-268, D-269, D-270, D-274, D-316, D-317, D-318, D-319.
 
@@ -877,16 +886,19 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
   read set mounted, the path-free fields and a `reads` that is no read set
   passed through (§14.9, D-277).
 - The `solve` seam, with `LevenbergMarquardt`.
-- `trim!`, over D-213's two-half scratch world. Each half is a scratch
-  `Model`, built by `_scratch`, which linearize.jl shares (D-317).
-- `trim!` takes a `Simulation`, so a model at another scalar meets no method.
-  `ArgumentInvalid`'s `:non_nominal` has no raiser until increment two moves
-  the service onto the model (D-317).
+- `trim!` on a `Model{Float64}`, gated on the claim (D-318), over D-213's
+  two-half scratch world. Each half is a scratch `Model`, built by
+  `_scratch` over the model, which linearize.jl shares (D-317, D-319).
+- `_solve_problem`, the solve through the verdict's evaluation, and
+  `_verdict!`, which takes the caller's commit, both shared with the
+  simulation's method in sim.jl (D-319).
+- The misuse fallback on a `Model`, and `ArgumentInvalid`'s `:non_nominal` on
+  a `Model` at another scalar (D-319).
 - The frozen copy, over the `Outputs`' port list.
 - `TrimReport`, with its `committed_checks` (D-262).
 
 Spec: §9.6, §13.1, §14.5–§14.9, D-070, D-158, D-213, D-224, D-253, D-262,
-D-277, D-317.
+D-277, D-317, D-318, D-319.
 
 ### `test/fixtures.jl`
 

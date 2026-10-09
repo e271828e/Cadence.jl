@@ -131,6 +131,42 @@ function test_linearize()
         @test latest(sim) === snapshot && lifecycle(sim) === :stopped
     end
 
+    @testset "`linearize` on a standalone model reads its own checkpoint (§14.10, D-319)" begin
+        model = Model(lin_pend(); h = 1//10)
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} linearize(model, lin_taps()))
+        @test d.op === :linearize && d.status === :built && d.legal == [:consistent]
+        @test linearize(model, lin_taps(); about = lin_point()) isa Linearization
+
+        init!(model, lin_point())
+        linearization = linearize(model, lin_taps())
+        @test isapprox(linearization.A, lin_closed_A(); atol = 1e-12)
+        @test isapprox(linearization.B, [0 0; 1 -1]; atol = 1e-12)
+        @test isapprox(linearization.C, [1 0; 0 0]; atol = 1e-12)
+        @test isapprox(linearization.D, [0 0; 1 -1]; atol = 1e-12)
+
+        # Three frames on, the default point is the model's own checkpoint, and
+        # the query leaves it as it was.
+        frames!(model, 3)
+        before = checkpoint(model)
+        at_rest = combine(at("c", fragment(x = state(model, "c"))),
+                          fragment(u = (τ = port(model, "", :τ), d = port(model, "", :d))))
+        @test same_linearization(linearize(model, lin_taps()),
+                                 linearize(model, lin_taps(); about = at_rest, t0 = before.t))
+        after = checkpoint(model)
+        @test after.x == before.x && after.s == before.s && after.m == before.m &&
+              after.prior == before.prior && same_table(after.table, before.table)
+        @test (after.t, after.t₀) == (before.t, before.t₀)
+        @test after.deployment === before.deployment &&
+              all(getfield(after.layout, f) == getfield(before.layout, f)
+                  for f in fieldnames(typeof(before.layout)))
+
+        # The query is a read, so a model a simulation has claimed still answers.
+        claimed = Model(lin_pend(); h = 1//10)
+        sim = Simulation(claimed)
+        @test linearize(claimed, lin_taps(); about = lin_point()) isa Linearization
+        @test lifecycle(sim) === :built
+    end
+
     @testset "the default form's frozen cells are the checkpoint's held cells (§14.10, D-213, D-274)" begin
         sim = Simulation(lin_sampled(); h = 1//10)
         init!(sim, resume_condition())
@@ -367,10 +403,9 @@ function test_linearize()
 
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} linearize(lin_pend_sim(), (x = (;),)))
         @test d.call === :linearize && d.reason === :not_a_tap_set && d.argument === :taps
-        # A `Dual` model is no simulation, so no method takes it; increment two
-        # moves `linearize` onto the model and gives it a diagnostic (D-317).
         dual = Model(lin_pend(), D8; h = 1//10)
-        @test_throws MethodError linearize(dual, lin_taps())
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} linearize(dual, lin_taps()))
+        @test d.call === :linearize && d.reason === :non_nominal && startswith(d.value, "Model{")
     end
 
     @testset "the two table selectors read a component through the leaf address (§14.4, D-276)" begin

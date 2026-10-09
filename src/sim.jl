@@ -747,6 +747,55 @@ restore!(::Simulation, ::ModelState{T}; kw...) where {T} =
     throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = T, found = Float64)))
 
 """
+    trim!(sim, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt()) → TrimReport
+
+The trim service on a simulation (§14.8, D-319): a stopped-sim service, legal
+in `built`, `initialized` and `stopped`, refused while `running` and on an
+`errored` simulation, exactly as `init!` is. It runs the model's solve and
+commits through `init!(sim, …)`, so the commit opens the run and takes the
+trace header as `init!` does. A solve that does not converge leaves the
+simulation as it was, lifecycle included.
+"""
+function trim!(sim::Simulation, problem::TrimProblem; baseline,
+               t0::Real = 0.0, backend = LevenbergMarquardt())
+    status = lifecycle(sim)
+    status === :running && throw(DiagnosticError(ServiceLifecycle(
+        op = :trim!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    status === :errored && throw(DiagnosticError(ServiceLifecycle(
+        op = :trim!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
+    solved = _solve_problem(sim.model, problem; baseline, backend)
+    _verdict!(sim.model, problem, baseline, solved,
+              condition -> init!(sim, condition; t0 = Float64(t0)))
+end
+
+trim!(sim::Simulation, other; kw...) = trim!(sim.model, other; kw...)
+
+"""
+    linearize(sim, tap_set::Taps; about = nothing, t0 = nothing, width = LINEARIZE_WIDTH)
+        → Linearization
+
+The linearization on a simulation (§14.10, D-319). The default operating point
+is `checkpoint(sim)`, legal in `initialized` and `stopped` and refused
+mid-frame; the `about` form is legal wherever `init!` is (§14). It takes the
+model's query over that point and writes nothing on the simulation.
+"""
+function linearize(sim::Simulation, tap_set::Taps; about = nothing,
+                   t0 = nothing, width::Int = LINEARIZE_WIDTH)
+    _check_linearize_call(about, t0, width)
+    # §14's two rows: the default form inherits `checkpoint`'s precondition, the
+    # explicit one `init!`'s legality. Both before any resolution. The gate names
+    # `linearize` for both forms, so `checkpoint` is left the mid-frame refusal.
+    status = lifecycle(sim)
+    legal = about === nothing ? [:initialized, :stopped] : collect(STOPPED_SIM_LEGAL)
+    status in legal ||
+        throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = status, legal = legal)))
+    operating_point = about === nothing ? checkpoint(sim).state : nothing
+    _linearize(sim.model, tap_set, operating_point, about, t0, width)
+end
+
+linearize(sim::Simulation, other; kw...) = linearize(sim.model, other; kw...)
+
+"""
 Replay's entry pass (§12.7), called by `replay!` below before any state is
 touched, so every refusal precedes every write. The pass runs in two
 stages, and the split is one of order rather than of policy — each stage

@@ -1978,7 +1978,7 @@ function message(d::ArgumentInvalid)
                "recording to drop, and a silent no-op would let a caller believe one was " *
                "attached (§12.7, D-219)"
     d.reason === :non_nominal &&
-        return "`$(d.call)` needs a nominal `Simulation{Float64}` and this one is " *
+        return "`$(d.call)` needs a nominal `Model{Float64}` and this one is " *
                "$(d.value) — " *
                (d.call === :trim! ?
                 "trim commits through the nominal world, and the seeded activation it " *

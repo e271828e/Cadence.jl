@@ -19,13 +19,9 @@ both add names.
   only a `Model{Float64}` can be run. Increment 70 delivered the first
   (`briefs/brief_increment_70_model_split_1.md`), and the code owes D-317
   the other two.
-  - Increment 71 is ruled as D-319, and its docs stage and its first code
-    stage have landed. Its brief is
-    `briefs/brief_increment_71_model_split_2.md`, approved 2026-10-09. The
-    code owes D-319 one stage.
-    - Stage 2 moves `trim!` and `linearize` onto `Model{Float64}`,
-      re-raises the `:non_nominal` refusals on the model, and puts their
-      two files above `sim.jl` in the include order (§14.8, §14.10).
+  - Increment 71 is ruled as D-319, and its docs stage and its two code
+    stages have landed. Its brief is
+    `briefs/brief_increment_71_model_split_2.md`, approved 2026-10-09.
   - Increment 72 sweeps the spec's and the companions' "model" vocabulary
     off the component tree, and gives the glossary's `nominal` the sentence
     that only a `Model{Float64}` can be run.

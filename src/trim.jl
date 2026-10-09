@@ -17,6 +17,10 @@
 # The seeded-half machinery below — `_scratch`, `_establish_frozen!` — has a
 # second client, linearize.jl, which runs the same two-half scratch world
 # (D-213) without a commit.
+#
+# The service takes the `Model{Float64}` that holds the operating point
+# (D-319). The simulation's method is sim.jl's: it gates on the lifecycle and
+# hands `_verdict!` the simulation's own `init!` as the commit.
 
 # --- the problem (§14.7) --------------------------------------------------------
 
@@ -389,7 +393,7 @@ end
 # --- the service (§14.8) ---------------------------------------------------------
 
 """
-    trim!(sim, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt()) → TrimReport
+    trim!(model, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt()) → TrimReport
 
 Solve `problem` over `baseline` and, on convergence, commit the solution through
 boundary zero. Returns a [`TrimReport`](@ref); non-convergence never throws.
@@ -416,10 +420,10 @@ the scratch world). The iterations themselves are untouched: raw write → sweep
 service evaluates once more at the returned point and reads `converged` off the
 per-residual box test in the residuals' own units. That, and never a backend's
 `status`, gates the commit (§14.8). No convergence means no commit, and no
-commit means the simulation is bit-for-bit untouched, lifecycle included: a
-`built` simulation stays `built`.
+commit means the model is bit-for-bit untouched, status included: a `:built`
+model stays `:built`.
 
-**The commit is literally an `init!`** — `init!(sim, override(baseline,
+**The commit is literally an `init!`** — `init!(model, override(baseline,
 condition(solution)); t0)`, the same composite over the same baseline, so its
 totality is setup's and the check is structurally unfailable through this path.
 Boundary zero's `x_projection` and any guard already holding then move the committed
@@ -435,19 +439,31 @@ nominal half's establishment round is the one evaluation, the ordinary box test
 decides, and the commit runs as usual. That degenerate problem is the "is this
 operating point an equilibrium?" probe, useful in its own right and free.
 
-`trim!` is a stopped-sim service: legal in `built`, `initialized` and
-`stopped`, refused while `running` and on an `errored` simulation, exactly as
-`init!` is.
+The commit is the model's own `init!`, so a model a simulation has claimed
+refuses the call as `ArgumentInvalid` `:claimed`, before any check (D-318,
+D-319).
 """
-function trim!(sim::Simulation, problem::TrimProblem; baseline,
+function trim!(model::Model{Float64}, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
-    status = lifecycle(sim)
-    status === :running && throw(DiagnosticError(ServiceLifecycle(
-        op = :trim!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
-    status === :errored && throw(DiagnosticError(ServiceLifecycle(
-        op = :trim!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
+    _claimed_gate(model, NoHooks(), :trim!)   # the claim is said first: the call commits (D-318)
+    solved = _solve_problem(model, problem; baseline, backend)
+    _verdict!(model, problem, baseline, solved,
+              condition -> init!(model, condition; t0 = Float64(t0)))
+end
 
-    build = sim.model.deployment.build
+trim!(::Model, other; kw...) = throw(DiagnosticError(
+    ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
+                    value = string(typeof(other)))))
+
+# A model at another scalar: the commit needs the nominal world (D-319).
+trim!(::Model{T}, ::TrimProblem; kw...) where {T} = throw(DiagnosticError(
+    ArgumentInvalid(call = :trim!, reason = :non_nominal, value = "Model{$T}")))
+
+# The solve, from the setup checks through the verdict's evaluation, on scratch
+# models alone; the commit is the caller's (D-319). The bypassed zero-decision
+# problem and the solved one return the same packing, what `_verdict!` reads.
+function _solve_problem(model::Model{Float64}, problem::TrimProblem; baseline, backend)
+    build = model.deployment.build
     diags = Diagnostic[]
     _check_decisions!(diags, problem)
     _check_tolerances!(diags, :tolerances, problem.tolerances)
@@ -461,7 +477,7 @@ function trim!(sim::Simulation, problem::TrimProblem; baseline,
     tol = Float64[tolerances[k] for k in residual_names]
 
     # --- the nominal half (D-213) ------------------------------------------------
-    nominal_exec = _scratch(sim, Float64).exec
+    nominal_exec = _scratch(model, Float64).exec
     plan = resolve_condition(override(baseline, problem.condition(guess)), build, Float64)
     assert_total(plan, build.structure, :trim!)    # (§14.6): pre-evaluation, all-or-nothing
     apply!(nominal_exec, plan)
@@ -479,15 +495,15 @@ function trim!(sim::Simulation, problem::TrimProblem; baseline,
         # The solver is bypassed outright: the establishment round above is the
         # one evaluation, and the ordinary box test decides (§14.8).
         r = Float64[NamedTuple{residual_names}(r0)[k] for k in residual_names]
-        return _verdict!(sim, problem, baseline, guess, r, tol, :bypassed, 1, 0,
-                         Tuple{Symbol,Symbol}[], reader, t0)
+        return (; solution = guess, r, tol, status = :bypassed, n_evaluations = 1,
+                n_iterations = 0, saturated = Tuple{Symbol,Symbol}[], reader)
     end
 
     # --- the seeded half ---------------------------------------------------------
     T = ForwardDiff.Dual{TrimTag,Float64,N}
     act = activation(build, T)                # the cached activation (§9.4)
-    seeded_exec = _scratch(sim, T).exec
-    _establish_frozen!(seeded_exec, act, nominal_exec, sim.model.deployment.build)
+    seeded_exec = _scratch(model, T).exec
+    _establish_frozen!(seeded_exec, act, nominal_exec, model.deployment.build)
     # The names enter the closure as types: captured as a `Tuple` of `Symbol`s,
     # they would leave every `NamedTuple` `eval!` builds to runtime dispatch.
     decision_keys, residual_keys = Val(decision_names), Val(residual_names)
@@ -545,22 +561,18 @@ function trim!(sim::Simulation, problem::TrimProblem; baseline,
     # units: one residual evaluation, noise against the solve that produced it.
     r = zeros(Float64, length(tol))
     eval!(r, nothing, out.d)
-    _verdict!(sim, problem, baseline, NamedTuple{decision_names}(Tuple(out.d)), r, tol,
-              out.status, out.n_evaluations, out.n_iterations,
-              _saturated(decision_names, out.d, lower, upper), reader, t0)
+    (; solution = NamedTuple{decision_names}(Tuple(out.d)), r, tol, status = out.status,
+       n_evaluations = out.n_evaluations, n_iterations = out.n_iterations,
+       saturated = _saturated(decision_names, out.d, lower, upper), reader)
 end
-
-trim!(::Simulation, other; kw...) = throw(DiagnosticError(
-    ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
-                    value = string(typeof(other)))))
 
 # --- the pieces the service is built out of --------------------------------------
 
-# One scratch model: the same buffer set the simulation's model owns, at
-# whatever scalar, from the same cached activation and the same deployment —
-# and it dies with the call (§9.2, §14.8, glossary `scratch`, D-317).
-_scratch(sim::Simulation, ::Type{T}) where {T} =
-    Model(sim.model.deployment, T; chunk_size = sim.model.exec.chunk_size)
+# One scratch model: the same buffer set the model owns, at whatever scalar,
+# from the same cached activation and the same deployment — and it dies with
+# the call (§9.2, §14.8, glossary `scratch`, D-317).
+_scratch(model::Model, ::Type{T}) where {T} =
+    Model(model.deployment, T; chunk_size = model.exec.chunk_size)
 
 # D-213's copy: a frozen component's stages are outside the seeded activation's
 # executable set (§9.4), so its output cells can only come from the nominal half
@@ -610,11 +622,11 @@ end
 
 # The verdict, the commit and the report, shared by both forms — the solved
 # problem and the bypassed zero-decision one, which differ in how they got their
-# residual vector and in nothing after it (§14.8).
-function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::NamedTuple,
-                  r::Vector{Float64}, tol::Vector{Float64}, status::Symbol,
-                  n_evaluations::Int, n_iterations::Int,
-                  saturated::Vector{Tuple{Symbol,Symbol}}, reader, t0)
+# residual vector and in nothing after it (§14.8). `commit!` takes the committed
+# condition into the caller's own `init!`, the model's or the simulation's, and
+# the committed world is read off `model.exec` either way (D-319).
+function _verdict!(model::Model, problem::TrimProblem, baseline, solved::NamedTuple, commit!)
+    (; solution, r, tol, status, n_evaluations, n_iterations, saturated, reader) = solved
     residual_names = keys(problem.tolerances)
     residuals = NamedTuple{residual_names}(Tuple(r))
     converged = _within(r, tol)
@@ -622,12 +634,12 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
                                    nothing, status, n_evaluations, n_iterations, saturated,
                                    Tuple{String,Symbol}[])
 
-    init!(sim, override(baseline, problem.condition(solution)); t0 = Float64(t0))
+    commit!(override(baseline, problem.condition(solution)))
 
     # The commit's fired events, read off the per-boundary counts right after
     # `init!` returns — they are reset at the next boundary, and there is none
     # (§10.6, §14.5).
-    events = sim.model.exec.events
+    events = model.exec.events
     fired = Tuple{String,Symbol}[events.names[i] for i in eachindex(events.count)
                                  if events.count[i] > 0]
     isempty(fired) || @warn logline(TrimCommitEvents(events = fired))
@@ -636,8 +648,8 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # run, so the declared reads need only gather from it — with one `rhs` for
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
     # evaluation (§14.4, §14.8).
-    sim.model.exec.bodies.rhs()
-    gathered = gather_reads(reader, sim.model.exec)
+    model.exec.bodies.rhs()
+    gathered = gather_reads(reader, model.exec)
     committed = NamedTuple{residual_names}(problem.residuals(gathered, solution))
     out_of_tolerance = Tuple{Symbol,Float64,Float64}[
         (k, Float64(committed[k]), tol[i]) for (i, k) in enumerate(residual_names)

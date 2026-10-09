@@ -662,10 +662,9 @@ function test_trim()
     end
 
     @testset "`trim!` is a stopped-sim service on a nominal deployment (§14.8, §12.6)" begin
-        # A `Dual` model is no simulation, so no method takes it; increment two
-        # moves `trim!` onto the model and gives it a diagnostic (D-317).
         dual = Model(fed(Pendulum(), :u), D8; h = 1//10)
-        @test_throws MethodError trim!(dual, u_problem(); baseline = pend_base())
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(dual, u_problem(); baseline = pend_base()))
+        @test d.call === :trim! && d.reason === :non_nominal && startswith(d.value, "Model{")
 
         # And a value that is not a problem is a directive, not a `MethodError`.
         plain = Simulation(fed(Pendulum(), :u); h = 1//10)
@@ -690,6 +689,38 @@ function test_trim()
         @test d.op === :trim!
         @test d.status === :running
         @test d.legal == [:built, :initialized, :stopped]   # §12.6's row for `trim!`
+    end
+
+    @testset "`trim!` on a standalone model commits through the model's `init!` (§14.8, D-319)" begin
+        model = Model(fed(Pendulum(), :u); h = 1//10)
+        report = trim!(model, u_problem(); baseline = pend_base(), t0 = 0.25)
+        @test report.converged
+        @test report.solution.u ≈ PEND_G_L * sin(0.5)
+        @test abs(report.residuals.torque) ≤ report.tolerances.torque
+        @test report.status === :converged
+        @test model.status === :consistent
+        @test model.exec.clock.t == 0.25 && model.exec.clock.t₀ == 0.25
+
+        # No convergence, no commit: a fresh model stays `:built`. The problem is
+        # the impossible balance of the no-convergence testset above.
+        infeasible = TrimProblem(
+            guess = (θ = 0.1,), lower = (θ = -π/2,), upper = (θ = π/2,),
+            condition = d -> combine(at("c", fragment(x = (θ = d.θ, ω = 0.0))),
+                                     fragment(u = (in = 2 * PEND_G_L,))),
+            reads = torque_reads(), residuals = torque_only, tolerances = (torque = 1e-9,))
+        fresh = Model(fed(Pendulum(), :u); h = 1//10)
+        fresh_report = trim!(fresh, infeasible; baseline = pend_base())
+        @test !fresh_report.converged && fresh_report.committed_residuals === nothing
+        @test fresh.status === :built
+
+        # A claimed model refuses the call before every evaluation: the
+        # infeasible problem would return a report if the solve ran first.
+        claimed = Model(fed(Pendulum(), :u); h = 1//10)
+        sim = Simulation(claimed)
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(claimed, u_problem(); baseline = pend_base()))
+        @test d.reason === :claimed && d.call === :trim! && lifecycle(sim) === :built
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(claimed, infeasible; baseline = pend_base()))
+        @test d.reason === :claimed && d.call === :trim! && lifecycle(sim) === :built
     end
 
     @testset "a mounted problem solves what the flat world solves (§14.9, D-277)" begin

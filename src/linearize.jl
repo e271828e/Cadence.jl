@@ -9,8 +9,12 @@
 # discrete cells and a seeded half at the service's own `Dual` scalar
 # (trim.jl). What this file adds is the tap resolution with its five refusals,
 # the passes of `width` directions, and the split of values from partials.
-# Nothing here writes the simulation: both executors are locals and die with
-# the call, which is what makes linearization a pure query.
+# Nothing here writes the model: both executors are locals and die with the
+# call, which is what makes linearization a pure query.
+#
+# The service takes the `Model{Float64}` that holds the operating point
+# (D-319). The simulation's method is sim.jl's: it gates on the lifecycle and
+# takes its default point from `checkpoint(sim)`.
 
 # --- the tap set (§14.10) ------------------------------------------------------
 
@@ -82,16 +86,15 @@ end
 # --- the service (§14.10) -------------------------------------------------------
 
 """
-    linearize(sim, tap_set::Taps; about = nothing, t0 = nothing, width = LINEARIZE_WIDTH)
+    linearize(model, tap_set::Taps; about = nothing, t0 = nothing, width = LINEARIZE_WIDTH)
         → Linearization
 
 §14.10's linearization, a pure query on scratch buffers:
 
-1. The operating point is `checkpoint(sim)` by default, legal in `initialized`
-   and `stopped` and refused mid-frame, and it carries its own clock;
-   `about = <condition>` with `t0` beside it places it anywhere else, legal
-   wherever `init!` is (§14). `t0` is admitted only beside `about`, never
-   silently ignored (Appendix B).
+1. The operating point is `checkpoint(model)` on a model, `checkpoint(sim)` on
+   a simulation, by default, refused mid-frame, and it carries its own clock;
+   `about = <condition>` with `t0` beside it places it anywhere else. `t0` is
+   admitted only beside `about`, never silently ignored (Appendix B).
 2. The tap set resolves in §13.1's collecting form: closed membership per list,
    one scalar per tap, no discrete store in `x` (D-197), no unseedable root
    input in `u` (D-167, D-168), no two seeds at one site (D-272). Every
@@ -109,34 +112,62 @@ end
 6. The passes: the directions in groups of `width`, one evaluation per group.
    Value parts give `ẋ₀` and `y₀`, partials give `A` and `B` read at `ẋ`, `C`
    and `D` read at `y`.
-7. Nothing on the simulation is written: both executors die with the call,
-   with no commit and no boundary zero.
+7. Nothing on the model is written: both executors die with the call, with no
+   commit and no boundary zero.
 
 The default width's scalar is `LinearizeDual`, so a build that lists it in
 `activations` linearizes any tap set with no compile at the keyboard (§9.7).
 The width changes the grouping, never the answer.
+
+On a model the default form is legal at `:consistent` and refused at any other
+status as `ServiceLifecycle` naming `linearize`; the `about` form is legal at
+any status. The query is a read, so a model a simulation has claimed still
+answers it (D-319).
 """
-function linearize(sim::Simulation, tap_set::Taps; about = nothing,
+function linearize(model::Model{Float64}, tap_set::Taps; about = nothing,
                    t0 = nothing, width::Int = LINEARIZE_WIDTH)
+    _check_linearize_call(about, t0, width)
+    # The default form inherits `checkpoint`'s precondition, gated here so the
+    # refusal names `linearize` and `checkpoint` is left the mid-frame one.
+    if about === nothing
+        model_status = @atomic :acquire model.status
+        model_status === :consistent || throw(DiagnosticError(ServiceLifecycle(
+            op = :linearize, status = model_status, legal = [:consistent])))
+        operating_point = checkpoint(model)
+    else
+        operating_point = nothing
+    end
+    _linearize(model, tap_set, operating_point, about, t0, width)
+end
+
+linearize(::Model, other; kw...) = throw(DiagnosticError(
+    ArgumentInvalid(call = :linearize, argument = :taps, reason = :not_a_tap_set,
+                    value = string(typeof(other)))))
+
+# A model at another scalar: the operating point is a nominal world's (D-319).
+linearize(::Model{T}, ::Taps; kw...) where {T} = throw(DiagnosticError(
+    ArgumentInvalid(call = :linearize, reason = :non_nominal, value = "Model{$T}")))
+
+# The two keyword refusals both methods make first (Appendix B, D-272).
+function _check_linearize_call(about, t0, width::Int)
     width ≥ 1 || throw(DiagnosticError(ArgumentInvalid(
         call = :linearize, argument = :width, reason = :nonpositive_width, value = width)))
     about === nothing && t0 !== nothing && throw(DiagnosticError(ArgumentInvalid(
         call = :linearize, argument = :t0, reason = :t0_without_about)))
+    nothing
+end
 
-    # §14's two rows: the default form inherits `checkpoint`'s precondition, the
-    # explicit one `init!`'s legality. Both before any resolution. The gate names
-    # `linearize` for both forms, so `checkpoint` is left the mid-frame refusal.
-    status = lifecycle(sim)
-    legal = about === nothing ? [:initialized, :stopped] : collect(STOPPED_SIM_LEGAL)
-    status in legal ||
-        throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = status, legal = legal)))
-    operating_point = about === nothing ? checkpoint(sim).state : nothing
-    build = sim.model.deployment.build
+# The query once the operating point is chosen: steps 2 to 6 above, on scratch
+# models of `model`'s deployment. `operating_point` is the default form's
+# state, `nothing` under `about` (D-319).
+function _linearize(model::Model{Float64}, tap_set::Taps, operating_point, about, t0,
+                    width::Int)
+    build = model.deployment.build
     T = ForwardDiff.Dual{LinearizeTag,Float64,width}
     (x_entries, u_entries, y_entries) = _resolve_taps(tap_set, build, T)
 
     # --- the nominal half (D-213) ------------------------------------------------
-    nominal_exec = _scratch(sim, Float64).exec
+    nominal_exec = _scratch(model, Float64).exec
     if about === nothing
         _restore_state!(nominal_exec, operating_point)   # the held cells are the frozen tier's (D-274)
     else
@@ -150,7 +181,7 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
 
     # --- the seeded half ---------------------------------------------------------
     act = activation(build, T)
-    seeded_exec = _scratch(sim, T).exec
+    seeded_exec = _scratch(model, T).exec
     if about === nothing
         copyto!(seeded_exec.xbuf, operating_point.x)   # zero partials throughout
         _restore_stores!(seeded_exec, operating_point)
@@ -198,10 +229,6 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
                   NamedTuple{y_labels}(Tuple(y₀)),
                   A, B, C, D, x_labels, u_labels, y_labels)
 end
-
-linearize(::Simulation, other; kw...) = throw(DiagnosticError(
-    ArgumentInvalid(call = :linearize, argument = :taps, reason = :not_a_tap_set,
-                    value = string(typeof(other)))))
 
 # --- the pieces the service is built out of --------------------------------------
 
