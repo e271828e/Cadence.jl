@@ -195,8 +195,42 @@ Probe scripts are in this session's scratchpad under `review/`.
 - `checkpoint(sim)`'s local is still `status` where the file's name is
   `lifecycle_state`; it predates the increment.
 
+## The user's rulings on the open points (2026-10-10)
+
+Groups as the user ruled them: A, the two rulings above, stand; B, every
+`restore!` door refuses a state off its grid; C, the wording nits land; D,
+the four stale spec sentences are increment 72's sites; E stands as built.
+
+- c6b6237: D-319 corrected in place for B, with §12.6, §14's legality row,
+  Appendix B's two `restore!` entries and Appendix C's row following.
+- 5215f39: `_check_grid!(diags, model_state) → k` in `model.jl`, shared
+  by the three doors and collected with the fingerprint check into one
+  throw, so an off-grid refusal on `restore!` is now a
+  `DiagnosticError{Vector{Diagnostic}}` holding a `CheckpointMidFrame`,
+  the bare-state door included (it threw fail-fast before). The grid test
+  is `t == oftype(t, t_frame)`, as `checkpoint(model)` makes it. The
+  message opener drops "published" and gains the before-origin arm;
+  `checkpoint(sim)`'s local is `lifecycle_state`; `ModelState`'s
+  docstring says `t` is indexed. Gate 6068 of 6068 against 6037; three
+  mutants red at `test_trace.jl` 1512, 1518 and 1522.
+
+### Open points after the arc
+
+- **`checkpoint(model)` refuses every frame top past 0 on a `Float32`
+  model.** `_frame_slack` takes `eps` of the arguments promoted to
+  `Float64`, so a `Float32` clock's rounding exceeds the slack and
+  `_frames_to` lands one frame late. Predates the arc; reachable only on
+  a non-nominal model stepped by hand, whose `checkpoint` this increment
+  added. A loose fix: take the slack in the clock's own scalar.
+- `replay!(…; restore = true)` enters the trace header through
+  `_enter_checkpoint!`, not a `restore!` door, so it makes no grid check;
+  the ruling covers `restore!` only, and a recorded header is on the grid.
+- The message's tail "`restore!` takes a `ModelState` read at one" is
+  loosely true of a `Checkpoint`, which holds one.
+
 ## Not pushed
 
-Seven commits on a7b0fe1 (itself unpushed with bd2d7ae): 79cc401, b1de9d4,
-70cf84a, 0e60f6a, dfeaaec, 5b14a14 and the notes commit. The user
+Ten commits on a7b0fe1 (itself unpushed with bd2d7ae): 79cc401, b1de9d4,
+70cf84a, 0e60f6a, dfeaaec, 5b14a14, d17c734, c6b6237, 5215f39 and this
+notes update. The user
 diff-verifies the arc, rules on the open points, and pushes.
