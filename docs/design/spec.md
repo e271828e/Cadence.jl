@@ -3990,6 +3990,13 @@ constraint sits as a type on the one constructor that owns a loop. A `Model`
 at another scalar is a service's scratch, written to, evaluated and stepped
 frame by frame with no ticks and no events.
 
+**A `Simulation` claims its `Model`** ([D-318][d-318]). The constructor claims the
+model once, and refuses as `ArgumentInvalid` a model already claimed by a
+simulation or one whose status is not `:built`, before anything is
+allocated. A simulation never shares its model, and a state prepared on a
+standalone model enters a simulation through a restore door, never through
+the constructor.
+
 The artifact deployed is the very build that CI checked, that an acceptance
 test targeted, and that a [face](#g-face)-route table was printed from, never
 an assumed-equal reconstruction. Computed interface-connection bodies are
@@ -8619,7 +8626,8 @@ ever started. The placeholder carries no configuration and no compiled state
 data plane and the [control plane](#g-control-plane) ([D-317][d-317]). The `Model`
 holds the [deployment](#g-deployment) (the scalar-free artifact the grid
 parameters fix, carrying the build), the [executor](#g-executor), its status
-and its diagnostic cell. Every other value belongs to one of the four
+and its diagnostic cell. A simulation owns its `Model`, claimed at
+construction and never shared ([§9.2][s9-2], [D-318][d-318]). Every other value belongs to one of the four
 ([D-256][d-256]). The build is reached through the
 deployment, never held twice. The grid parameters, the [schedule](#g-schedule) (the typed
 per-component `(D, Φ, Δt)` tick table) and the event parameters are the
@@ -8652,6 +8660,8 @@ macro-sequence with an empty integrate ([§14.5][s14-5]), or `restore!` or
 reads three facts, the control plane's running flag, the `Model`'s status
 and whether the run is closed. The status is `:built`, `:consistent` or
 `:inconsistent`, and only the `Model`'s own doors and catch sites write it.
+A claimed model's status is written only through its simulation's doors
+([D-318][d-318]).
 
 | running flag | `Model` status | run closed | state |
 |---|---|---|---|
@@ -11824,7 +11834,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 - `Simulation(model; join_timeout = 5.0) → Simulation`. Runs a
   `Model{Float64}` beside the data plane, the control plane and the run, and
   offers the stopped-sim services. A `Model` at another scalar is a
-  `MethodError` ([§9.2][s9-2]).
+  `MethodError`, and one already claimed by a simulation or not at `:built`
+  is `ArgumentInvalid`, reasons `:claimed` and `:not_built` ([§9.2][s9-2],
+  [D-318][d-318]).
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
@@ -12453,7 +12465,8 @@ activation):
 - **`ArgumentInvalid`** ([§10.5][s10-5], [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4],
   [§12.6][s12-6], [§14.7][s14-7]). Error · service, or build in a `sample_times`
   declaration · fail-fast, but collected over a `TableBinding`'s entry table
-  and over the `Model` and `Simulation` constructors' keywords. The call
+  and over the `Model` and `Simulation` constructors' keywords and the claim
+  on the model ([D-318][d-318]). The call
   (`Simulation`, `run!`, `step!`, `replay!`, `pace!`, `margin!`, `trim!`,
   `TableBinding`, a period constructor), the argument, the value in hand,
   the violated constraint. The twin of
@@ -13090,8 +13103,9 @@ with what the loop runs, which is what makes the allocation assertions
 its executor, a status of `:built`, `:consistent` or `:inconsistent`, and the
 diagnostic cell its frame writes. It can be written to, evaluated and stepped
 frame by frame. A `Simulation` runs only a `Model{Float64}`, and a `Model` at
-another scalar is a service's scratch, with no ticks and no events
-([§9.2][s9-2], [§12.6][s12-6], [D-317][d-317]).
+another scalar is a service's scratch, with no ticks and no events. A
+`Simulation` claims it at construction and never shares it
+([§9.2][s9-2], [§12.6][s12-6], [D-317][d-317], [D-318][d-318]).
 
 <a id="g-nominal"></a>**nominal** — the `Float64` activation, and of a declaration its `Float64`
 face (for a continuous producer's output declaration, its evaluation at
@@ -13890,6 +13904,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-315]: decisions.md#d-315--hold-the-declared-wiring-on-structure-and-resolve-it-by-function
 [d-316]: decisions.md#d-316--stop-requests-are-structural-a-stopflag-port-ends-the-run-unless-the-advance-ignores-it
 [d-317]: decisions.md#d-317--split-the-model-from-the-simulation-and-run-only-the-nominal-one
+[d-318]: decisions.md#d-318--a-simulation-claims-its-model
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
