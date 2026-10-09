@@ -61,6 +61,36 @@ true of the `Model` as well as of the tree, so it stands.
 8. **The brief was committed and launched without the user's review**, as
    the user instructed before leaving.
 
+## Stage 0 (72c6214): accepted deviations and rulings
+
+1. **A twelfth gloss site, §14.2 at 10222.** The brief counted twelve spec
+   sites and listed eleven; the grep that built the list missed the one
+   where the phrase breaks between "executor's" and "state". The stage found
+   it with a whitespace-collapsed search and gave it the uniform gloss,
+   under the every-instance principle. Accepted.
+2. **The `component` glossary link in §9.4.** "component tree" at 4399 is
+   now the section's first use of "component", and the section's only link
+   sits later at 4408. The brief's ruling asks for the link at first use;
+   its appendix text has none, and the claim inventory forbids other gains.
+   Ruled: the link moves to 4399 and leaves 4408, a move, not a gain, under
+   `spec_style.md`'s first-use rule. Lands with the review fix, or alone if
+   the review is empty.
+3. **No link in Part II's intro (1967).** A Part roadmap is not a section;
+   it had no `component` link before, and §1 links the term. Nothing added.
+4. `spec_style.md`'s "Document structure" says "how a model is authored
+   before how it executes". That is the rule's own sense S2 ("a model is
+   written as a tree"), so it stands.
+
+## Stage 1 (82c7ace): accepted deviations
+
+1. The Step 1 paragraph of `linearization_walkthrough.md` (465 to 473) was
+   re-wrapped to its end, since the longer gloss left a 42-column line
+   mid-paragraph. Words unchanged beyond the gloss.
+2. The gloss sentence keeps its mid-sentence colon ("beside the run's two
+   counters: the state holds …"), the brief's wording and the paragraph's
+   own shape before the edit. Routed to the reviewer under
+   `spec_style.md`'s "Sentences".
+
 ## Open points for the user
 
 - §9.7, 4953: "from constructing the model to the end of its first `run!`".
