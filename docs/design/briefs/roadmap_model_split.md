@@ -219,13 +219,35 @@ guards the hooks.
 
 **Increment two: the services onto the model.** `trim!` and `linearize` take
 `Model{Float64}` and instantiate their `Dual` scratch as a `Model` (R4); the
-checkpoint split (R6); `restore!` on both levels. Spec: §14.8, §14.10, D-282's
-owner roster.
+checkpoint split (R6); `restore!` on both levels. Their two files move above
+`sim.jl` in the include order once their methods take a model, under the
+layout increment one set (`brief_source_layout_model.md`): `conditions.jl`,
+`model.jl`, `stepper.jl` and `frame.jl` above `sim.jl`, `devices.jl` below
+it, a file sitting above `sim.jl` as soon as nothing in it names a
+`Simulation` in a signature. The `:non_nominal` refusals, deleted in
+increment one because a refusal method on `::Simulation` would have
+overwritten the service method, are raised on the model's doors, and the
+`:scalar` `CheckpointMismatch` message names a `Model`. `restore!` on the
+model takes the hooks, publishes through `settled!` and writes `:consistent`
+last, in `init!`'s shape (D-318). A state carried from a standalone model
+into a simulation goes through that door, never through the constructor.
+Spec: §14.8, §14.10, D-282's owner roster.
 
 **Increment three: the vocabulary.** The "model" sweep over the spec and the
 companions (R2), and the glossary's `nominal` entry gains the sentence that
 only a `Model{Float64}` can be run. The decision entries are increment one's
 and two's, each with the spec text it rules.
+
+**After increment one (2026-10-09).** It landed as 7317a7e to 22cc4db under
+D-317, followed by the source reorganization and D-318, the claim:
+`Simulation(model)` refuses a model already claimed or not at `:built`, so a
+simulation owns its model and the lifecycle derivation stands. Where the
+landed tree differs from the paragraph above, `notes_increment_70.md`
+records the ruling: the `Dual` clock assertion became `frames!` on a model
+rather than going, the model's cell is `frame_diag`, the loop's error arms
+no longer write the status, and R9's "the model rethrows raw" was revised
+in the brief before launch. The facts below are as of `dd4d092` and every
+brief re-checks them.
 
 ## Facts the briefs will cite
 
