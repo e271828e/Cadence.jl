@@ -208,6 +208,13 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
   conformance commit follows. The reviewer's third test, the running flag
   clearing after a failed advance, has no reachable path once the claim
   lands and was dropped.
+- The reviewer confirmed F6 closed at 33a57d6 and noted two things
+  outside the gate, neither a defect: the primitives stay ungated as
+  ruled, so `integrate!(model, h)` on a claimed model still moves its
+  clock; and the gate checks the hooks' type, not which simulation built
+  them, so a `LoopHooks` of simulation A would pass on B's model.
+  `LoopHooks` is internal and nothing in `src/` builds one across
+  simulations.
 - A direct `init!(model, condition)` on a claimed model reports a condition
   error before the claim (ruling 21). Gating the condition method too,
   under `NoHooks()`, would put the claim first at no cost to the loop.
