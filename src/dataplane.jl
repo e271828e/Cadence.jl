@@ -436,6 +436,18 @@ struct WriterStatus
 end
 
 """
+One writer's share of the tail residue (§11.8, D-203): what the run's-end
+sweep took past the final frame top — the final ring, at most `DIAG_RING`
+entries, and the per-kind counts the ring refused. A quiet writer contributes
+no record.
+"""
+struct ResidueRecord
+    writer::String
+    recent::Vector{DiagValue}
+    suppressed::KindCounts
+end
+
+"""
 The pacer's record in the published framework status (§10.7, D-269): `pace`,
 the pace the loop's frames run under (`Inf` where no frame waits); `debt`
 and `peak_debt` in seconds; `overruns`, the frames that exceeded their

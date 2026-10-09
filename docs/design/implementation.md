@@ -43,7 +43,11 @@ user material inside the package, with no property of its own to own it.
 ### `src/Redstone.jl`
 
 The package module: the dependencies and the include order the other files load
-in.
+in: leaves, diagnostics, declare, assembly, store, executor, build, tracer,
+readers, deployment, dataplane, checkpoint, trace, roster, bindings, control,
+conditions, model, stepper, frame, sim, devices, trim, linearize, show, blocks.
+The model layer sits between the executor layer and the runtime, by the rule
+in the `src/model.jl` entry.
 
 ### `src/assembly.jl`
 
@@ -235,15 +239,15 @@ D-289, D-315, D-316.
 - What stays out: the derivative buffer, the arrival pair and the
   localization samples, which every frame rewrites before reading them, the
   cursor and the periphery.
-- `_take_checkpoint`, the one read, on a model with the run's two counters
-  passed in, behind `checkpoint(sim)` and the trace header `init!` takes
-  (D-317). `_restore_state!`, its inverse, on an executor behind
-  `linearize`'s default operating point, and on a model behind `restore!` and
-  `replay!`, where it is a model door and writes the status `:consistent`
-  (D-317). It is strict about the scalar. `_restore_stores!` is the part of it that writes the `s` and
-  `m` stores, shared with `linearize`'s seeded half.
+- `_restore_state!` on an executor, behind `linearize`'s default operating
+  point and under the model's restore door. It is strict about the scalar.
+  `_restore_stores!` is the part of it that writes the `s` and `m` stores,
+  shared with `linearize`'s seeded half.
 - `_check_checkpoint!`, the fingerprint check `restore!` and replay's entry
   pass share, collecting `CheckpointMismatch`.
+- The model-level functions, `_fingerprint`, the one read `_take_checkpoint`
+  and the model's restore door `_restore_state!(model, cp)`, are model.jl's
+  (D-317).
 
 Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274, D-317.
 
@@ -263,14 +267,11 @@ Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274, D-317.
     `SpecializedPlan`, whose writes and prefixes `apply!` walks as generated
     unrolls, and `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
-- `apply!` on a model, with a forwarding method on the simulation (D-317).
-- `init!` on a model, beside `apply!` because the plan type is defined here.
-  The condition method resolves, and the plan method does the writes, runs
-  boundary zero under §13.4's catch and settles it through the hooks (D-223,
-  D-317).
+- `apply!` and `init!` on a model are model.jl's, and `apply!`'s forwarding
+  method on the simulation is sim.jl's.
 
-Spec: §9.5, §13.1, §13.3, §13.4, §14.1–§14.6, §14.9, Appendix B, D-063–D-068,
-D-117, D-130, D-204, D-205, D-207, D-223, D-226, D-277, D-315, D-317.
+Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068,
+D-117, D-130, D-204, D-205, D-207, D-226, D-277, D-315.
 
 ### `src/control.jl`
 
@@ -290,9 +291,8 @@ D-117, D-130, D-204, D-205, D-207, D-223, D-226, D-277, D-315, D-317.
   - `resume!` and every stop request wake the block;
   - the tail's `_finish!`, defined in devices.jl, clears the pause flag;
   - the block returns whether it parked.
-- The two lifecycle gates `assert_stopped` and `assert_configurable` on the
-  simulation, one for the readers and one for the roster (§11.3, D-232,
-  D-317).
+- The two lifecycle gates `assert_stopped` and `assert_configurable` are
+  sim.jl's.
 - The `Pacer` holds one `run!` call's schedule and counters. It is never a
   field of anything. `anchor!`, `reanchor!` and the monotonic wall clock
   `_wall_now` sit beside it.
@@ -307,7 +307,7 @@ D-117, D-130, D-204, D-205, D-207, D-223, D-226, D-277, D-315, D-317.
   - a live pace change re-anchors forward, `Inf` included.
 - The copy `PacerStatus(::Pacer)`. The `PacerStatus` record is dataplane.jl's.
 
-Spec: §10.7, §11.3, §12.1–§12.4, §12.6, D-021, D-027, D-203, D-232, D-255,
+Spec: §10.7, §11.3, §12.1–§12.4, §12.6, D-021, D-027, D-203, D-255,
 D-256, D-268, D-269, D-317.
 
 ### `src/dataplane.jl`
@@ -334,9 +334,11 @@ D-256, D-268, D-269, D-317.
   `PacerStatus` (D-269):
   - the `PacerStatus` reads `Inf` and zeros where no pacer runs;
   - the copy off a live `Pacer` is control.jl's.
+- `ResidueRecord`, one writer's share of the tail residue, which devices.jl's
+  sweep builds and the termination record holds (§13.5, D-203).
 
 Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
-D-027, D-038, D-137, D-250, D-255, D-269, D-316, D-317.
+D-027, D-038, D-137, D-203, D-250, D-255, D-269, D-316, D-317.
 
 ### `src/declare.jl`
 
@@ -431,9 +433,10 @@ D-250, D-254, D-256, D-261.
 - The tail under `join_timeout`, which `Control` carries (D-256). An interrupt
   reaching the tail collapses the remaining joins into `DeviceJoinTimeout` by
   name (D-268).
-- `ResidueRecord` sits beside the sweep that builds it after the tail (§13.5,
-  D-203). The sweep folds the model's diagnostic cell into the loop's account
-  beside the loop's own cell (§11.8, D-317).
+- The sweep after the tail builds the `ResidueRecord`s, dataplane.jl's
+  (§13.5, D-203). The sweep folds the model's diagnostic cell into the loop's
+  account beside the loop's own cell (§11.8, D-317).
+- The file follows sim.jl, so its helpers take the `Simulation` typed.
 
 Spec: §11.1, §11.3, §11.6, §11.7, §11.8, §12.1–§12.4, §13.5, §13.6, D-198,
 D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
@@ -507,6 +510,22 @@ D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316.
 Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235,
 D-249, D-255, D-261, D-289, D-317.
 
+### `src/frame.jl`
+
+- The model's `frame!(model, k, hooks)` and `_grid_time` (D-317): the top
+  hook, the integration, the frame-top boundary and the settled hook, inside
+  §13.4's one `try`, whose catch writes the model's status and builds the
+  `StepError` with `_wrap_step`.
+- The localization loop, with the arrival sweep, the θ = 0 validation, ITP
+  bracketing `_crossing`, `t*` boundaries, the localization budget and the
+  `ChatteringBudget` degradation, reported into the model's diagnostic cell.
+- The cursor's drain/arrival/validation/trial phases.
+- `settled!` at every `t*` boundary and at the frame top. A `true` abandons
+  the frame's remainder and is `frame!`'s return (§13.5, D-261, D-317).
+
+Spec: §10.2, §10.4, §11.8, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
+D-261, D-317.
+
 ### `src/leaves.jl`
 
 - The leaf walk includes the enum leaf, D-237's opaque leaf and
@@ -566,21 +585,43 @@ D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276, D-316.
 Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
 D-276, D-277, D-317.
 
-### `src/localization.jl`
+### `src/model.jl`
 
-- The model's `frame!(model, k, hooks)` and `_grid_time` (D-317): the top
-  hook, the integration, the frame-top boundary and the settled hook, inside
-  §13.4's one `try`, whose catch writes the model's status and builds the
-  `StepError` with `_wrap_step`.
-- The localization loop, with the arrival sweep, the θ = 0 validation, ITP
-  bracketing `_crossing`, `t*` boundaries, the localization budget and the
-  `ChatteringBudget` degradation, reported into the model's diagnostic cell.
-- The cursor's drain/arrival/validation/trial phases.
-- `settled!` at every `t*` boundary and at the frame top. A `true` abandons
-  the frame's remainder and is `frame!`'s return (§13.5, D-261, D-317).
+The model layer, between the executor layer and the runtime (D-317). Every
+door that writes the model's status lives here. A file sits above `sim.jl` as
+soon as nothing in it names a `Simulation` in a signature, and below
+`model.jl` as soon as something in it names a `Model`.
 
-Spec: §10.2, §10.4, §11.8, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
-D-261, D-317.
+- `Model{T,E}`, the deployment and its executor at one scalar, its status and
+  its frame's diagnostic cell, with the materialization `Model(deployment, T)`
+  and `Model(::Build)` and `Model(::AbstractComponent)` over it (§9.2, §11.8,
+  §12.6, D-254, D-317).
+- The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, and the
+  no-op `NoHooks` (§11.2, §13.5, D-317).
+- The model's doors (D-317):
+  - `init!`, whose condition method resolves and whose plan method does the
+    writes, runs boundary zero under §13.4's catch and settles it through the
+    hooks (§14.5, D-223);
+  - `apply!` on a model;
+  - `_restore_state!` on a model, which settles the restored boundary through
+    the hooks and writes `:consistent` last (D-274).
+- `phase_bodies`, and `evaluate!` on the executor and the model.
+- The boundary macro-sequence `boundary!`, `offtick_boundary!`,
+  `boundary_zero!` and `_round!`, and the §10.6 event phase `event_phase!`,
+  with its `FiringBudget` degradation into the model's diagnostic cell.
+- The seam's framework side `integrate!(model, h)` and its `isfinite` sweep
+  `_check_finite!` (§10.2, D-157).
+- `warnings(::Model)` (D-250), and the reads `port`, `state` and `modes` on
+  the model.
+- The one `StepError` constructor `_wrap_step`, which the model's `frame!` and
+  `init!` call, and the species rule `_species` with the runtime bundle-field
+  match (§13.2, §13.4, D-059, D-221, D-248).
+- The checkpoint's model-level half: `_fingerprint` and the one read
+  `_take_checkpoint`, on a model with the run's two counters passed in
+  (D-274).
+
+Spec: §9.2, §10.2, §10.6, §11.2, §11.8, §12.6, §13.2, §13.4, §13.5, §14.5,
+D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317.
 
 ### `src/readers.jl`
 
@@ -676,25 +717,24 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   requester's path, port and reason (D-316).
 - `Run`, §12.6's run state with the frame and boundary counters, and
   `closed(run)` (D-255, D-260, D-317).
-- `Model{T,E}`, the deployment and its executor at one scalar, its status and
-  its frame's diagnostic cell (§9.2, §11.8, §12.6, D-317).
 - The mutable `Simulation` of four fields, the model, the plane, the control
   and the run, its model a `Model{Float64}` by type (§12.1, D-256, D-317).
-- The materialization `Model(deployment, T)`, with `Model(::Build)` and
-  `Model(::AbstractComponent)` over it, and `Simulation(model::Model{Float64})`,
-  the one constructor every simulation goes through (D-317).
+  `Model` and its materialization are model.jl's.
+- `Simulation(model::Model{Float64})`, the one constructor every simulation
+  goes through (D-317).
 - The doors' recording keywords, checked by `_check_recording`.
 - The three sugar forms `Simulation(::Deployment)`, `Simulation(::Build)`
   and `Simulation(::AbstractComponent)`, each a composition through a
   `Float64` model (D-254, D-317).
-- `warnings(::Model)`, with a forwarding method on the simulation (D-250).
-- The boundary macro-sequence.
-- The §10.6 event phase, with its `FiringBudget` degradation into the model's
-  diagnostic cell (D-317).
+- `warnings` on the simulation, forwarding to the model's (D-250).
+- The two lifecycle gates `assert_stopped` and `assert_configurable`, one for
+  the readers and one for the roster, beside the advances' gate
+  `_assert_advanceable` (§11.3, D-232, D-317).
 - `init!`, `restore!`, `run!`/`step!` and `replay!`, with the run body
   `_run_body!` and the door body `_enter_checkpoint!` (D-274). The
   simulation's `init!` is the gate and the run's bookkeeping around the
-  model's `init!` in conditions.jl (D-317).
+  model's `init!`, and `_enter_checkpoint!` opens the run before it calls the
+  model's restore door. Both model doors are model.jl's (D-317).
 - `checkpoint(sim)`.
 - `_reset_periphery!` and `_open_run!`.
 - `attach!`/`detach!`.
@@ -707,10 +747,9 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   `stage!`, `drain!`, `_replay_drain!` and `publish!`, with the run's copy of
   the roster (§11.3). Both drains fold the model's diagnostic cell into the
   loop's account beside the loop's own cell (§11.8, D-317).
-- The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, the no-op
-  `NoHooks`, and the loop's `LoopHooks`, one per advance and per `init!`: the
+- The loop's `LoopHooks`, one per advance, per `init!` and per restore: the
   drain at the top, and publication then the stop sample at every settled
-  boundary (§11.2, §13.5, D-317).
+  boundary (§11.2, §13.5, D-317). `FrameHooks` and `NoHooks` are model.jl's.
 - Publication's `task_state`, read off `run_tasks` by `_status` (§12.2,
   D-270).
 - §12.6's input mode: `mode(sim)`, `to_time` and `live!` (D-260).
@@ -720,30 +759,29 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - `t_end` and `ignore_stop_requests`, the advances' keywords, and `run!`'s
   `UnboundedRun` advisory (D-255, D-260, D-261, D-316).
 - The lifecycle, derived, and the termination record (D-317).
-- The frame loop `_advance!`, whose catch disposes only, the one constructor
-  `_wrap_step` on the model, which the model's `frame!` and `init!` call, and
-  the species rule `_species` with the runtime bundle-field match (§13.2,
-  §13.4, D-248, D-317).
+- The frame loop `_advance!`, whose catch disposes only (§13.4, D-317). The
+  one constructor `_wrap_step` and the species rule `_species` are model.jl's.
 - §12.4's mask, its unmask points, and the interrupt arms of `run!` and
   `step!` (D-268). The invariants each arm keeps are
   stated in the comments at those sites.
-- The seam's `isfinite` sweep `_check_finite!`.
 - The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged` and
   `trace`.
-- The model's methods `port`, `state`, `modes`, `phase_bodies`, `evaluate!`,
-  `integrate!`, `boundary!`, `offtick_boundary!` and `boundary_zero!`, each
-  with a one-line forwarding method on the simulation (D-317).
+- A one-line forwarding method on the simulation for each of the model's
+  `port`, `state`, `modes`, `phase_bodies`, `apply!`, `evaluate!`,
+  `integrate!`, `boundary!`, `offtick_boundary!` and `boundary_zero!`, which
+  are model.jl's (D-317).
 
-Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
-§14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
-D-223, D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
+Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.4–§13.6,
+§14, §14.5, §14.6, D-027, D-101, D-203, D-218, D-219,
+D-223, D-232, D-233, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
 D-268, D-269, D-270, D-274, D-316, D-317.
 
 ### `src/stepper.jl`
 
 The seam's backend side: RK4 and Heun, the retained `startpoint`, dense output.
 `checkpoint_stepper` and `restore_stepper!` are the checkpoint's hook pair,
-empty for both methods, which hold nothing across a frame top (D-274).
+empty for both methods, which hold nothing across a frame top (D-274). The
+seam's framework side, `integrate!(model, h)`, is model.jl's.
 
 Spec: §10.2, D-017.
 
@@ -1099,14 +1137,14 @@ override:
 | touched in `src/` | run |
 | --- | --- |
 | `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves show`; a change in `build.jl`'s `compile` half adds the next row |
-| `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
+| `executor`, `stepper`, `frame` | `executor stepper continuous discrete events localization failures` |
 | `dataplane`, `roster`, `bindings`, `control`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
 | `checkpoint` | the row above, plus `discrete events linearize` |
 | `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
 | a new `AbstractComponent` fixture in any test file | add `build`, since `test_build.jl`'s Dual-activation sweep pins the skipped count |
 | `blocks` | `blocks build` |
 | `show` | `show` |
-| `sim`, `deployment`, `store`, `leaves`, `Redstone`, or `diagnostics.jl` beyond a new kind | all of it |
+| `sim`, `model`, `deployment`, `store`, `leaves`, `Redstone`, or `diagnostics.jl` beyond a new kind | all of it |
 
 To check a refactor for test loss, compare the suite's own assertion total;
 `grep -c '@test '` misses the loops that multiply them.

@@ -14,20 +14,9 @@
 # §11.7's panel kit, the framework's half of the panel convention: the baked
 # port views, the peek and the orphan fact, all reads off the handle and a
 # snapshot (D-270). `run!`'s frame anatomy and the Simulation-typed surface
-# (`attach!`, `stop!(sim)`) live in sim.jl. The helpers here take `sim` untyped for
-# include order only — they run once per run, never inside a frame.
-
-"""
-One writer's share of the tail residue (§11.8, D-203): what the run's-end
-sweep took past the final frame top — the final ring, at most `DIAG_RING`
-entries, and the per-kind counts the ring refused. A quiet writer contributes
-no record.
-"""
-struct ResidueRecord
-    writer::String
-    recent::Vector{DiagValue}
-    suppressed::KindCounts
-end
+# (`attach!`, `stop!(sim)`) live in sim.jl, which this file follows, so the
+# helpers here take the `Simulation` typed. They run once per run, never inside
+# a frame. The tail's `ResidueRecord` is dataplane.jl's.
 
 """
 The handle (§11.6): the one object every attached device receives, carrying
@@ -462,7 +451,7 @@ escaping the bracket leaves in `live` every entry whose `init!` began and that
 the bracket has not released, where `run!`'s arm releases it. Listing after
 `init!` would leak the device whose `init!` had just returned (§11.6, D-268).
 """
-function _init_devices!(sim, roster, live)
+function _init_devices!(sim::Simulation, roster, live)
     for entry in roster
         push!(live, entry)
         try
@@ -497,7 +486,7 @@ end
 # clears beside it (§12.1, D-268), and the notify under the lock wakes every
 # §12.3 waiter, whose predicate routes it out. Idempotent, and run on §13.6's
 # catch path too, so no device task is left parked when the loop throws.
-function _finish!(sim)
+function _finish!(sim::Simulation)
     control = sim.control
     @atomic control.stopped = true
     @atomic control.paused = false
@@ -527,7 +516,7 @@ it (§12.4, D-268): the remaining joins are abandoned at once, every entry
 whose task is not done reported by name exactly as the cap's path reports
 it, and nothing propagates. The run still ends `stopped`.
 """
-function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
+function _tail!(sim::Simulation, entries::Vector{RosterEntry}, tasks::Vector{Task})
     settled = 0                                 # entries the join has joined or reported
     try
         for entry in entries
@@ -568,7 +557,7 @@ function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
 end
 
 # Tail step (5)'s abandonment report, into the loop's own cell (D-203).
-function _report_join_timeout!(sim, entry::RosterEntry)
+function _report_join_timeout!(sim::Simulation, entry::RosterEntry)
     snapshot = latest(sim)                      # after init!, never nothing (§14.5)
     report_cell!(sim.plane.loop_diag,
                  DeviceJoinTimeout(_who(entry), sim.control.join_timeout,
@@ -587,7 +576,7 @@ presented through the logging backend, the record's renderer (D-201, D-203).
 The terminal status's account is therefore complete up to its own frame top,
 and the tail's remainder is loud *and* recorded, still never published.
 """
-function _sweep_tail!(sim, roster)
+function _sweep_tail!(sim::Simulation, roster)
     plane = sim.plane
     residue = ResidueRecord[]
     for entry in roster

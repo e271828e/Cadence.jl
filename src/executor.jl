@@ -8,7 +8,7 @@
 """
 Where in the compiled schedule execution is (§13.4): one plain mutable struct
 the executor owns, overwritten by one cheap store per user-code dispatch and
-one per phase transition, read only at the catch site (`_wrap_step`, sim.jl).
+one per phase transition, read only at the catch site (`_wrap_step`, model.jl).
 No allocation and no exception frames — framing information does not need to
 be caught into existence. The cursor holds its dispatch fields alone: whether
 a frame was abandoned is `frame!`'s `Bool` return, never a field here (§13.5,
@@ -175,7 +175,7 @@ end
 
 # --- the event machinery (§10.6, §5.3) ------------------------------------------
 # Not sweep entries: guards and handlers are driven by the boundary iteration in
-# `sim.jl`, against per-event registers, so their entries live in their own
+# `model.jl`, against per-event registers, so their entries live in their own
 # compiled set. One entry per declared event, carrying both halves plus its
 # component's `x_projection` (or `nothing`), and a global index into the register
 # vectors — global order is executor component order, then declaration order

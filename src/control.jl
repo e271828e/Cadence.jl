@@ -1,12 +1,12 @@
 # The control plane (§12.1) and the pacer that rides on it (§10.7): the few
 # atomic words anyone may poke — the stop word, the pause flag, the two pacing
 # knobs — beside §12.3's counter-plus-condition wait, the running flag and
-# §12.4's join cap; the stop word's one write path; the pause block; the two
-# lifecycle gates; and the pacer's schedule with its wait, the hybrid
-# sleep-then-spin of §10.7 and §12.2. Included ahead of devices.jl, whose
-# handle reads the control plane, and of sim.jl, whose loop consults it at
-# frame top and calls the verbs on it (`stop!`, `pause!`, `pace!`, …, defined
-# there beside `attach!`). The pacer's frozen record, `PacerStatus`, stays in
+# §12.4's join cap; the stop word's one write path; the pause block; and the
+# pacer's schedule with its wait, the hybrid sleep-then-spin of §10.7 and
+# §12.2. Included ahead of sim.jl, whose loop consults it at frame top and calls
+# the verbs on it (`stop!`, `pause!`, `pace!`, …, defined there beside
+# `attach!`, with the two lifecycle gates), and of devices.jl, whose handle
+# reads the control plane. The pacer's frozen record, `PacerStatus`, stays in
 # dataplane.jl beside the status it rides in.
 
 """
@@ -107,31 +107,6 @@ function wait_resume!(control::Control)
         unlock(control.wake)
     end
     parked
-end
-
-"""
-The §11.3 freeze, keyed on the simulation's lifecycle (§12.6), as two gates.
-The readers' gate, `assert_stopped`, refuses exactly while `run!` or `step!`
-holds the simulation `:running` — which spans the tail, so a roster change
-cannot race the joins — and admits every other state, `:errored` included:
-post-mortem inspection of a terminally stopped simulation is reading (§13.6).
-The roster's gate, `assert_configurable`, adds `:errored` to the refusals
-(D-232): a roster change configures the next run, and an errored simulation
-has none. Both take the simulation, whose `lifecycle` is defined in sim.jl
-(D-317).
-"""
-assert_stopped(sim, op::Symbol) =
-    lifecycle(sim) === :running ?
-    throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
-                                           legal = collect(READER_LEGAL)))) : nothing
-
-function assert_configurable(sim, op::Symbol)
-    lifecycle_state = lifecycle(sim)
-    lifecycle_state === :running && throw(DiagnosticError(ServiceLifecycle(
-        op = op, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
-    lifecycle_state === :errored && throw(DiagnosticError(ServiceLifecycle(
-        op = op, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
-    nothing
 end
 
 """

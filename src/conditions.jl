@@ -570,55 +570,6 @@ end
 apply!(::Executor{S}, ::ConditionPlan{T}) where {S,T} =
     _activation_mismatch("plan", T, S)
 
-apply!(model::Model, plan::ConditionPlan) = apply!(model.exec, plan)
-apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.model, plan)
-
-"""
-    init!(model, condition = fragment(); t0 = 0.0, hooks = NoHooks())
-    init!(model, plan::ConditionPlan; t0 = 0.0, hooks = NoHooks())
-
-The model's door into `:consistent` (§14.5, D-317): the state at the declared
-defaults with the condition's overrides applied, the clock at `t₀`, every
-event prior not-holding, and boundary zero run. The condition resolves and its
-root-input totality is checked before any write (§14.3, §14.6). The plan method
-does the writes alone, so the simulation's `init!` can resolve before it
-touches its run. Boundary zero settles through `settled!(hooks)`, whose return
-nothing reads here.
-
-The plan method hosts §13.4's catch around boundary zero (D-223): a throw
-inside it takes the one `StepError` constructor, with the frame from the
-cursor, `t₀`, pointer 0 and host `:boundary_zero`, and writes the status back
-to `:built`. An interrupt is not model code failing and has no stop path here,
-so it writes the status and propagates raw.
-"""
-function init!(model::Model{T}, condition = fragment(); kw...) where {T}
-    plan = resolve_condition(condition, model.deployment.build, T)   # both refusals precede every write
-    assert_total(plan, model.deployment.build.structure, :init!)     # (§14.6): all-or-nothing
-    init!(model, plan; kw...)
-end
-
-function init!(model::Model{T}, plan::ConditionPlan; t0::Real = 0.0,
-               hooks::FrameHooks = NoHooks()) where {T}
-    exec = model.exec
-    establish_defaults!(exec.xbuf, exec.sstores, exec.mstores,
-                        model.deployment.build.structure.components,
-                        activation(model.deployment.build, T).decls)   # D-063's reset
-    apply!(model, plan)
-    exec.clock.t = Float64(t0)        # the origin at the door, into the deployment's scalar (D-260)
-    exec.clock.t₀ = Float64(t0)       # exact: the clock's origin is a `Float64` too
-    fill!(exec.events.prior, false)   # every prior not-holding (§10.6)
-    try
-        boundary_zero!(model)
-    catch err
-        @atomic :release model.status = :built
-        err isa InterruptException && rethrow()
-        rethrow(_wrap_step(model, 0, :boundary_zero, err))
-    end
-    settled!(hooks)                   # the boundary-zero snapshot (§11.2, §14.5)
-    @atomic :release model.status = :consistent   # boundary zero completed (D-317)
-    nothing
-end
-
 # --- the specialized `apply!` (§14.3, §14.4, D-066) ------------------------------
 # The other way over the same checks. The dynamic walk bakes *values*, so a
 # plan is good for one tree; this one bakes *lenses*, so a plan compiled from a

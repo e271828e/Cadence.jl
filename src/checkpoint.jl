@@ -1,9 +1,9 @@
 # The checkpoint (§12.6, D-274): the executor's state at a frame top as one
 # value, taken by `checkpoint(sim)` and by `init!` for the trace header, and put
-# back by `restore!` and `replay!`. This file holds the value, the one read, its
-# inverse and the fingerprint check the two restoring doors share; the doors
-# themselves live in sim.jl, beside the loop. `sim` and `model` are untyped
-# throughout for include order alone, this file preceding sim.jl.
+# back by `restore!` and `replay!`. This file holds the value, the restore into
+# an executor and the fingerprint check the two restoring doors share. The
+# model-level functions, the fingerprint, the one read and the model's restore
+# door, live in model.jl; the doors themselves live in sim.jl, beside the loop.
 
 """
 The structural fingerprint (§11.5, §12.7): the layout's cell sizes, the root
@@ -52,39 +52,6 @@ struct Checkpoint{T}
     layout::Fingerprint              # compared against the `Build`
 end
 
-# The fingerprint off the model, one function for its two sides: the take
-# writes it into the checkpoint and the check compares against it, since two
-# spellings of one fingerprint would be a silent way for a restore to pass.
-function _fingerprint(model)
-    exec = model.exec
-    layout = exec.act.layout
-    Fingerprint(copy(layout.sizes),
-                Symbol[f for (f, _) in layout.root_inputs],
-                String[entry.path for entry in model.deployment.build.structure.components],
-                Any[isempty(decl.x) ? nothing : typeof(decl.x) for decl in exec.act.decls],
-                Any[st === nothing ? nothing : typeof(st[]) for st in exec.sstores],
-                Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores],
-                sort!(Pair{Tuple{String,Symbol},Tuple{Any,Tuple}}[
-                          key => (_port_type(addr), addr.offsets) for (key, addr) in layout.addr];
-                      by = first),
-                copy(exec.events.names))   # the priors' own index, empty off the nominal activation
-end
-
-# The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
-# The stores are copied by value, being isbits (D-231). The counters are the
-# run's, passed in, so a standalone model checkpoints too (D-317).
-function _take_checkpoint(model, frame::Int, boundary::Int)
-    exec = model.exec
-    clock = exec.clock
-    T = eltype(exec.xbuf)      # the model's scalar, off the buffer that carries it
-    s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
-    m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
-    checkpoint_stepper(exec.stepper)   # empty for a one-step method (stepper.jl)
-    Checkpoint{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
-                  clock.t, frame, boundary, clock.t₀, model.deployment,
-                  _fingerprint(model))
-end
-
 # The inverse: every field copied back into the executor, the clock's `t` and
 # `t₀` written as the checkpoint has them. The counters are the run's, which
 # the door opens from the checkpoint (D-317). Nothing is published here and
@@ -99,15 +66,6 @@ function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     clock = exec.clock
     clock.t, clock.t₀ = cp.t, cp.t₀
     restore_stepper!(exec.stepper, cp)
-    nothing
-end
-
-# The same restore as a model door (D-317): the state it leaves is consistent,
-# and the model writes its own status. `Model` is defined in sim.jl, after this
-# file, so the argument is untyped, as `_take_checkpoint`'s is.
-function _restore_state!(model, cp::Checkpoint)
-    _restore_state!(model.exec, cp)
-    @atomic :release model.status = :consistent
     nothing
 end
 
@@ -135,7 +93,8 @@ _detach(cp::Checkpoint{T}) where {T} =
 # The fingerprint check `restore!` and replay's entry pass share (§12.6, §12.7):
 # the structural fingerprint compared field for field, then the two deployments
 # as *values*, one `==` as D-254 asks, with `_walk_deployment!` (trace.jl) as
-# its explanation. The clock is restored, never compared.
+# its explanation. The clock is restored, never compared. `sim` is untyped
+# because this file precedes sim.jl.
 function _check_checkpoint!(diags::Vector{Diagnostic}, sim, cp::Checkpoint)
     target = _fingerprint(sim.model)
     recorded = cp.layout
