@@ -331,4 +331,20 @@ function test_localization()
         @test frame!(dual_model, 1) === false
         @test ForwardDiff.value(state(dual_model, "src").q) ≈ 0.1 rtol = 1e-12
     end
+
+    @testset "the frame loop allocates its publications and nothing else per frame (§7.5, §11.2)" begin
+        # The quiet model of gate 3, at a step where nothing fires in 2000
+        # frames: each frame publishes one boundary and localizes nothing. The
+        # difference of two advances cancels what a call pays once, and both
+        # cross frame 512, where a boxed `Int` read would start to allocate.
+        sim = Simulation(Group((; src = Sawtooth(0.1), s = Stamper(100.0));
+                               local_wires = ("src/q" => "s/sig",)); h = 1//1000)
+        init!(sim; log = false)
+        step!(sim; frames = 10)
+        publish_bytes = @ballocated publish!($sim, $(sim.plane.roster))
+        advance(n) = (init!(sim; log = false); @allocated step!(sim; frames = n))
+        advance(1000)
+        @test advance(2000) - advance(1000) == 1000 * publish_bytes
+        @test modes(sim, "s").count == 0
+    end
 end
