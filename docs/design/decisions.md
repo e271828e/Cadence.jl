@@ -13740,21 +13740,26 @@ compose the model's.
   `ServiceLifecycle` with `op = :checkpoint` and `legal = [:consistent]`,
   and with the clock off the grid as `CheckpointMidFrame`, naming the frame
   the clock sits inside. `restore!(model, model_state; hooks = NoHooks())`
-  takes the claim's gate, then checks the fingerprint and collects every
-  mismatch into one `CheckpointMismatch` throw before any write. It then
-  copies the state back, calls `settled!(hooks)` and writes `:consistent`
-  last. It has no status gate.
+  takes the claim's gate, then checks the fingerprint and the grid. It
+  collects every mismatch, `CheckpointMismatch` and `CheckpointMidFrame`
+  alike, into one throw before any write. The grid check asks that the
+  state's `t` be `t₀ + k·h` in the state's scalar, for `k` the frame the
+  clock sits inside by `_frames_to`, and a state before its `t₀` falls at
+  frame 0. The door then copies the state back, calls `settled!(hooks)` and
+  writes `:consistent` last. It has no status gate.
 - `checkpoint(sim) → Checkpoint` keeps its lifecycle gate and its mid-frame
   test, and wraps `checkpoint(sim.model)` with the run's frame index and
-  boundary ordinal. `restore!(sim, cp::Checkpoint; kw…)` is unchanged.
+  boundary ordinal. `restore!(sim, cp::Checkpoint; kw…)` makes the same
+  grid check on `cp.state`, collected with the fingerprint's.
   `restore!(sim, model_state::ModelState{Float64}; kw…)` is the door a state
   prepared on a standalone model takes into a simulation ([§9.2][s9-2], [D-318][d-318]). It
-  makes the checkpoint form's lifecycle, recording and fingerprint checks.
-  It then takes `k` as the frame the state's clock sits inside, by the frame
-  arithmetic `checkpoint(model)` uses (`_frames_to`), and refuses a state
-  with `t ≠ t₀ + k·h` as `CheckpointMidFrame` at frame `k`. A state before
-  its own `t₀` is refused the same way at frame 0. It opens a fresh
-  trajectory at frame `k`, the restored boundary published under ordinal 0
+  makes the checkpoint form's lifecycle, recording and fingerprint checks,
+  and the grid check every restore door makes. That check takes `k` as the
+  frame the state's clock sits inside, by the frame arithmetic
+  `checkpoint(model)` uses (`_frames_to`), and refuses a state with
+  `t ≠ t₀ + k·h` as `CheckpointMidFrame` at frame `k`. A state before its own
+  `t₀` is refused the same way at frame 0. The same `k` is the frame the
+  fresh trajectory opens at, the restored boundary published under ordinal 0
   and the run's ordinal reading 1 after it, as `init!` leaves it.
 - A bare state taken at another scalar is refused by dispatch.
   `restore!(::Simulation, ::ModelState{T})` and
@@ -13795,6 +13800,9 @@ a checkpoint the state at a frame top, and [§14][s14] says an errored state may
 become one. A model's `:inconsistent` is the simulation's `errored`, and a
 model at `:built` has run no boundary zero. The model's `restore!` takes no
 status gate, because restoring into a `:built` twin is the door's use.
+`checkpoint` on either level refuses an off-grid read, so only a hand-built
+state is off the grid. The restore doors already guard against a hand-built
+state through the fingerprint, and the grid check is the same class of guard.
 
 The simulation's `trim!` cannot forward whole to the model's. Its commit is
 `init!(sim, …)`, whose run opening and trace header bracket the model's

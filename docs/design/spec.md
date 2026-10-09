@@ -8784,11 +8784,16 @@ executor is not at the rest a published frame top leaves (`CheckpointMidFrame`,
 the remainder abandoned, and after a frame abandoned unpublished ([§12.4][s12-4]). The
 test is that the clock sits on a grid time and that the latest snapshot is of
 that very boundary. `restore!(model, model_state)` checks the state's
-fingerprint against the model and copies the state back. It then settles the
+fingerprint against the model. It also checks that the state's `t` is a grid
+time `t₀ + k·h` of the state's own origin and step, and a state off its grid
+is `CheckpointMidFrame`. Every mismatch of either kind is collected into one
+throw before any write. The door then copies the state back, settles the
 restored boundary through the hooks and writes `:consistent` last
 ([D-318][d-318]). `restore!(sim, cp)` takes the four recording keywords `init!` takes.
 It checks the checkpoint's fingerprint against the simulation as replay checks
-the trace header, and a mismatch is `CheckpointMismatch` ([§12.7][s12-7]). It then copies
+the trace header, and a mismatch is `CheckpointMismatch` ([§12.7][s12-7]). It checks
+the state's `t` against its grid as the model's door does, collecting both
+kinds into one throw. It then copies
 the state back, opens a fresh run with the checkpoint as its trace header, and
 publishes one snapshot at the checkpoint's `t`. It runs no sweep, evaluates no
 guard, runs no update and resets no prior. The next frame is the original
@@ -10173,7 +10178,7 @@ Within the stopped-sim states, legality follows each service's inputs.
 |---|---|---|---|---|
 | `checkpoint` | error | legal | legal | a frame-top rest; refused after a `t*` stop and after an abandoned frame |
 | `init!` | legal | legal | legal | authored conditions |
-| `restore!` | legal | legal | legal | a checkpoint whose fingerprint matches the simulation's ([§12.6][s12-6]) |
+| `restore!` | legal | legal | legal | a checkpoint whose fingerprint matches the simulation's and whose `t` sits on its grid ([§12.6][s12-6]) |
 | `trim!` | legal | legal | legal | authored conditions; the scratch world is [`override`](#g-override)`(baseline, condition(guess))` ([§14.8][s14-8]), never the sim's stores |
 | `linearize`, operating point defaulted to `checkpoint(sim)` | error | legal | legal | inherits `checkpoint`'s precondition, its refusals included |
 | `linearize`, explicit `about` ([§14.10][s14-10]) | legal | legal | legal | inherits `init!`'s legality — legal wherever `init!` is |
@@ -11900,7 +11905,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
     `ServiceLifecycle`, and a clock off the grid is `CheckpointMidFrame`
     ([§12.6][s12-6]).
   - `restore!(model, model_state; hooks = NoHooks())`. Checks the state's
-    fingerprint (`CheckpointMismatch`), copies the state back, settles
+    fingerprint (`CheckpointMismatch`) and its `t` against its grid
+    (`CheckpointMidFrame`) before any write. Copies the state back, settles
     through the hooks and writes `:consistent` last. It takes no status
     gate ([§12.6][s12-6]). A writing door.
   - `trim!(model, problem; baseline, t0 = 0.0, backend) → TrimReport`. The
@@ -12072,8 +12078,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   ([§12.6][s12-6], [§14.1][s14-1], [D-274][d-274], [D-319][d-319]).
 - `restore!(sim, cp; trace = true, log = true, log_every = 1,
   log_max = 65536)`. A door beside `init!` and `replay!`, legal where `init!`
-  is. It checks the checkpoint's fingerprint (`CheckpointMismatch`), copies
-  the state back, builds a fresh run with the checkpoint as its trace header
+  is. It checks the checkpoint's fingerprint (`CheckpointMismatch`) and its
+  `t` against its grid (`CheckpointMidFrame`). It copies the state back,
+  builds a fresh run with the checkpoint as its trace header
   and publishes one snapshot at the checkpoint's `t`. It runs no boundary
   zero, and the boundary ordinal continues. The warm restart is
   `checkpoint` → `restore!` → `run!` ([§12.6][s12-6], [D-274][d-274]).
@@ -12550,10 +12557,11 @@ activation):
   recording's (the one that differs, the clock's `t₀` or the run's frame, the
   recording's value or legal range, the simulation's).
 - **`CheckpointMidFrame`** ([§12.6][s12-6], [§14][s14]). Error · service ·
-  fail-fast. `checkpoint` on a simulation or a model that is not at the rest
-  a frame top leaves. Either the clock is past a frame top after a `t*` stop,
-  or a simulation's frame was abandoned unpublished ([§12.4][s12-4]).
-  `restore!` raises it too for a `ModelState` whose `t` is off the grid
+  fail-fast, but collected with `CheckpointMismatch` on `restore!`.
+  `checkpoint` on a simulation or a model that is not at the rest a frame
+  top leaves. Either the clock is past a frame top after a `t*` stop, or a
+  simulation's frame was abandoned unpublished ([§12.4][s12-4]). `restore!`
+  raises it too, on any of its forms, for a state whose `t` is off the grid
   ([§12.6][s12-6]). The clock's or the state's `t`, the frame top `t_frame`,
   the frame index `frame`.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
