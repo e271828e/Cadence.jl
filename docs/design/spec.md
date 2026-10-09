@@ -3993,7 +3993,9 @@ frame by frame with no ticks and no events.
 **A `Simulation` claims its `Model`** ([D-318][d-318]). The constructor claims the
 model once, and refuses as `ArgumentInvalid` a model already claimed by a
 simulation or one whose status is not `:built`, before anything is
-allocated. A simulation never shares its model, and a state prepared on a
+allocated. A simulation never shares its model, and its doors are the only
+way in: on a claimed model a direct call of `init!`, `frame!`, `apply!` or
+the restore door is refused as `ArgumentInvalid`, and a state prepared on a
 standalone model enters a simulation through a restore door, never through
 the constructor.
 
@@ -8660,8 +8662,8 @@ macro-sequence with an empty integrate ([§14.5][s14-5]), or `restore!` or
 reads three facts, the control plane's running flag, the `Model`'s status
 and whether the run is closed. The status is `:built`, `:consistent` or
 `:inconsistent`, and only the `Model`'s own doors and catch sites write it.
-A claimed model's status is written only through its simulation's doors
-([D-318][d-318]).
+A claimed model's status is written only through its simulation's doors,
+since the model's doors refuse a direct call on a claimed model ([D-318][d-318]).
 
 | running flag | `Model` status | run closed | state |
 |---|---|---|---|
