@@ -24,10 +24,13 @@ for the user. Nothing here is pushed.
 | 9cfd69a | these notes, extended |
 | ad81aad | docs: D-318 rewritten in place with the gate on a claimed model's doors (the user's call, the entry being unpushed) |
 | 33a57d6 | the gate: `_claimed_gate`, the four doors, `_apply_plan!`, the door message, the tests |
+| 59b8a96, a4555be | these notes, extended twice |
+| d014fdd | docs: the third sugar form in §9.2 and Appendix C, the run's frame in the replay mismatch row, §13.5's loop-fault sentence (ruling 9 ruled by the user) |
+| ed871d7 | the claim said before the condition on `init!`, the `restore!` docstring |
 
 Gate on the real tree at 29c3f5b: 5888 of 5888 on Julia 1.13.1; at
 22cc4db: 5902; at e96ccef: 5904 (the peer's test included); at b3fb063:
-5919; at 33a57d6: 5941. The
+5919; at 33a57d6: 5941; on the final tree: 5943. The
 review's bit-identity against 49592cc held on every fixture and door,
 replay included; `frame!` allocates nothing beyond the `Snapshot` under
 `LoopHooks` and nothing under `NoHooks`; `LoopHooks` is stack-allocated;
@@ -197,6 +200,13 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
     reports `UninitializedInputs` ahead of `:claimed`. D-318 does not rule
     on that order and the simulation is unaffected; flagged below.
 
+## Open points closed on 2026-10-09
+
+The user ruled on the notes' open points: ruling 9 stands and §13.5 says so
+(d014fdd); the third sugar form is listed and the replay mismatch row names
+the run's frame (d014fdd); the condition `init!` method gates too and the
+`restore!` docstring narrates the door (the commit after d014fdd).
+
 ## Open points for the user
 
 - Two docstring sentences in `src/deployment.jl` (289 at 49592cc,
@@ -215,13 +225,6 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
   them, so a `LoopHooks` of simulation A would pass on B's model.
   `LoopHooks` is internal and nothing in `src/` builds one across
   simulations.
-- A direct `init!(model, condition)` on a claimed model reports a condition
-  error before the claim (ruling 21). Gating the condition method too,
-  under `NoHooks()`, would put the claim first at no cost to the loop.
-- The `restore!` docstring in `sim.jl` still narrates the old internal
-  order (state copied back, batches dropped, run built); the order is now
-  run first, then the model's restore door. No visible effect; a
-  docstring-sized fix.
 - The reviewer confirmed F2 to F5 at 22cc4db and re-killed both
   surviving mutants. Two minor points it would not block on, which could
   ride on F1's conformance commit: `_restore_state!(model, cp)` writes
@@ -231,21 +234,12 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
   model method takes `hooks`, calls `settled!`, then writes); and the
   untyped `model` parameter lets a wrong-scalar executor fall through to
   a `FieldError` rather than a `MethodError`, unreachable from `src/`.
-- Ruling 9: a loop throw outside the frame now reads `:stopped` with a
-  `LoopError` record, not `:errored`. Nothing tests it; if `:errored` is
-  wanted there, the arm writes `:inconsistent` back and D-317's writer
-  roster gains the loop.
 - The `:scalar` `CheckpointMismatch` message in `diagnostics.jl` still
   says "taken on a `Simulation{…}`"; a `Dual` checkpoint is now taken on
   a `Model`, and `test_diagnostics.jl` asserts the current text.
   Increment two, with the checkpoint split.
 - The increment-two sub-bullet in `pending.md` still says "with their
   `Dual` scratch a `Model`", which `_scratch` already does.
-- Appendix C still says "the two convenience forms" where R11 now has
-  three sugar forms (`Simulation(deployment; kw…)` joins `build` and
-  `root`). A one-line docs fix, or increment three's sweep.
-- The `ReplayHeaderMismatch` payload row in Appendix C still says "the
-  simulation's clock (the `t₀` or the frame)"; the frame is the run's.
 - §13.4 still says "the catch site discriminates" the interrupt; there are
   now two catch sites. Not false.
 - Seven `Model` word hits in the spec and the log were left for increment
