@@ -634,9 +634,9 @@ A checkpoint is not a condition and has no algebra (D-273). `restore!` puts
 it back.
 """
 function checkpoint(sim::Simulation)
-    status = lifecycle(sim)
-    status in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
-        op = :checkpoint, status = status, legal = [:initialized, :stopped])))
+    lifecycle_state = lifecycle(sim)
+    lifecycle_state in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
+        op = :checkpoint, status = lifecycle_state, legal = [:initialized, :stopped])))
     # a frame top is exactly the time the loop writes there, `_grid_time` in the
     # clock's scalar, whatever the origin; a `t*` stop leaves the clock short of it.
     # At rest the latest snapshot is that top's, which an abandoned frame never
@@ -681,8 +681,10 @@ end
 §12.6's warm restart: put a checkpoint back and open a fresh run from it. A
 door beside `init!` and `replay!`, legal where `init!` is and taking its four
 recording keywords for the run it builds (D-261). The checkpoint's fingerprint
-is checked against this simulation as replay checks a trace's header, the
-mismatches collected into one `CheckpointMismatch` throw before any write. Then
+is checked against this simulation as replay checks a trace's header, and its
+clock against its own grid as the model's door checks it, the mismatches,
+`CheckpointMismatch` and `CheckpointMidFrame`, collected into one throw before
+any write. Then
 the staged batches are dropped, the run is built with the
 checkpoint as its trace header, and the model's inner restore copies the state
 back, publishes one snapshot at the checkpoint's `t` and writes `:consistent`
@@ -694,10 +696,10 @@ checkpoint, so the next frame is the original lattice's next frame, and the
 boundary ordinal continues (§12.3, D-230). The mode returns to `:live`.
 
 `restore!(sim, model_state)` is the door a state prepared on a standalone model
-takes into a simulation (§9.2, D-319). It makes the same lifecycle, recording
-and fingerprint checks, then refuses a state whose `t` is off the grid as
-`CheckpointMidFrame` at the frame `k` its clock sits inside, read as
-`checkpoint(model)` reads it. It opens a fresh trajectory at frame `k`: the
+takes into a simulation (§9.2, D-319). It makes the same lifecycle, recording,
+fingerprint and grid checks, the grid check naming the frame `k` the state's
+clock sits inside, read as `checkpoint(model)` reads it. It opens a fresh
+trajectory at that frame `k`: the
 restored boundary publishes under ordinal 0, as boundary zero's does, and the
 run's ordinal reads 1 after it. A standalone model published nothing, so there
 are no ordinals to continue. A state taken at another scalar is refused by
@@ -713,6 +715,7 @@ function restore!(sim::Simulation, cp::Checkpoint; trace = true, log = true,
     _check_recording(:restore!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     diags = Diagnostic[]
     _check_checkpoint!(diags, sim.model, cp.state)
+    _check_grid!(diags, cp.state)
     isempty(diags) || throw(DiagnosticError(diags))
     _enter_checkpoint!(sim, cp, Pair{String,Vector{Symbol}}[], nothing, trace, log,
                        Int(log_every), log_max)
@@ -729,15 +732,8 @@ function restore!(sim::Simulation, model_state::ModelState{Float64}; trace = tru
     _check_recording(:restore!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     diags = Diagnostic[]
     _check_checkpoint!(diags, sim.model, model_state)
+    k = _check_grid!(diags, model_state)   # the frame the state's clock sits inside
     isempty(diags) || throw(DiagnosticError(diags))
-    # the frame the state's clock sits inside, on its own origin, by the arithmetic
-    # `checkpoint(model)` uses, over the stride the fingerprint check just matched;
-    # a clock before `t₀` sits in frame 0
-    h = model_state.deployment.h
-    k = _frames_to(model_state.t, model_state.t₀, h)
-    t_frame = model_state.t₀ + k * h
-    model_state.t == t_frame || throw(DiagnosticError(
-        CheckpointMidFrame(t = model_state.t, t_frame = t_frame, frame = k)))
     # a fresh trajectory at frame `k`, its restored boundary under ordinal 0
     _enter_checkpoint!(sim, Checkpoint(model_state, k, 1), Pair{String,Vector{Symbol}}[],
                        nothing, trace, log, Int(log_every), log_max)

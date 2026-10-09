@@ -622,7 +622,8 @@ soon as nothing in it names a `Simulation` in a signature, and below
   - `apply!` on a model, gated under `NoHooks` before the inner
     `_apply_plan!`, which `init!` and the simulation's forwarding method call;
   - `restore!(model, model_state; hooks)`, whose fingerprint check
-    `_check_checkpoint!` precedes the ungated inner `_restore_state!`, which
+    `_check_checkpoint!` and grid check `_check_grid!` precede the ungated
+    inner `_restore_state!`, which
     the simulation's door body calls, with the scalar fallback on a state at
     another scalar (D-274, D-319).
   `frame!` (frame.jl) and `trim!` (trim.jl) are the other two gated doors.
@@ -642,7 +643,9 @@ soon as nothing in it names a `Simulation` in a signature, and below
 - The checkpoint's model-level half: `_fingerprint`, and `checkpoint(model)`
   with its two refusals, `ServiceLifecycle` and `CheckpointMidFrame`
   (D-274, D-319). `_check_checkpoint!`, the fingerprint check the restoring
-  doors and replay's entry pass share, collecting `CheckpointMismatch`.
+  doors and replay's entry pass share, collecting `CheckpointMismatch`, and
+  beside it `_check_grid!`, the grid check the three restore doors share,
+  collecting `CheckpointMidFrame` into the same list.
 
 Spec: §9.2, §10.2, §10.6, §11.2, §11.8, §12.6, §13.2, §13.4, §13.5, §14.5,
 D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317, D-318, D-319.
@@ -762,7 +765,9 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   run before it calls the model's inner restore. Both are model.jl's (D-317).
 - `checkpoint(sim)`, the wrap of `checkpoint(sim.model)` with the run's two
   counters, and `restore!`'s two forms, of a `Checkpoint` and of a bare
-  `ModelState{Float64}`, with the scalar fallback on a bare state (D-319).
+  `ModelState{Float64}`, each checking through model.jl's
+  `_check_checkpoint!` and `_check_grid!`, with the scalar fallback on a bare
+  state (D-319).
 - `trim!` and `linearize` on the simulation, each gated on the lifecycle over
   the model's `_solve_problem` or `_linearize`, `trim!` committing through
   the simulation's `init!`, with the misuse forms forwarding to the model's

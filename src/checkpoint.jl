@@ -34,7 +34,9 @@ fingerprint, the `Deployment` and the structural layout. The priors are the one
 event register that crosses a boundary: `last` equals them at rest. What every
 frame rewrites before reading it, the derivative buffer, the arrival pair and
 the localization samples, stays out. The frame index and the boundary ordinal
-are the run's, and a `Checkpoint` carries them beside the state.
+are the run's, and a `Checkpoint` carries them beside the state. `t` is an
+indexed grid time, `t₀ + k·h` as the clock writes it, so a hand-typed decimal
+can miss the grid by an ulp and be refused.
 
 The table holds the root-input cells as values, never the authored overlay
 (D-038). A model's state is not a condition and has no algebra (D-273). `==` is

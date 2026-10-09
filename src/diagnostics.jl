@@ -2212,15 +2212,16 @@ message(d::CheckpointMismatch) =
     "is compared against the `Build`, structural mismatch being an error and only " *
     "*parametric* difference the what-if replay (§12.7)"
 
-"§12.4, §12.6, §14: `checkpoint` on a simulation or a model, or `restore!` of a bare `ModelState`, not at the rest a frame top leaves — the state a `t*` stop leaves, a frame an interrupt from model code abandoned, or a state read off the grid."
+"§12.4, §12.6, §14: `checkpoint` on a simulation or a model, or `restore!` of a state on any of its forms, not at the rest a frame top leaves — the state a `t*` stop leaves, a frame an interrupt from model code abandoned, or a state read off the grid."
 Base.@kwdef struct CheckpointMidFrame <: Diagnostic
     t::Float64                               # the clock
     t_frame::Float64                         # the top of the frame it stands in
     frame::Int                               # the frame index
 end
 message(d::CheckpointMidFrame) =
-    "a checkpoint is the state at a published frame top, and this clock is " *
-    (d.t == d.t_frame ? "at frame $(d.frame)'s top, t = $(d.t), which was never published" :
+    "a checkpoint is the state at a frame top, and this clock is " *
+    (d.frame == 0 && d.t < d.t_frame ? "at t = $(d.t), before the origin t₀ = $(d.t_frame)" :
+     d.t == d.t_frame ? "at frame $(d.frame)'s top, t = $(d.t), which was never published" :
      "at t = $(d.t), inside frame $(d.frame) and short of its top at t = $(d.t_frame)") *
     " — a `t*` stop abandons the frame's remainder, and an interrupt thrown from model code " *
     "abandons the frame unpublished with its stores possibly mid-boundary. `checkpoint` " *

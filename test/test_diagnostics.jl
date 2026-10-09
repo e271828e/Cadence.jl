@@ -669,6 +669,7 @@ function diagnostics_kind_set()
             CheckpointMismatch(what = :clock, name = :t₀, expected = 0.0, found = 0.05),
             CheckpointMismatch(what = :clock, name = :frame, expected = 0:7, found = 8),
             CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4),
+            CheckpointMidFrame(t = -0.1, t_frame = 0.0, frame = 0),
             ReplaySchemaMismatch(writer = "harness", schema = [:a, :z], unknown = [:z],
                                  faces = [:a, :b]),
             ReplayUnknownFace(face = 7, frame = 1, writer = "harness", faces = [:a, :b]),
@@ -1049,11 +1050,15 @@ function diagnostics_kind_set()
         @test occursin("`restore!` takes a `ModelState` read at one", rendered)
         # A frame an interrupt abandoned at its top reads as never published.
         rendered = message(CheckpointMidFrame(t = 0.4, t_frame = 0.4, frame = 4))
-        @test startswith(rendered, "a checkpoint is the state at a published frame top, and " *
-                                   "this clock is at frame 4's top, t = 0.4, which was never " *
+        @test startswith(rendered, "a checkpoint is the state at a frame top, and this " *
+                                   "clock is at frame 4's top, t = 0.4, which was never " *
                                    "published")
         @test occursin("an interrupt thrown from model code abandons the frame unpublished",
                        rendered)
+        # A state before its origin sits in frame 0, which has no interior.
+        rendered = message(CheckpointMidFrame(t = -0.1, t_frame = 0.0, frame = 0))
+        @test startswith(rendered, "a checkpoint is the state at a frame top, and this " *
+                                   "clock is at t = -0.1, before the origin t₀ = 0.0 — ")
         # A model's state is read at `:consistent` alone, and the refusal says so.
         rendered = message(ServiceLifecycle(op = :checkpoint, status = :built,
                                             legal = [:consistent]))

@@ -602,13 +602,27 @@ function _check_checkpoint!(diags::Vector{Diagnostic}, model::Model, model_state
     nothing
 end
 
+# The grid check every restore door shares (§12.6, D-319): the frame the state's
+# clock sits inside, on its own origin and stride, by the arithmetic
+# `checkpoint(model)` uses, a clock before `t₀` sitting in frame 0, and the
+# clock exactly that frame's top in the state's scalar. Returns the frame.
+function _check_grid!(diags::Vector{Diagnostic}, model_state::ModelState)
+    t, t₀, h = model_state.t, model_state.t₀, model_state.deployment.h
+    k = _frames_to(t, t₀, h)
+    t_frame = t₀ + k * h
+    t == oftype(t, t_frame) ||
+        push!(diags, CheckpointMidFrame(t = _seconds(t), t_frame = t_frame, frame = k))
+    k
+end
+
 """
     restore!(model, model_state; hooks = NoHooks())
 
 The model's door back to a state `checkpoint(model)` took (§12.6, D-318, D-319).
 A claimed model refuses it as `ArgumentInvalid` `:claimed`. The state's
-fingerprint is checked against this model, the mismatches collected into one
-`CheckpointMismatch` throw before any write. Then the state is copied back, the
+fingerprint is checked against this model and its clock against its own grid,
+the mismatches, `CheckpointMismatch` and `CheckpointMidFrame`, collected into
+one throw before any write. Then the state is copied back, the
 restored boundary settles through `settled!(hooks)`, and the status is written
 `:consistent` last. No boundary zero runs and no prior resets. The door has no
 status gate, since restoring into a `:built` twin is its use. A state taken at
@@ -619,6 +633,7 @@ function restore!(model::Model{T}, model_state::ModelState{T};
     _claimed_gate(model, hooks, :restore!)
     diags = Diagnostic[]
     _check_checkpoint!(diags, model, model_state)
+    _check_grid!(diags, model_state)
     isempty(diags) || throw(DiagnosticError(diags))
     _restore_state!(model, model_state; hooks)
 end

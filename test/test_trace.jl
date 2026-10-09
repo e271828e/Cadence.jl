@@ -1503,16 +1503,39 @@ function trace_checkpoints()
         # A state off the grid is refused at the frame its clock sits inside, by
         # `checkpoint(model)`'s arithmetic: mid-frame, past the middle of a frame,
         # where a `round` would name the frame below, and before the origin, which
-        # sits in frame 0.
+        # sits in frame 0. Every restore door refuses it, the model's and the
+        # checkpoint's too, collected with the fingerprint's mismatches.
         for (t, k) in ((0.25, 3), (0.34, 4), (-0.1, 0))
             off_grid = ModelState(model_state.x, model_state.s, model_state.m,
                                   model_state.table, model_state.prior, t, model_state.t₀,
                                   model_state.deployment, model_state.layout)
-            d = carried(@test_throws DiagnosticError{CheckpointMidFrame} restore!(sim, off_grid))
-            @test d.frame == k && d.t === t && d.t_frame === 0.0 + k * 0.1
+            d = only(diagnostics(failure(() -> restore!(sim, off_grid))))
+            @test d isa CheckpointMidFrame && d.frame == k && d.t === t &&
+                  d.t_frame === 0.0 + k * 0.1
+            @test lifecycle(sim) === :stopped
+            assert_unwritten(sim, before)
+            twin = Model(replay_model(); h = 1//10)
+            d = only(diagnostics(failure(() -> restore!(twin, off_grid))))
+            @test d isa CheckpointMidFrame && d.frame == k && d.t === t &&
+                  d.t_frame === 0.0 + k * 0.1
+            @test twin.status === :built
+            d = only(diagnostics(failure(() -> restore!(sim, Checkpoint(off_grid, k, 1)))))
+            @test d isa CheckpointMidFrame && d.frame == k && d.t === t &&
+                  d.t_frame === 0.0 + k * 0.1
             @test lifecycle(sim) === :stopped
             assert_unwritten(sim, before)
         end
+        # The checks collect: a state off its grid and from another deployment is
+        # one throw carrying both kinds.
+        fine_state = checkpoint(fine)
+        off_both = ModelState(fine_state.x, fine_state.s, fine_state.m, fine_state.table,
+                              fine_state.prior, 0.025, fine_state.t₀, fine_state.deployment,
+                              fine_state.layout)
+        err = failure(() -> restore!(sim, off_both))
+        @test err isa DiagnosticError && any(d isa CheckpointMismatch for d in diagnostics(err)) &&
+              any(d isa CheckpointMidFrame for d in diagnostics(err))
+        @test lifecycle(sim) === :stopped
+        assert_unwritten(sim, before)
 
         # The recording keywords are this door's own too.
         d = only(diagnostics(failure(() -> restore!(sim, model_state; log_every = 0))))
