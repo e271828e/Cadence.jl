@@ -625,9 +625,9 @@ soon as nothing in it names a `Simulation` in a signature, and below
     `_check_checkpoint!` precedes the ungated inner `_restore_state!`, which
     the simulation's door body calls, with the scalar fallback on a state at
     another scalar (D-274, D-319).
-  `frame!` (frame.jl) is the fourth gated door. The stepping primitives
-  `evaluate!`, `integrate!`, `boundary!`, `offtick_boundary!` and
-  `boundary_zero!` stay ungated (D-318).
+  `frame!` (frame.jl) and `trim!` (trim.jl) are the other two gated doors.
+  The stepping primitives `evaluate!`, `integrate!`, `boundary!`,
+  `offtick_boundary!` and `boundary_zero!` stay ungated (D-318).
 - `phase_bodies`, and `evaluate!` on the executor and the model.
 - The boundary macro-sequence `boundary!`, `offtick_boundary!`,
   `boundary_zero!` and `_round!`, and the §10.6 event phase `event_phase!`,
@@ -996,10 +996,12 @@ Traps the code does not warn about, each hit more than once while building:
   interpolate one into a name a test or a trace compares (`string(typeof(x))`
   reads `Pad` from `Main` and `Main.RedstoneTests.Pad` from the test module).
   Every payload field and writer label naming a *user* type goes through
-  `_typename` (`diagnostics.jl`), which is `nameof` and so module-independent;
-  the two `string(typeof(...))` left in `trim.jl` name a *framework* type on
-  purpose, parameters and all. `Symbol(::Type)` has the same dependence — key
-  buffers with `_cell_key`;
+  `_typename` (`diagnostics.jl`), which is `nameof` and so module-independent.
+  Four sites print a type directly: one `string(typeof(other))` in `trim.jl`
+  and one in `linearize.jl`, which render whatever type the caller passed, and
+  the two `"Model{$T}"` values of the `:non_nominal` methods, which render a
+  *framework* type, parameters and all. `Symbol(::Type)` has the same
+  dependence — key buffers with `_cell_key`;
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them;

@@ -1205,7 +1205,7 @@ message(d::ServiceLifecycle) =
     "`$(d.op)` on a stopped simulation: re-running is the `stopped → init! → run!` cycle " *
     "— `init!` re-runs boundary zero and opens a fresh trajectory (§12.6)" :
     d.legal == [:consistent] ?
-    "`$(d.op)` on a model whose status is `$(d.status)` — a model's state is read at " *
+    "`$(d.op)` on a model whose status is `:$(d.status)` — a model's state is read at " *
     "`:consistent`, after `init!` or a restore and before any throw (§12.6, D-319)" :
     "`$(d.op)` is legal in $(_namelist(d.legal)), and this simulation is `$(d.status)` " *
     "(§12.6, §14)"
@@ -2219,13 +2219,14 @@ Base.@kwdef struct CheckpointMidFrame <: Diagnostic
     frame::Int                               # the frame index
 end
 message(d::CheckpointMidFrame) =
-    "`checkpoint` with the clock " *
+    "a checkpoint is the state at a published frame top, and this clock is " *
     (d.t == d.t_frame ? "at frame $(d.frame)'s top, t = $(d.t), which was never published" :
      "at t = $(d.t), inside frame $(d.frame) and short of its top at t = $(d.t_frame)") *
-    " — a `t*` stop abandons the frame's remainder, an interrupt thrown from model code " *
-    "abandons the frame unpublished with its stores possibly mid-boundary, and a checkpoint " *
-    "is taken at the rest a published frame top leaves only; stop the run at one: `t_end`, " *
-    "a stop request read at a grid boundary, or `stop!` (§12.4, §12.6, D-274)"
+    " — a `t*` stop abandons the frame's remainder, and an interrupt thrown from model code " *
+    "abandons the frame unpublished with its stores possibly mid-boundary. `checkpoint` " *
+    "reads a run stopped at a frame top (`t_end`, a stop request read at a grid boundary, " *
+    "or `stop!`), and `restore!` takes a `ModelState` read at one (§12.4, §12.6, D-274, " *
+    "D-319)"
 
 "§11.5, §12.7: a recorded writer schema naming faces the target model does not export as root inputs."
 Base.@kwdef struct ReplaySchemaMismatch <: Diagnostic

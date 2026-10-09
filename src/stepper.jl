@@ -33,16 +33,16 @@ function startpoint end
 
 """
     checkpoint_stepper(stepper)
-    restore_stepper!(stepper, cp)
+    restore_stepper!(stepper, model_state)
 
 The seam's checkpoint pair (D-274): what a backend carries across a frame top,
 read when a checkpoint is taken and written back when one is restored. A
 one-step method carries nothing, its `startpoint` being rewritten by every step
 before anything reads it, so both first-cut backends take this empty pair and
-a checkpoint has no field for it; a multistep backend would add one.
+the model's state has no field for it; a multistep backend would add one.
 """
 checkpoint_stepper(::AbstractStepper) = nothing
-restore_stepper!(::AbstractStepper, cp) = nothing
+restore_stepper!(::AbstractStepper, model_state) = nothing
 
 """
     RK4(T, n_x)

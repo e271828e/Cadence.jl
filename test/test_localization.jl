@@ -300,6 +300,12 @@ function test_localization()
         end
         @test modes(model, "s") == modes(sim, "s")
         @test checkpoint(model).t == 1.0
+        # The model's restore settles the restored boundary through the hooks it
+        # is handed, once (§12.6, D-319).
+        twin = Model(deployment)
+        hooks = RecordingHooks(twin, 0, Float64[], false)
+        restore!(twin, checkpoint(model); hooks)
+        @test hooks.tops == 0 && hooks.boundaries == [1.0]
 
         # Ten tops, and the frame with the t* settles twice: at t* and at its top.
         model = Model(deployment)

@@ -188,6 +188,13 @@ function failures_runtime()
         @test err.cursor == CursorFrame(nothing, :none, :drain, 0)
         @test err.boundary == 3 && err.host === :loop
         @test model.status === :inconsistent
+        # An inconsistent model has no state to take, and the default linearization
+        # no point to read (§12.6, §14.10, D-319).
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} checkpoint(model))
+        @test d.op === :checkpoint && d.status === :inconsistent && d.legal == [:consistent]
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} linearize(
+            model, taps(x = (q = get_state("div", :q),))))
+        @test d.op === :linearize && d.status === :inconsistent && d.legal == [:consistent]
     end
 
     @testset "a throw mid-integration names the component, `x_deriv` and the stage (§13.4)" begin

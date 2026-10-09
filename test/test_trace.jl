@@ -1179,6 +1179,9 @@ function trace_checkpoints()
         @test d.op === :checkpoint && d.status === :errored
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} restore!(crashed, before))
         @test d.op === :restore! && d.status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} restore!(crashed,
+                                                                            before.state))
+        @test d.op === :restore! && d.status === :errored
 
         # `running` is the §11.3 freeze, reached with `test_lifecycle.jl`'s idiom:
         # both ends of the run are test-controlled.
@@ -1497,13 +1500,23 @@ function trace_checkpoints()
         @test err isa DiagnosticError && all(d isa CheckpointMismatch for d in diagnostics(err))
         @test twin.status === :built
 
-        # A state off the grid is refused at the frame `round` places it in.
-        off_grid = ModelState(model_state.x, model_state.s, model_state.m, model_state.table,
-                              model_state.prior, 0.25, model_state.t₀,
-                              model_state.deployment, model_state.layout)
-        d = carried(@test_throws DiagnosticError{CheckpointMidFrame} restore!(sim, off_grid))
-        @test d.frame == round(Int, 0.25 / 0.1) == 2
-        @test d.t === 0.25 && d.t_frame === 0.0 + 2 * 0.1
+        # A state off the grid is refused at the frame its clock sits inside, by
+        # `checkpoint(model)`'s arithmetic: mid-frame, past the middle of a frame,
+        # where a `round` would name the frame below, and before the origin, which
+        # sits in frame 0.
+        for (t, k) in ((0.25, 3), (0.34, 4), (-0.1, 0))
+            off_grid = ModelState(model_state.x, model_state.s, model_state.m,
+                                  model_state.table, model_state.prior, t, model_state.t₀,
+                                  model_state.deployment, model_state.layout)
+            d = carried(@test_throws DiagnosticError{CheckpointMidFrame} restore!(sim, off_grid))
+            @test d.frame == k && d.t === t && d.t_frame === 0.0 + k * 0.1
+            @test lifecycle(sim) === :stopped
+            assert_unwritten(sim, before)
+        end
+
+        # The recording keywords are this door's own too.
+        d = only(diagnostics(failure(() -> restore!(sim, model_state; log_every = 0))))
+        @test d isa ArgumentInvalid && d.call === :restore! && d.argument === :log_every
         @test lifecycle(sim) === :stopped
         assert_unwritten(sim, before)
     end

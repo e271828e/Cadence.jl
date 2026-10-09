@@ -696,11 +696,12 @@ boundary ordinal continues (§12.3, D-230). The mode returns to `:live`.
 `restore!(sim, model_state)` is the door a state prepared on a standalone model
 takes into a simulation (§9.2, D-319). It makes the same lifecycle, recording
 and fingerprint checks, then refuses a state whose `t` is off the grid as
-`CheckpointMidFrame` at the frame `k = round(Int, (t - t₀) / h)`. It opens a
-fresh trajectory at frame `k`: the restored boundary publishes under ordinal 0,
-as boundary zero's does, and the run's ordinal reads 1 after it. A standalone
-model published nothing, so there are no ordinals to continue. A state taken at
-another scalar is refused by dispatch with `CheckpointMismatch`.
+`CheckpointMidFrame` at the frame `k` its clock sits inside, read as
+`checkpoint(model)` reads it. It opens a fresh trajectory at frame `k`: the
+restored boundary publishes under ordinal 0, as boundary zero's does, and the
+run's ordinal reads 1 after it. A standalone model published nothing, so there
+are no ordinals to continue. A state taken at another scalar is refused by
+dispatch with `CheckpointMismatch`.
 """
 function restore!(sim::Simulation, cp::Checkpoint; trace = true, log = true,
                   log_every = 1, log_max = 65536)
@@ -729,10 +730,11 @@ function restore!(sim::Simulation, model_state::ModelState{Float64}; trace = tru
     diags = Diagnostic[]
     _check_checkpoint!(diags, sim.model, model_state)
     isempty(diags) || throw(DiagnosticError(diags))
-    # the state's grid position, on its own origin: `_grid_time`'s arithmetic,
-    # the stride the fingerprint check just matched
+    # the frame the state's clock sits inside, on its own origin, by the arithmetic
+    # `checkpoint(model)` uses, over the stride the fingerprint check just matched;
+    # a clock before `t₀` sits in frame 0
     h = model_state.deployment.h
-    k = round(Int, (model_state.t - model_state.t₀) / h)
+    k = _frames_to(model_state.t, model_state.t₀, h)
     t_frame = model_state.t₀ + k * h
     model_state.t == t_frame || throw(DiagnosticError(
         CheckpointMidFrame(t = model_state.t, t_frame = t_frame, frame = k)))
@@ -758,10 +760,10 @@ simulation as it was, lifecycle included.
 """
 function trim!(sim::Simulation, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
-    status = lifecycle(sim)
-    status === :running && throw(DiagnosticError(ServiceLifecycle(
+    lifecycle_state = lifecycle(sim)
+    lifecycle_state === :running && throw(DiagnosticError(ServiceLifecycle(
         op = :trim!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
-    status === :errored && throw(DiagnosticError(ServiceLifecycle(
+    lifecycle_state === :errored && throw(DiagnosticError(ServiceLifecycle(
         op = :trim!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     solved = _solve_problem(sim.model, problem; baseline, backend)
     _verdict!(sim.model, problem, baseline, solved,
@@ -785,10 +787,11 @@ function linearize(sim::Simulation, tap_set::Taps; about = nothing,
     # §14's two rows: the default form inherits `checkpoint`'s precondition, the
     # explicit one `init!`'s legality. Both before any resolution. The gate names
     # `linearize` for both forms, so `checkpoint` is left the mid-frame refusal.
-    status = lifecycle(sim)
+    lifecycle_state = lifecycle(sim)
     legal = about === nothing ? [:initialized, :stopped] : collect(STOPPED_SIM_LEGAL)
-    status in legal ||
-        throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = status, legal = legal)))
+    lifecycle_state in legal ||
+        throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = lifecycle_state,
+                                               legal = legal)))
     operating_point = about === nothing ? checkpoint(sim).state : nothing
     _linearize(sim.model, tap_set, operating_point, about, t0, width)
 end

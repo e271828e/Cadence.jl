@@ -1046,16 +1046,18 @@ function diagnostics_kind_set()
         rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4))
         @test occursin("t = 0.315, inside frame 4 and short of its top at t = 0.4", rendered)
         @test occursin("`t_end`, a stop request read at a grid boundary, or `stop!`", rendered)
+        @test occursin("`restore!` takes a `ModelState` read at one", rendered)
         # A frame an interrupt abandoned at its top reads as never published.
         rendered = message(CheckpointMidFrame(t = 0.4, t_frame = 0.4, frame = 4))
-        @test startswith(rendered, "`checkpoint` with the clock at frame 4's top, t = 0.4, " *
-                                   "which was never published")
+        @test startswith(rendered, "a checkpoint is the state at a published frame top, and " *
+                                   "this clock is at frame 4's top, t = 0.4, which was never " *
+                                   "published")
         @test occursin("an interrupt thrown from model code abandons the frame unpublished",
                        rendered)
         # A model's state is read at `:consistent` alone, and the refusal says so.
         rendered = message(ServiceLifecycle(op = :checkpoint, status = :built,
                                             legal = [:consistent]))
-        @test startswith(rendered, "`checkpoint` on a model whose status is `built` — a " *
+        @test startswith(rendered, "`checkpoint` on a model whose status is `:built` — a " *
                                    "model's state is read at `:consistent`")
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
