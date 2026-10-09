@@ -17,9 +17,13 @@ both add names.
   working order. It closes the silent frozen run at a non-`Float64` scalar
   by type, since only a `Model{Float64}` can be run. Increment 70 delivered
   the first, and the code owes D-317 the other two.
-  - Increment two moves `trim!` and `linearize` onto `Model{Float64}`, with
-    their `Dual` scratch a `Model`, and splits the checkpoint (§14.8,
-    §14.10, D-282).
+  - Increment two moves `trim!` and `linearize` onto `Model{Float64}`,
+    their files above `sim.jl`, and re-raises the `:non_nominal` refusals
+    on the model; splits the checkpoint into the model's inner value and
+    the run's cursor, with `checkpoint` and `restore!` on both levels; and
+    gives Appendix B the `Model` block that lists the model's API and
+    places the primitives outside it (§14.8, §14.10, Appendix B, D-282,
+    D-318). The roadmap's increment two paragraph is the register.
   - Increment three sweeps the spec's and the companions' "model" vocabulary
     off the component tree, and gives the glossary's `nominal` the sentence
     that only a `Model{Float64}` can be run.

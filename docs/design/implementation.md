@@ -905,6 +905,26 @@ The suite's `import Redstone:` list, shared with `repl.jl` — the one place a
 framework name the tests call or extend is admitted. A second line,
 `import Redstone.Blocks:`, admits the library's blocks.
 
+### `test/utils.jl`
+
+The helpers shared across the test files, no model among them:
+
+- `D8`, the `Dual` scalar the standalone-model fixtures build at (§9.4).
+- `walked` and `gated`, a phase body's entries per variant and its gated
+  count (§10.5).
+- `frames!(model, n)`, a standalone model stepped `n` whole frames under
+  `NoHooks` from the frame top its clock sits on (D-317).
+- `single` and `fed`, one component under a wrapper assembly, the second
+  with one input face handed up to a root input `in` (D-208).
+- `poke!`, the drain's counterfactual write into a root input's cell, not
+  framework API; `same_table`, two signal tables buffer by buffer.
+- `paths`, a structure's component paths in walk order.
+- `failure` and `carried`, the error a call raises and the diagnostic a
+  passed `@test_throws` carried.
+- `writer_status`, `accounted` and `crash_accounted`, one writer's record in
+  a snapshot's status and a device-task diagnostic's single account (§11.8,
+  §12.4).
+
 ### `test/repl.jl`
 
 The REPL bootstrap: `julia --project=test -L test/repl.jl` loads the list and
