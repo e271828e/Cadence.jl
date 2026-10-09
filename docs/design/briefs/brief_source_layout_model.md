@@ -98,6 +98,20 @@ wrong at the keyboard, stop and report rather than deviate silently.
   keeps its name, the test tree being cut by property. `test/imports.jl`
   imports names, not files, and no name changes.
 
+## Amended at the keyboard (2026-10-09)
+
+The stage stopped before editing: `TerminationRecord` in `sim.jl` holds a
+`Vector{ResidueRecord}`, and the type lived in `devices.jl`, so `devices.jl`
+could not follow `sim.jl`. Ruled: `ResidueRecord` moves to `dataplane.jl`
+beside `WriterStatus`, `DiagValue` and `KindCounts`, the values it is built
+from; the `### src/devices.jl` row loses its placement sentence and the
+`### src/dataplane.jl` row gains the construct. Ranges corrected: the
+`Model` block is 123 to 182, the checkpoint blocks that move are 55 to 86
+and 105 to 112, `phase_bodies` is 481 to 495. The `NoHooks … LoopHooks`
+paragraph stays in the `FrameHooks` docstring, naming `sim.jl`. The routing
+table's `localization` entry becomes `frame`, and `model` joins the "all of
+it" row.
+
 ## Out of scope
 
 - Any behaviour change. The suite is the proof: every assertion passes
