@@ -2212,7 +2212,7 @@ message(d::CheckpointMismatch) =
     "is compared against the `Build`, structural mismatch being an error and only " *
     "*parametric* difference the what-if replay (§12.7)"
 
-"§12.4, §12.6, §14: `checkpoint` on a simulation not at the rest a published frame top leaves — the state a `t*` stop leaves, or a frame an interrupt from model code abandoned."
+"§12.4, §12.6, §14: `checkpoint` on a simulation or a model, or `restore!` of a bare `ModelState`, not at the rest a frame top leaves — the state a `t*` stop leaves, a frame an interrupt from model code abandoned, or a state read off the grid."
 Base.@kwdef struct CheckpointMidFrame <: Diagnostic
     t::Float64                               # the clock
     t_frame::Float64                         # the top of the frame it stands in
