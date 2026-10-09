@@ -463,7 +463,7 @@ then occupy four of eight slots.
 
 **Step 1: the operating point.** With no `about` keyword it is
 `checkpoint(sim)`, the `Model`'s state at a frame top as one value beside the
-run's two counters: the state holds the flat buffer, the stores, the whole
+run's two counters. The state holds the flat buffer, the stores, the whole
 signal table, the guard priors and the clock ([§12.6][s12-6], [D-274][d-274]).
 For our trimmed sim it holds `x = [0.3, 0.0]` and the root-input cells
 `τ = 2.899` and `d = 0.0`. A checkpoint is not a condition, so nothing is

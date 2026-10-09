@@ -146,9 +146,8 @@ vehicle dynamics, sensors and avionics, simulated offline or interactively in
 real time. The formalism itself is domain-neutral.
 
 **Capabilities.** A model is written as a tree of [components](#g-component) in plain Julia. The
-build checks the tree and compiles it, and a [`Model`](#g-model) (the compiled tree at one
-scalar type, ready to step) is what a simulation runs ([§9][s9]). The framework
-provides these capabilities.
+build checks the tree. A simulation runs a [`Model`](#g-model) (the tree compiled at one
+scalar type, ready to step) ([§9][s9]). The framework provides these capabilities.
 
 - Continuous dynamics with algebraic outputs, integrated on a fixed step, with
   events either located by root-finding or checked at step boundaries
@@ -1598,8 +1597,8 @@ the condition apply converts authored values through ordinary `convert` methods
 ([§14.3][s14-3]). Constructors run on the write paths, never on views.
 
 With the leaf vocabulary closed, the shape of `Ẋ` takes one line to state. `Ẋ`
-has exactly `X`'s shape at the [activation](#g-activation) scalar (the scalar type `T` at which
-the build types the component tree). A scalar leaf's derivative is a `T`, and an
+has exactly `X`'s shape at the [activation](#g-activation) scalar (the scalar `T` at which the
+build types the tree). A scalar leaf's derivative is a `T`, and an
 `SArray` leaf's is the same `SArray` at `T`. This is what the closed vocabulary
 buys. An invariant-carrying leaf like a unit quaternion has a derivative off its
 own type, and `Ẋ` would need a separate derivation. Here the attitude leaf is an
@@ -4396,7 +4395,7 @@ probe-fed data.
 
 ### 9.4 Activations: executable sets, laziness, caching
 
-By default, the build types the component tree only at `Float64`. Linearization
+By default, the build types the [component](#g-component) tree only at `Float64`. Linearization
 and gradient trim need the same tree at another scalar type, a `Dual`. An
 [activation](#g-activation) (the build's typed products at a given scalar
 type) supplies that typing. This section states what an activation re-runs,
@@ -4406,7 +4405,7 @@ which functions it probes, when it runs, and what the `Build` caches.
 activation at `T` re-runs it with a different scalar and redoes five things:
 
 - Producer-fed [cells](#g-cell) are re-typed by *walking* the producing
-  [component](#g-component)'s output declaration at `T` ([§8.2][s8-2]). A
+  component's output declaration at `T` ([§8.2][s8-2]). A
   continuous producer's declaration follows the scalar at every unpinned leaf.
   A discrete producer's declaration is read once and pins.
 - [Root-input](#g-root-input) cells are re-typed by *walking* the consuming
@@ -4785,7 +4784,7 @@ and diagnostic form. The [executor](#g-executor) compiles from that order
 
 #### The execution form
 
-At `Simulation` construction, and per [activation](#g-activation) (the
+At `Model` construction, and per [activation](#g-activation) (the
 build's typed products at a given scalar type), that data is compiled into the
 execution form. **The execution form is a concretely-typed tuple of entries**
 over statically typed [cell](#g-cell) storage, traversed by a
@@ -4950,7 +4949,7 @@ root of 128 components over known types takes 0.08 s, against 12.1 s.
 The figures below were measured in 2026-10 on Julia 1.13.0 and Apple
 Silicon, as were those above (`docs/reports/20261001_compile_cost_reeval/`).
 The components carry real arithmetic. Each figure is the minimum of three
-runs, from constructing the model to the end of its first `run!`. A cold
+runs, from calling `build` to the end of its first `run!`. A cold
 process runs the model first in a fresh session. A new topology follows a
 model of the same component types in a warm one.
 
@@ -5171,7 +5170,7 @@ integrator.
 **`RK4` is the default** of the two ([D-227][d-227]). The `algorithm` keyword
 selects the backend by type on the [`Deployment`](#g-deployment) (the
 scalar-free artifact the grid parameters fix). Materialization at
-`Simulation` construction binds the stepper against the state buffer, on the
+`Model` construction binds the stepper against the state buffer, on the
 executor ([Appendix B][sB], [§9.2][s9-2], [D-227][d-227]). The step `h` has
 no default and is required of the caller. A domain rate is not a framework
 default.
@@ -11445,7 +11444,7 @@ side by side:
 first service with no commit and no [boundary zero](#g-boundary-zero) (the
 initialization boundary: the ordinary macro-sequence with an empty integrate).
 It works on scratch buffers only, and nothing it computes becomes
-authoritative. Today's restore-the-trim dance, the re-`assign!` after
+authoritative. Flight.jl's restore-the-trim dance, the re-`assign!` after
 `FiniteDiff` dirtied the model, has no successor. The default operating point
 is the [checkpoint](#g-checkpoint) (the `Model`'s state at a frame top as
 one value) of the simulation or the model as it stands. It is
@@ -12164,7 +12163,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `margin!(sim, m)` set the two knobs and `pace(sim)` and `margin(sim)` read
   them ([D-269][d-269]); a device stops through `stop!(handle)` ([§11.6][s11-6]). The
   tail clears the pause, never a run's start ([D-268][d-268]).
-- Termination. A component's state ends a run via stop requests, `StopFlag`
+- Termination. The model's state ends a run via stop requests, `StopFlag`
   ports read at every published boundary unless the advance ignores them
   ([§13.5][s13-5]). Shutdown completes a boundary,
   publishes the final snapshot, then joins ([§12.4][s12-4]).
