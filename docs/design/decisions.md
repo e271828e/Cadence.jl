@@ -13750,8 +13750,10 @@ compose the model's.
   `restore!(sim, model_state::ModelState{Float64}; kw…)` is the door a state
   prepared on a standalone model takes into a simulation ([§9.2][s9-2], [D-318][d-318]). It
   makes the checkpoint form's lifecycle, recording and fingerprint checks.
-  It then takes `k = round(Int, (t - t₀) / h)` and refuses a state with
-  `t ≠ t₀ + k·h` as `CheckpointMidFrame` at frame `k`. It opens a fresh
+  It then takes `k` as the frame the state's clock sits inside, by the frame
+  arithmetic `checkpoint(model)` uses (`_frames_to`), and refuses a state
+  with `t ≠ t₀ + k·h` as `CheckpointMidFrame` at frame `k`. A state before
+  its own `t₀` is refused the same way at frame 0. It opens a fresh
   trajectory at frame `k`, the restored boundary published under ordinal 0
   and the run's ordinal reading 1 after it, as `init!` leaves it.
 - A bare state taken at another scalar is refused by dispatch.
