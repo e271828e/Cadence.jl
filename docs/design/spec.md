@@ -3972,16 +3972,17 @@ rejected.
 and `warnings`** ([D-253][d-253]). The first three are the products of
 the structure step and the nominal evaluation ([§9.1][s9-1]).
 
-**Deploying and materializing are two steps**, with two sugar forms over them
-([D-254][d-254]). The `Deployment` constructor (below) is the first step.
+**Deploying and materializing are two steps**, with three sugar forms over
+them ([D-254][d-254]). The `Deployment` constructor (below) is the first step.
 The `Model` constructor is the materialization step, and the `Simulation`
-constructor runs its product. The two sugar forms are `Simulation`'s:
+constructor runs its product. The three sugar forms are `Simulation`'s:
 
 ```julia
-Model(deployment, T)        # materializes a deployment at a scalar type
-Simulation(model)           # runs a Model{Float64}
-Simulation(build; kw...)    # composes the steps through a Float64 model
-Simulation(world; kw...)    # calls build first
+Model(deployment, T)          # materializes a deployment at a scalar type
+Simulation(model)             # runs a Model{Float64}
+Simulation(deployment; kw...) # materializes a Float64 model and runs it
+Simulation(build; kw...)      # composes the steps through a Float64 model
+Simulation(world; kw...)      # calls build first
 ```
 
 **A `Simulation` runs a `Model{Float64}` and nothing else** ([D-317][d-317]). The
@@ -9761,8 +9762,12 @@ kinds.
 - `ControlRequestedStop` means a control-plane stop. The payload is its issuer
   ([§12.1][s12-1]): the requesting device, `:code`, or `:interrupt`.
 - `LoopError` means the abnormal entry of [§13.6][s13-6]. The payload is the
-  propagated cause. The record covers the `errored` terminal state exactly as
-  it covers `stopped`.
+  propagated cause. A throw inside the frame reaches the record with the
+  `Model` already marked `:inconsistent` by its own catch, and the simulation
+  reads `errored`; a loop fault outside the frame, in the pacer, a yield or
+  the tail, closes the run as `stopped` with the `Model` consistent at its
+  last settled boundary, since only the `Model`'s own catch sites mark it
+  ([D-317][d-317]). The record covers both exactly alike.
 
 A `stopped` simulation therefore answers "why did it stop?" without its
 consumer reconstructing the answer from the clock. It answers "how did the
@@ -11849,11 +11854,12 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   records nor compares it ([§12.4][s12-4]). The four recording keywords are
   `init!`'s, `restore!`'s and `replay!`'s, the doors that build a run (below,
   [D-261][d-261]).
-- `Simulation(build; kw...)` and `Simulation(world; kw...)`. The two
-  convenience forms. The first composes the `Deployment` constructor with the
-  materialization, and the second calls `build` first. They take the
-  deployment keywords and the `Model` and `Simulation` keywords above, and
-  build a `Model{Float64}` ([§9.2][s9-2]).
+- `Simulation(deployment; kw...)`, `Simulation(build; kw...)` and
+  `Simulation(world; kw...)`. The three convenience forms. The first
+  materializes a `Model{Float64}` from the deployment and runs it, the second
+  composes the `Deployment` constructor with that, and the third calls
+  `build` first. They take the `Model` and `Simulation` keywords above, the
+  last two the deployment keywords as well ([§9.2][s9-2]).
 - `attach!(sim, dev::AbstractDevice, binding::AbstractBinding; should_abort = false)`.
   The roots are mandatory, and the signature is the gate.
 
@@ -12450,8 +12456,9 @@ activation):
   value), a schedule whose row list, scope list or per-component vector
   differs (the name, the two lists), a frame ordinal outside the
   recording's frames (the writer, the ordinal, the legal range), or, under
-  `restore = false`, the simulation's clock off the recording's (the `t₀` or
-  the frame, the recording's value or legal range, the simulation's).
+  `restore = false`, the simulation's origin or frame index off the
+  recording's (the one that differs, the clock's `t₀` or the run's frame, the
+  recording's value or legal range, the simulation's).
 - **`CheckpointMidFrame`** ([§12.6][s12-6], [§14][s14]). Error · service ·
   fail-fast. `checkpoint` on a simulation that is not at the rest a published
   frame top leaves. Either the clock is past a frame top after a `t*` stop,
