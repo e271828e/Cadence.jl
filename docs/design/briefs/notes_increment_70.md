@@ -14,9 +14,17 @@ for the user. Nothing here is pushed.
 | 697ff66 | stage 3: `FrameHooks`, `frame!` on the model with the catch, the model's `init!` and cell, `LoopHooks` |
 | 29c3f5b | stage 4: `Simulation(model::Model{Float64})`, `Run`, `Trace`, `TerminationRecord` without `T`, the `Dual` fixtures as models |
 | 22cc4db | the review fixes, F2 to F5 |
+| 9faed10 | these notes, first form |
+| e631c3b | a peer session's allocation test beside the frame canaries |
+| 9bd5619 | the source-layout brief, and the roadmap's increment-two and landing paragraphs |
+| e96ccef | the layout: `model.jl`, `frame.jl`, the include order, the typed parameters, the restore door with hooks |
+| 90adef3 | the layout brief amended with the `ResidueRecord` ruling and the corrected ranges |
+| c1ef572 | docs: D-318, the claim, and the spec sentences it governs |
+| b3fb063 | the claim: `claimed` on `Model`, the two refusals, their tests |
 
-Gate on the real tree at 29c3f5b: 5888 of 5888 on Julia 1.13.1, and at
-22cc4db: 5902 of 5902. The
+Gate on the real tree at 29c3f5b: 5888 of 5888 on Julia 1.13.1; at
+22cc4db: 5902; at e96ccef: 5904 (the peer's test included); at b3fb063:
+5919. The
 review's bit-identity against 49592cc held on every fixture and door,
 replay included; `frame!` allocates nothing beyond the `Snapshot` under
 `LoopHooks` and nothing under `NoHooks`; `LoopHooks` is stack-allocated;
@@ -134,20 +142,54 @@ replay included; `frame!` allocates nothing beyond the `Snapshot` under
     since `checkpoint.jl` is included before `sim.jl`, and runs first in
     `_enter_checkpoint!`, so `:consistent` lands before the run opens.
 
+16. **The source layout after the split** (`brief_source_layout_model.md`,
+    the user's ruling): a model layer between the executor and the
+    runtime, `conditions`, `model`, `stepper`, `frame` above `sim`,
+    `devices` below it, every parameter the old order left untyped now
+    typed, `localization.jl` renamed `frame.jl`.
+17. **`ResidueRecord` moves to `dataplane.jl`.** The stage stopped on it:
+    `TerminationRecord` holds a `Vector{ResidueRecord}`, so `devices.jl`
+    cannot follow `sim.jl` while the type lives there. It is a value of
+    the plane's vocabulary, built from `WriterStatus`, `DiagValue` and
+    `KindCounts`, so it sits beside them. The brief's ranges were
+    corrected at the keyboard (the `Model` block 123 to 182, the
+    checkpoint blocks 55 to 86 and 105 to 112, `phase_bodies` 481 to 495),
+    the `NoHooks … LoopHooks` paragraph stays in the `FrameHooks`
+    docstring, and the routing table's `localization` entry becomes
+    `frame` with `model` added to the "all of it" row.
+
+18. **The claim's refusals are collected with `join_timeout`'s**, so a
+    refused construction throws the collected `DiagnosticError` and the
+    tests read the diagnostic through `diagnostics(failure(…))`, as the
+    `join_timeout` test does; only the compare-and-swap's race arm throws
+    the single-diagnostic form. The two new reasons joined the
+    diagnostic-kinds occurrence list rather than the `occursin` rendering
+    assertions.
+
 ## Open points for the user
 
 - Two docstring sentences in `src/deployment.jl` (289 at 49592cc,
   "`Simulation` materializes it") and `src/build.jl` (1381, "a
   `Simulation` owns its nominal executor") are loose but true through the
   model; increment three's sweep.
-- **F1, the user's ruling.** `Simulation(model)` accepts a model at any
-  status, and `lifecycle(sim)` reads the model's status as if only this
-  simulation's doors wrote it. A model that went through `init!` on its
-  own, or one shared by two simulations, makes a simulation read
-  `:initialized` with no snapshot; `run!` then throws from `_record` in
-  `_run_body!`'s `finally` and the running flag never clears, so the
-  simulation is wedged at `:running`. Unreachable at 49592cc, where every
-  simulation compiled its own executor.
+- F1 was ruled by the user as D-318 (c1ef572): the constructor claims
+  the model and refuses one already claimed or not at `:built`; the
+  conformance commit follows. The reviewer's third test, the running flag
+  clearing after a failed advance, has no reachable path once the claim
+  lands and was dropped.
+- The `restore!` docstring in `sim.jl` still narrates the old internal
+  order (state copied back, batches dropped, run built); the order is now
+  run first, then the model's restore door. No visible effect; a
+  docstring-sized fix.
+- The reviewer confirmed F2 to F5 at 22cc4db and re-killed both
+  surviving mutants. Two minor points it would not block on, which could
+  ride on F1's conformance commit: `_restore_state!(model, cp)` writes
+  `:consistent` before `_enter_checkpoint!` opens the run and publishes,
+  so a concurrent `lifecycle(sim)` reader briefly sees the new status
+  beside the old run (the cleaner shape mirrors the model's `init!`: the
+  model method takes `hooks`, calls `settled!`, then writes); and the
+  untyped `model` parameter lets a wrong-scalar executor fall through to
+  a `FieldError` rather than a `MethodError`, unreachable from `src/`.
 - Ruling 9: a loop throw outside the frame now reads `:stopped` with a
   `LoopError` record, not `:errored`. Nothing tests it; if `:errored` is
   wanted there, the arm writes `:inconsistent` back and D-317's writer
