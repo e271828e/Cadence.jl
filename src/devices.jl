@@ -597,6 +597,7 @@ function _sweep_tail!(sim, roster)
     _fold!(plane.harness_account, plane.harness_diag)
     _residue!(residue, "harness", plane.harness_account)
     _fold!(plane.loop_account, plane.loop_diag)
+    _fold!(plane.loop_account, sim.model.frame_diag)   # the frame's own cell (§11.8, D-317)
     _residue!(residue, "loop", plane.loop_account)
     residue
 end

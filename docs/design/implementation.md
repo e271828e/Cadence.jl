@@ -262,9 +262,13 @@ Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274, D-317.
     unrolls, and `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
 - `apply!` on a model, with a forwarding method on the simulation (D-317).
+- `init!` on a model, beside `apply!` because the plan type is defined here.
+  The condition method resolves, and the plan method does the writes, runs
+  boundary zero under §13.4's catch and settles it through the hooks (D-223,
+  D-317).
 
-Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
-D-130, D-204, D-205, D-207, D-226, D-277, D-315, D-317.
+Spec: §9.5, §13.1, §13.3, §13.4, §14.1–§14.6, §14.9, Appendix B, D-063–D-068,
+D-117, D-130, D-204, D-205, D-207, D-223, D-226, D-277, D-315, D-317.
 
 ### `src/control.jl`
 
@@ -309,7 +313,8 @@ D-256, D-268, D-269, D-317.
 - The compiled writer `Writer` and `Batch`, and the staging cells.
 - The per-writer drain `_drain!`, which sim.jl's `drain!` reaches through the
   roster's thunks.
-- The typed diagnostic kinds and the diagnostic cells.
+- The typed diagnostic kinds and the diagnostic cells, one per writer and one
+  on each model for its frame (D-317).
 - `KINDS`, the closed set's one home. The union `DiagValue` and `KindCounts`'
   field order are built from it.
 - The diagnostic kinds include:
@@ -329,7 +334,7 @@ D-256, D-268, D-269, D-317.
   - the copy off a live `Pacer` is control.jl's.
 
 Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
-D-027, D-038, D-137, D-250, D-255, D-269, D-316.
+D-027, D-038, D-137, D-250, D-255, D-269, D-316, D-317.
 
 ### `src/declare.jl`
 
@@ -425,10 +430,11 @@ D-250, D-254, D-256, D-261.
   reaching the tail collapses the remaining joins into `DeviceJoinTimeout` by
   name (D-268).
 - `ResidueRecord` sits beside the sweep that builds it after the tail (§13.5,
-  D-203).
+  D-203). The sweep folds the model's diagnostic cell into the loop's account
+  beside the loop's own cell (§11.8, D-317).
 
-Spec: §11.1, §11.3, §11.6, §11.7, §12.1–§12.4, §13.5, §13.6, D-198, D-203,
-D-233, D-244, D-256, D-261, D-268, D-270, D-315.
+Spec: §11.1, §11.3, §11.6, §11.7, §11.8, §12.1–§12.4, §13.5, §13.6, D-198,
+D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
 
 ### `src/diagnostics.jl`
 
@@ -556,19 +562,19 @@ D-276, D-277.
 
 ### `src/localization.jl`
 
-- The frame loop, with the arrival sweep, the θ = 0 validation, ITP
+- The model's `frame!(model, k, hooks)` and `_grid_time` (D-317): the top
+  hook, the integration, the frame-top boundary and the settled hook, inside
+  §13.4's one `try`, whose catch writes the model's status and builds the
+  `StepError` with `_wrap_step`.
+- The localization loop, with the arrival sweep, the θ = 0 validation, ITP
   bracketing `_crossing`, `t*` boundaries, the localization budget and the
-  `ChatteringBudget` degradation.
-- The cursor's arrival/validation/trial phases.
-- §13.5's stop-request read at every `t*` publication (D-261, D-316):
-  - the read is off the policy and the ignore mask `frame!` carries;
-  - when an honoured request holds, the frame's remainder is abandoned and
-    its `Requester` is returned.
-- The run's pacer, carried beside the policy and the mask to the `t*`
-  publication for its record (§10.7, D-269).
+  `ChatteringBudget` degradation, reported into the model's diagnostic cell.
+- The cursor's drain/arrival/validation/trial phases.
+- `settled!` at every `t*` boundary and at the frame top. A `true` abandons
+  the frame's remainder and is `frame!`'s return (§13.5, D-261, D-317).
 
-Spec: §10.2, §10.4, §10.7, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
-D-261, D-269, D-316.
+Spec: §10.2, §10.4, §11.8, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
+D-261, D-317.
 
 ### `src/readers.jl`
 
@@ -664,8 +670,8 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   requester's path, port and reason (D-316).
 - `Run{T}`, §12.6's run state with the frame and boundary counters, and
   `closed(run)` (D-255, D-260, D-317).
-- `Model{T,E}`, the deployment and its executor at one scalar, and its status
-  (§9.2, §12.6, D-317).
+- `Model{T,E}`, the deployment and its executor at one scalar, its status and
+  its frame's diagnostic cell (§9.2, §11.8, §12.6, D-317).
 - The mutable `Simulation` of four fields, the model, the plane, the control
   and the run (§12.1, D-256, D-317).
 - The materialization `Model(deployment, T)`, with `Model(::Build)` and
@@ -676,11 +682,14 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
   (D-254, D-317).
 - `warnings(::Model)`, with a forwarding method on the simulation (D-250).
 - The boundary macro-sequence.
-- The §10.6 event phase, with its `FiringBudget` degradation.
+- The §10.6 event phase, with its `FiringBudget` degradation into the model's
+  diagnostic cell (D-317).
 - `init!`, `restore!`, `run!`/`step!` and `replay!`, with the run body
-  `_run_body!` and the door body `_enter_checkpoint!` (D-274).
+  `_run_body!` and the door body `_enter_checkpoint!` (D-274). The
+  simulation's `init!` is the gate and the run's bookkeeping around the
+  model's `init!` in conditions.jl (D-317).
 - `checkpoint(sim)`.
-- `_open_trajectory!`, `_reset_periphery!` and `_open_run!`.
+- `_reset_periphery!` and `_open_run!`.
 - `attach!`/`detach!`.
 - The pause verbs `pause!`/`resume!`/`paused`, beside `stop!(sim)` (§12.1,
   D-268).
@@ -689,7 +698,12 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - §12.2's thread-budget check `report_thread_budget!` (D-027).
 - Staging, the drain with its replay substitution, and publication:
   `stage!`, `drain!`, `_replay_drain!` and `publish!`, with the run's copy of
-  the roster (§11.3).
+  the roster (§11.3). Both drains fold the model's diagnostic cell into the
+  loop's account beside the loop's own cell (§11.8, D-317).
+- The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, the no-op
+  `NoHooks`, and the loop's `LoopHooks`, one per advance and per `init!`: the
+  drain at the top, and publication then the stop sample at every settled
+  boundary (§11.2, §13.5, D-317).
 - Publication's `task_state`, read off `run_tasks` by `_status` (§12.2,
   D-270).
 - §12.6's input mode: `mode(sim)`, `to_time` and `live!` (D-260).
@@ -699,9 +713,10 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261, D-315.
 - `t_end` and `ignore_stop_requests`, the advances' keywords, and `run!`'s
   `UnboundedRun` advisory (D-255, D-260, D-261, D-316).
 - The lifecycle, derived, and the termination record (D-317).
-- The frame loop's one catch site in `_advance!`, its second host
-  `_host_boundary_zero!`, the one constructor `_wrap_step`, and the species
-  rule `_species` with the runtime bundle-field match (§13.2, §13.4, D-248).
+- The frame loop `_advance!`, whose catch disposes only, the one constructor
+  `_wrap_step` on the model, which the model's `frame!` and `init!` call, and
+  the species rule `_species` with the runtime bundle-field match (§13.2,
+  §13.4, D-248, D-317).
 - §12.4's mask, its unmask points, and the interrupt arms of `run!` and
   `step!` (D-268). The invariants each arm keeps are
   stated in the comments at those sites.

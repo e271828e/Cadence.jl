@@ -89,20 +89,23 @@ function test_stepper()
         init!(sim, fragment(u = (ref = 0.0,)))
         integrate!(sim, 1e-3)
         @test @ballocated(integrate!($sim, 1e-3)) == 0
-        # The localizing frame allocates exactly its t* boundary's publication —
-        # the framework-side carve-out (§7.5, §11.2) — as under RK4 (gate 3).
+        # The localizing frame allocates exactly its two boundaries' publications,
+        # the t* one's and the frame top's — the framework-side carve-out (§7.5,
+        # §11.2) — as under RK4 (gate 3).
         bouncer_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
         init!(bouncer_sim; log = false)
         publish_bytes = @ballocated publish!($bouncer_sim, $(bouncer_sim.plane.roster))
         no_mask = Bool[]                    # the advance's argument (D-260, D-261)
-        @test @ballocated(frame!($bouncer_sim, 1, $no_mask, $(bouncer_sim.plane.roster), nothing), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
+        hooks = LoopHooks(bouncer_sim, bouncer_sim.plane.roster, nothing, no_mask)
+        @test @ballocated(frame!($(bouncer_sim.model), 1, $hooks), setup = (init!($bouncer_sim; log = false)), evals = 1) == 2 * publish_bytes
         # One honoured requester adds the scan of its buffer and no allocation
         # (§13.5, D-316).
         requested_sim = Simulation(requested_bouncer(); h = 1//10, algorithm = Heun)
         init!(requested_sim; log = false)
         requested_bytes = @ballocated publish!($requested_sim, $(requested_sim.plane.roster))
         honoured_mask = Bool[false]
-        @test @ballocated(frame!($requested_sim, 1, $honoured_mask, $(requested_sim.plane.roster), nothing), setup = (init!($requested_sim; log = false)), evals = 1) == requested_bytes
+        requested_hooks = LoopHooks(requested_sim, requested_sim.plane.roster, nothing, honoured_mask)
+        @test @ballocated(frame!($(requested_sim.model), 1, $requested_hooks), setup = (init!($requested_sim; log = false)), evals = 1) == 2 * requested_bytes
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin

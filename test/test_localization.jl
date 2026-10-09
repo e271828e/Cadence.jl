@@ -3,6 +3,19 @@
 # batch staged between runs is applied by the drain at the next frame top
 # (§11.4) — so a root-input write is always epoch-aligned here, by construction.
 
+# A frame's hooks that record what the model calls them for (D-317): the tops
+# counted, the clock at every settled boundary, and `abandon` as `settled!`'s
+# answer.
+mutable struct RecordingHooks{M} <: FrameHooks
+    model::M
+    tops::Int
+    boundaries::Vector{Float64}
+    abandon::Bool
+end
+frame_top!(hooks::RecordingHooks) = (hooks.tops += 1; nothing)
+settled!(hooks::RecordingHooks) =
+    (push!(hooks.boundaries, hooks.model.exec.clock.t); hooks.abandon)
+
 function test_localization()
     @testset "a localized event fires at t*, within tol of the true crossing (§10.4)" begin
         # Linear trajectory: RK4 and the cubic Hermite are both exact, so the stamp
@@ -224,16 +237,74 @@ function test_localization()
         init!(quiet_sim)
         run!(quiet_sim; t_end = 0.2)
         no_mask = Bool[]                    # the advance's argument (D-260, D-261)
-        @test @ballocated(frame!($quiet_sim, 3, $no_mask, $(quiet_sim.plane.roster), nothing)) == 0
+        # The model's frame allocates nothing; the loop's hooks add the frame
+        # top's publication, the carve-out (§7.5, §11.2, D-317).
+        @test @ballocated(frame!($(quiet_sim.model), 3)) == 0
+        quiet_hooks = LoopHooks(quiet_sim, quiet_sim.plane.roster, nothing, no_mask)
+        quiet_bytes = @ballocated publish!($quiet_sim, $(quiet_sim.plane.roster))
+        @test @ballocated(frame!($(quiet_sim.model), 3, $quiet_hooks)) == quiet_bytes
 
         # A localizing frame: one crossing, θ = 0 validation, ẋₙ₊₁, the bracketing
         # trials, the t* boundary and the remainder — all against preallocated
         # buffers, re-run from init! each sample. What it allocates is exactly the
-        # t* boundary's own publication — the framework-side carve-out (§7.5,
-        # §11.2) — and nothing of the localization machinery's.
+        # two boundaries' own publications, the t* one's and the frame top's —
+        # the framework-side carve-out (§7.5, §11.2) — and nothing of the
+        # localization machinery's.
         localizing_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10)
         init!(localizing_sim; log = false)
         publish_bytes = @ballocated publish!($localizing_sim, $(localizing_sim.plane.roster))
-        @test @ballocated(frame!($localizing_sim, 1, $no_mask, $(localizing_sim.plane.roster), nothing), setup = (init!($localizing_sim; log = false)), evals = 1) == publish_bytes
+        hooks = LoopHooks(localizing_sim, localizing_sim.plane.roster, nothing, no_mask)
+        @test @ballocated(frame!($(localizing_sim.model), 1, $hooks), setup = (init!($localizing_sim; log = false)), evals = 1) == 2 * publish_bytes
+        @test @ballocated(frame!($(localizing_sim.model), 1), setup = (init!($localizing_sim; log = false)), evals = 1) == 0
+    end
+
+    @testset "a model steps its frame under no hooks, and the hooks see every settled boundary (§10.4, D-317)" begin
+        # A t* in frame 4 and a base tick at every frame top: the model stepped
+        # alone reaches the state the loop reaches, component by component.
+        deployment = Deployment(build(Group((; src = Sawtooth(1.0), s = Stamper(0.315),
+                                               ctl = DiscreteAccumulator(1.0));
+                                            local_wires = ("src/q" => "s/sig",
+                                                           "src/q" => "ctl/e")));
+                                h = 1//10)
+        model = Model(deployment)
+        init!(model)
+        frames!(model, 10)
+        sim = Simulation(deployment)
+        init!(sim)
+        run!(sim; t_end = 1.0)
+        @test sim.run.frame == 10
+        for path in ("src", "s", "ctl")
+            @test state(model, path) == state(sim, path)
+        end
+        @test modes(model, "s") == modes(sim, "s")
+
+        # Ten tops, and the frame with the t* settles twice: at t* and at its top.
+        model = Model(deployment)
+        init!(model)
+        hooks = RecordingHooks(model, 0, Float64[], false)
+        @test [frame!(model, k, hooks) for k in 1:10] == fill(false, 10)
+        @test hooks.tops == 10
+        @test length(hooks.boundaries) == 11
+        t_star = modes(model, "s").t_fired
+        @test t_star ≈ 0.315 atol = 1e-6
+        @test hooks.boundaries[4:5] == [t_star, 4 * deployment.h]
+
+        # A `true` at the first t* abandons the frame there: the clock stays at
+        # t*, the frame top is never reached, and the remainder never runs.
+        model = Model(deployment)
+        init!(model)
+        frames!(model, 3)
+        hooks = RecordingHooks(model, 0, Float64[], true)
+        @test frame!(model, 4, hooks) === true
+        @test hooks.boundaries == [t_star]
+        @test model.exec.clock.t == t_star
+        @test state(model, "src").q ≈ t_star atol = 1e-12
+        @test modes(model, "s").count == 1
+
+        # A `D8` model steps its frame too, its events compiled out (§9.4).
+        dual_model = Model(deployment, D8)
+        init!(dual_model)
+        @test frame!(dual_model, 1) === false
+        @test ForwardDiff.value(state(dual_model, "src").q) ≈ 0.1 rtol = 1e-12
     end
 end

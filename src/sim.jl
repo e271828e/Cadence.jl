@@ -153,18 +153,22 @@ chunk_size)`, and `Model(root; kw…)` calls `build` first.
   completed or a checkpoint has been restored, and `:inconsistent` after a
   throw inside a sequence. Only the model's own doors and catch sites write it, and
   `lifecycle(sim)` reads it (§12.6, D-317).
+- `frame_diag`: the frame's own diagnostic cell, where the chattering and
+  firing-budget reports go. A simulation's drain folds it into the loop's
+  account beside the loop's own cell (§11.8, D-317).
 """
 mutable struct Model{T,E}
     const deployment::Deployment
     const exec::E
     @atomic status::Symbol
+    const frame_diag::DiagCell
 end
 
 function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size::Int = 16) where {T}
     act = activation(deployment.build, T)
     exec = compile(deployment.build, act, deployment.schedule; chunk_size,
                    algorithm = deployment.algorithm)
-    Model{T,typeof(exec)}(deployment, exec, :built)
+    Model{T,typeof(exec)}(deployment, exec, :built, DiagCell(EMPTY_DIAG))
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254).
@@ -522,20 +526,19 @@ a discrete component's cells carry `y[k]` computed from `s[k]` while
 `s_update` produces `s[k+1]` — the sampled-data recursion, ordered by
 construction rather than by convention.
 
-The three boundary routines run on the model; `loop_diag` is the cell the event
-phase reports a `FiringBudget` into, and a simulation's forwarding method
-passes the plane's.
+The three boundary routines run on the model, and the event phase reports a
+`FiringBudget` into the model's `frame_diag` (§11.8, D-317).
 """
-@inline function boundary!(model::Model, tick::Int, loop_diag::DiagCell)
+@inline function boundary!(model::Model, tick::Int)
     cursor = model.exec.cursor
     _phase!(cursor, :project)
     _projects!(model.exec.events, model.exec.xbuf)
-    event_phase!(model, tick, loop_diag)
+    event_phase!(model, tick)
     _phase!(cursor, :ticks)
     model.exec.bodies.ticks(tick)
     nothing
 end
-@inline boundary!(sim::Simulation, tick::Int) = boundary!(sim.model, tick, sim.plane.loop_diag)
+@inline boundary!(sim::Simulation, tick::Int) = boundary!(sim.model, tick)
 
 """
 The macro-sequence at a step boundary that is *not* a base tick: the tick
@@ -546,13 +549,13 @@ entry gated out, so consistency is restored and nothing discrete can move;
 projection and the event phase run in full — every step boundary is a boundary
 (§10.4).
 """
-@inline function offtick_boundary!(model::Model, loop_diag::DiagCell)
+@inline function offtick_boundary!(model::Model)
     _phase!(model.exec.cursor, :project)
     _projects!(model.exec.events, model.exec.xbuf)
-    event_phase!(model, nothing, loop_diag)
+    event_phase!(model, nothing)
     nothing
 end
-@inline offtick_boundary!(sim::Simulation) = offtick_boundary!(sim.model, sim.plane.loop_diag)
+@inline offtick_boundary!(sim::Simulation) = offtick_boundary!(sim.model)
 
 """
 Boundary zero's macro-sequence (§14.5, D-205): the ordinary one, with the
@@ -570,19 +573,19 @@ non-nominal activation has no entries here at all (§9.4's executable set), so
 its pinned cells keep the carried nominal products — at boundary zero as
 everywhere.
 
-Never called bare: `_host_boundary_zero!` below hosts it for `init!`, the one
-door that runs it (D-274), wrapping a throw as §13.4's catch does (D-223).
+Never called bare: the model's `init!` (conditions.jl) hosts it, the one door
+that runs it (D-274), wrapping a throw as §13.4's catch does (D-223, D-317).
 """
-@inline function boundary_zero!(model::Model, loop_diag::DiagCell)
+@inline function boundary_zero!(model::Model)
     cursor = model.exec.cursor
     _phase!(cursor, :project)
     _projects!(model.exec.events, model.exec.xbuf)
-    event_phase!(model, ESTABLISH, loop_diag)
+    event_phase!(model, ESTABLISH)
     _phase!(cursor, :ticks)
     model.exec.bodies.ticks(0)
     nothing
 end
-@inline boundary_zero!(sim::Simulation) = boundary_zero!(sim.model, sim.plane.loop_diag)
+@inline boundary_zero!(sim::Simulation) = boundary_zero!(sim.model)
 
 # One iteration round's sweep: the whole gated schedule (§10.6), in the due-set
 # arity the boundary fixed — never the update laws, which wait for quiescence.
@@ -613,7 +616,7 @@ boundary, while every other event iterates untouched. At quiescence the prior
 is updated unconditionally from the final samples — every prior an honest
 observation of a settled boundary.
 """
-function event_phase!(model::Model, tick, loop_diag::DiagCell)
+function event_phase!(model::Model, tick)
     events, cursor = model.exec.events, model.exec.cursor
     _phase!(cursor, :round, 1)       # §13.4: the boundary sweep is round 1, and the guard
     _round!(model, tick)            # walk and the fire walk of a round carry its index
@@ -633,8 +636,8 @@ function event_phase!(model::Model, tick, loop_diag::DiagCell)
             if edge && !eligible && !events.warned[i]
                 events.warned[i] = true       # at most one report per event per boundary
                 (path, name) = events.names[i]
-                # the loop's own cell (§11.8): folded at the next frame top
-                report_cell!(loop_diag,
+                # the frame's own cell (§11.8, D-317): folded at the next frame top
+                report_cell!(model.frame_diag,
                              FiringBudget(path, name, _seconds(model.exec.clock.t), budget,
                                           events.count[i]))
             end
@@ -712,17 +715,6 @@ end
         # the frame-entry index, off the grid the clock sits on: the counters
         # are the run's, which the model never sees (D-317)
         boundary = _frames_to(_seconds(exec.clock.t), exec.clock.t₀, model.deployment.h) - 1)))
-end
-
-# The trajectory's opening at `init!` (§12.6): the model's clock anchored at
-# `t₀` and every event prior cleared (§10.6), then the opening every door
-# shares. The counters are the fresh run's (D-317).
-function _open_trajectory!(sim::Simulation, t₀::Float64)
-    sim.model.exec.clock.t = t₀         # into the deployment's scalar (D-260)
-    sim.model.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
-    fill!(sim.model.exec.events.prior, false)
-    _reset_periphery!(sim)
-    nothing
 end
 
 # What every door opens wholesale beside the state (§12.6): the §11.8 accounts
@@ -880,20 +872,17 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
     _check_recording(:init!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     plan = resolve_condition(condition, sim.model.deployment.build, T)      # both refusals precede every write
     assert_total(plan, sim.model.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
-    establish_defaults!(sim.model.exec.xbuf, sim.model.exec.sstores, sim.model.exec.mstores,
-                        sim.model.deployment.build.structure.components,
-                        activation(sim.model.deployment.build, T).decls)   # D-063's reset
-    apply!(sim, plan)
-    _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
+    _reset_periphery!(sim)
     _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, 0, 0, trace, log,
                Int(log_every), log_max)   # the fresh run, its header not yet taken (§12.6)
-    _host_boundary_zero!(sim)
-    publish!(sim, sim.plane.roster)   # the boundary-zero snapshot (§11.2, §14.5)
+    # The model's door does the writes and boundary zero, which publishes
+    # through `settled!`; nothing reads its return there, so the mask is empty
+    # (§11.2, §14.5, D-317).
+    init!(sim.model, plan; t0, hooks = LoopHooks(sim, sim.plane.roster, nothing, Bool[]))
     # §11.5's header: the checkpoint at the end of boundary zero, so a throw
     # inside it leaves no header and no trace to hand back (D-274)
     trc = sim.run.trace
     trc === nothing || (trc.header = _take_checkpoint(sim))
-    @atomic :release sim.model.status = :consistent   # boundary zero completed (D-317)
     nothing
 end
 
@@ -926,7 +915,7 @@ function checkpoint(sim::Simulation)
     # published, a `t*` boundary it did publish included.
     clock = sim.model.exec.clock
     frame = sim.run.frame
-    t_frame = _grid_time(sim, frame)
+    t_frame = _grid_time(sim.model, frame)
     published = latest(sim)
     clock.t == oftype(clock.t, t_frame) && published.frame == frame &&
         published.t == clock.t ||
@@ -1280,8 +1269,9 @@ Inside the loop, `frame!` carries each grid step `[tₖ₋₁, tₖ]` through th
 the frame-top boundary (§10.3) is a base tick every `N_base` frames, where the
 gate reads the tick index, and the empty-due-set boundary in between. The
 drain runs at the frame top only, never at a `t*` boundary (§10.4), while
-publication follows *every* boundary sequence (§11.2) — the frame top's here,
-a `t*` boundary's inside the frame loop, before integration resumes — and
+publication follows *every* boundary sequence (§11.2) — the frame top's and
+each `t*` boundary's, through the frame's `settled!` hook before integration
+resumes (D-317) — and
 every publication is a stop-request sampling point (§13.5), a `t*` hit ending
 the run with the `t*` snapshot final. The grid is driven by the frame index,
 so the run ends at the first frame top reaching or exceeding `t_end`, whole
@@ -1493,10 +1483,11 @@ function _run_body!(sim::Simulation, policy::StopPolicy, ignore_mask::Vector{Boo
             # published nothing and the previous snapshot is already final. The
             # source retains the cause as the frame loop wrapped it — a
             # `StepError` against the execution cursor (§13.4) — and the
-            # record itself is assembled here, after the sweep (D-203).
+            # record itself is assembled here, after the sweep (D-203). The
+            # model's catch already wrote its status, which reads `errored`
+            # (D-317).
             error_source = LoopError(cause)
             sim.run.termination = _record(sim, policy, error_source, residue)
-            @atomic :release sim.model.status = :inconsistent   # reads `errored` (D-317)
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
             # A source fired: the record closes the run, and the flag's clearing
@@ -1545,6 +1536,51 @@ end
 _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{Task}) =
     (for (entry, task) in zip(entries, tasks); plane.run_tasks[entry.id] = task; end; nothing)
 
+"""
+    FrameHooks
+    frame_top!(hooks)
+    settled!(hooks) → Bool
+
+What a model's frame calls out to (§10.4, §11.2, D-317). `frame!(model, k,
+hooks)` and the model's `init!` take one value of a `FrameHooks` subtype, a
+struct with concrete fields built once per advance, and call two generic
+functions on it:
+
+- `frame_top!(hooks)` runs first, before the model touches any state. It is
+  where external inputs arrive.
+- `settled!(hooks)` runs at every settled boundary before integration resumes:
+  the `t*` boundaries, the frame top's and, in `init!`, boundary zero's. It
+  returns whether to abandon the frame's remainder, and a `true` is `frame!`'s
+  return. §11.2's rule that every boundary publishes before integration
+  resumes is a contract on it.
+
+`NoHooks()` does nothing and returns `false`, for a model stepped on its own;
+the simulation's are `LoopHooks`.
+"""
+abstract type FrameHooks end
+
+"The hooks of a model stepped on its own: nothing at the top, never an abandon (D-317)."
+struct NoHooks <: FrameHooks end
+
+frame_top!(::NoHooks) = nothing
+settled!(::NoHooks) = false
+
+# The loop's hooks (§11.2, §11.4, §13.5, D-317), one per advance and one per
+# `init!`: the top hook is the drain, and the settled hook publishes the
+# boundary, then samples the stop requests off that snapshot. Which request
+# holds is the loop's to read again; the model learns only whether one does.
+struct LoopHooks{S<:Simulation} <: FrameHooks
+    sim::S
+    roster::Vector{RosterEntry}     # the run's copy (§11.3)
+    pacer::Union{Nothing,Pacer}     # the run's, `nothing` under `step!` and `init!` (§10.7)
+    ignore_mask::Vector{Bool}       # the advance's policy against the requesters (D-316)
+end
+
+frame_top!(hooks::LoopHooks) = drain!(hooks.sim, hooks.roster)
+settled!(hooks::LoopHooks) =
+    (publish!(hooks.sim, hooks.roster, hooks.pacer);
+     _stop_hit(hooks.sim, hooks.ignore_mask) !== nothing)
+
 # The frame loop, shared by both advance entries (§12.6: a stepped frame is
 # bit-identical to a run frame because this is the same code) — returns
 # `(source, frames advanced)`, the §13.5 source `nothing` exactly when the
@@ -1555,11 +1591,12 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # last published boundary as the final snapshot, §12.4(1)); `t_end`'s frame
 # completed; and the stop requests at every publication — the entry check first
 # (a boundary-zero or authored condition already terminal advances nothing,
-# §13.5), then after each frame's own publications, where a mid-frame `t*`
-# hit arrives as `frame!`'s return value with the frame's remainder already
-# abandoned (D-261: never a field of the policy or the cursor). `ignore_mask` is
-# the policy compiled against the requester roster, bound beside it and carried
-# to the sampling read (D-316).
+# §13.5), then after each frame's own publications, where a hit arrives as
+# `frame!`'s `true` with the frame's remainder already abandoned, and the
+# requester is read again off the snapshot the hook just published (D-261,
+# D-317: never a field of the policy or the cursor). `ignore_mask` is the
+# policy compiled against the requester roster, bound beside it and carried to
+# the sampling read in the hooks (D-316).
 # The frame top opens with the pause block, ahead of the stop word: the loop
 # parks there while paused, and a stop wakes it onto the word's read, so a
 # stop issued while paused ends the run with no further frame (§12.1, D-268).
@@ -1579,16 +1616,17 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # the pause block, the yield and the pacer's wait among them; one `try` per
 # iteration holds both, entered unmasked. Caught there, the interrupt yields
 # to a request the publication found holding (§13.5's order) and otherwise sets
-# the `:interrupt` stop. A frame that throws wraps its cause still masked, then
-# unmasks: its throw is the disposition, a pending interrupt is consumed, and
+# the `:interrupt` stop. A frame that throws arrives as the `StepError` the
+# model's catch built, still masked, then unmasks: its throw is the
+# disposition, a pending interrupt is consumed, and
 # the run ends `errored` (§12.4, §13.4). Every `try` exit, normal or not,
 # restores the sigatomic count its entry saw, so the mask's two ends sit
 # outside the frame's `try`.
 function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                    t_end_frame::Int, roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer})
     plane, control, clock, run = sim.plane, sim.control, sim.model.exec.clock, sim.run
-    N_base = sim.model.deployment.N_base
     h = sim.model.deployment.h
+    hooks = LoopHooks(sim, roster, pacer, ignore_mask)   # one per advance (D-317)
     advanced = 0
     requester = _stop_hit(sim, ignore_mask)
     requester === nothing || return (ModelRequestedStop(requester), advanced)
@@ -1606,19 +1644,16 @@ function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
             isempty(roster) || yield()
             pacer === nothing ||              # the pacer's wait: an unmask point (§12.4)
                 wait_deadline!(control, pacer, plane.loop_diag, _seconds(clock.t), h)
-            entry_boundary = run.frame  # the frame-entry boundary index (§13.4)
             Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
             try
-                drain!(sim, roster)
+                # the index advances first and the drain runs as the frame's top
+                # hook, so a batch taken at the top of frame `k` is recorded at
+                # `k` (§11.5, D-317)
                 k = (run.frame += 1)
-                hit = frame!(sim, k, ignore_mask, roster, pacer)
-                if hit === nothing
-                    k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
-                    publish!(sim, roster, pacer)
-                    requester = _stop_hit(sim, ignore_mask)
-                else
-                    requester = hit    # a t* publication hit (§13.5): that snapshot is final
-                end
+                hit = frame!(sim.model, k, hooks)
+                # the snapshot the hook sampled is the latest, so the read repeats
+                # it (§13.5, D-317)
+                requester = hit ? _stop_hit(sim, ignore_mask) : nothing
                 # a frame counts once it has published a boundary — which a `t*`
                 # stop hit has done, its remainder abandoned; the carve-out below
                 # is what makes the count observable, a throw carrying no return
@@ -1626,15 +1661,15 @@ function _advance!(sim::Simulation, ignore_mask::Vector{Bool}, upto::Int,
                 advanced += 1
             catch err
                 # The frame failed, so its throw is the disposition (§12.4, §13.4).
-                # The `StepError` is built still masked, since the species rule
-                # runs declarations, and carried in `failure` across the unmask:
-                # a pending raise lands in the arm below, which throws it.
-                # §13.4's one exception never wrapped is kept defensively: a
-                # synchronous throw from model code, the mask deferring only a
-                # signal. The frame is abandoned unpublished, the stores possibly
-                # mid-boundary, and the run takes the stop path (§12.4).
-                err isa InterruptException ||
-                    (failure = _wrap_step(sim, entry_boundary, :loop, err))
+                # The model's catch built the `StepError` still masked, since the
+                # species rule runs declarations, and it is carried in `failure`
+                # across the unmask: a pending raise lands in the arm below, which
+                # throws it. §13.4's one exception never wrapped is kept
+                # defensively: a synchronous throw from model code, the mask
+                # deferring only a signal. The frame is abandoned unpublished, the
+                # stores possibly mid-boundary, and the run takes the stop path
+                # (§12.4).
+                err isa InterruptException || (failure = err)
                 Base.sigatomic_end()
                 failure === nothing && return (_interrupt_source(control, nothing), advanced)
                 rethrow(failure)                   # the model's backtrace kept
@@ -1667,18 +1702,19 @@ end
 # clock at the failure, the frame-entry boundary as the replay pointer, the host
 # its caller names, and the cause under the species rule below. Nothing inside
 # the sequence throws a `StepError`, so one arriving here is an invariant firing,
-# not a re-wrap. Two callers reach it — the frame loop above, as `:loop`, and the
-# boundary-zero host below (D-223), as `:boundary_zero` — and it stays the only
+# not a re-wrap. Two callers reach it, both the model's catch sites (D-317):
+# `frame!` (localization.jl) as `:loop`, and the model's `init!` (conditions.jl)
+# around boundary zero as `:boundary_zero` (D-223). It stays the only
 # constructor.
-function _wrap_step(sim::Simulation, entry_boundary::Int, host::Symbol, err)
+function _wrap_step(model::Model, entry_boundary::Int, host::Symbol, err)
     err isa StepError && throw(InternalInvariant(
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
-    cursor = sim.model.exec.cursor
+    cursor = model.exec.cursor
     StepError(CursorFrame(cursor.comp == 0 ? nothing :
-                              sim.model.deployment.build.structure.components[cursor.comp].path,
+                              model.deployment.build.structure.components[cursor.comp].path,
                           cursor.fn, cursor.phase, cursor.index),
-              _seconds(sim.model.exec.clock.t), entry_boundary, host, _species(sim, err))
+              _seconds(model.exec.clock.t), entry_boundary, host, _species(model, err))
 end
 
 # The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
@@ -1686,21 +1722,21 @@ end
 # check (§9.5's conformance failure, the nonfinite sweep) be a plain thrower
 # of its kind while the catch site stays the only wrap. A collected carrier has
 # no single kind and rides as the cause it is.
-_species(::Simulation, err) = err
-_species(::Simulation, err::DiagnosticError{<:Diagnostic}) = err.carried
+_species(::Model, err) = err
+_species(::Model, err::DiagnosticError{<:Diagnostic}) = err.carried
 
 # §13.2's bundle-field match at runtime (D-248): a `FieldError` whose type is the
 # bundle the cursor's function received is the bundle-law diagnostic, classified
 # as at the probe. Any other `FieldError` is the author's own and rides as the
 # cause it is. `UserCodeFraming` gets no runtime arm: the carrier already names
 # the frame and the function through the cursor.
-function _species(sim::Simulation, err::FieldError)
-    cursor = sim.model.exec.cursor
+function _species(model::Model, err::FieldError)
+    cursor = model.exec.cursor
     cursor.comp == 0 && return err
     ci, family = cursor.comp, cursor.fn
-    comp_entry = sim.model.deployment.build.structure.components[ci]
+    comp_entry = model.deployment.build.structure.components[ci]
     comp, tier = comp_entry.instance, comp_entry.tier
-    stage1_ports = tuple(sim.model.deployment.build.outputs.components[ci].stage1...)
+    stage1_ports = tuple(model.deployment.build.outputs.components[ci].stage1...)
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
     legal_names = try
@@ -1725,23 +1761,6 @@ function _species(sim::Simulation, err::FieldError)
                      tier = tier === CONTINUOUS ? :continuous : :discrete, field = err.field,
                      legal = collect(legal_names),
                      reason = classify_bundle_field(family, tier, err.field))
-end
-
-# The second host of §13.4's catch (D-223): boundary zero runs the loop's
-# user-code surfaces with the cursor maintained through them, so a throw inside
-# it takes the one `StepError` constructor — frame from the cursor, `t₀`,
-# pointer 0, host `:boundary_zero`, the species rule — under the service's
-# disposition: the model returns to `:built`, which reads `built`, nothing
-# published, no record written. An interrupt is not model code failing and has
-# no stop path to route to here, so it moves the status and propagates raw.
-function _host_boundary_zero!(sim::Simulation)
-    try
-        boundary_zero!(sim)
-    catch err
-        @atomic :release sim.model.status = :built
-        err isa InterruptException && rethrow()
-        rethrow(_wrap_step(sim, 0, :boundary_zero, err))
-    end
 end
 
 """
@@ -1837,8 +1856,8 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         Base.sigatomic_begin()                # masked bookkeeping, as `run!`'s (§12.4, D-268)
         if cause !== nothing                  # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
+            # the model's catch already wrote its status, which reads `errored` (D-317)
             sim.run.termination = _record(sim, policy, LoopError(cause), _sweep_tail!(sim, roster))
-            @atomic :release sim.model.status = :inconsistent   # reads `errored` (D-317)
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
             if source !== nothing             # a §13.5 source fired inside the call:
@@ -2106,13 +2125,11 @@ recording, which is what the input mode the caller reads *is* (§12.6, D-260).
 """
 function drain!(sim::Simulation, roster::Vector{RosterEntry})
     plane = sim.plane
-    cursor = sim.model.exec.cursor         # the one store per frame that keeps a stale frame from
-    cursor.comp = 0; cursor.fn = :none  # being reported for a drain-side throw (§13.4)
-    _phase!(cursor, :drain)
     # one drain per frame, counted before any thunk runs, on both paths: the
     # count is the recording's length (§11.5) *and* the ordinal each record
-    # takes (D-260). The drain runs before the run's frame index increments, so a
-    # batch taken at the top of frame `k` is recorded — and replayed — at `k`.
+    # takes (D-260). The loop has advanced the run's frame index to `k` before
+    # `frame!` runs the drain as its top hook, so a batch taken at the top of
+    # frame `k` is recorded — and replayed — at `k` (D-317).
     trc = sim.run.trace
     trc === nothing || (trc.frames += 1)
     feed = sim.run.feed
@@ -2126,6 +2143,7 @@ function drain!(sim::Simulation, roster::Vector{RosterEntry})
     plane.harness_drain()
     _fold!(plane.harness_account, plane.harness_diag)
     _fold!(sim.plane.loop_account, sim.plane.loop_diag)
+    _fold!(sim.plane.loop_account, sim.model.frame_diag)   # the frame's own cell (§11.8, D-317)
     nothing
 end
 
@@ -2148,13 +2166,14 @@ here either — and re-records each one under the recording's own writer index,
 the header having been inherited (§12.7). The cursor only advances: the feed is
 in drain order, and the loop visits frames in it.
 
-The frame ordinal is computed from the run's frame index here rather than read
-off the trace: the records are keyed by it and the discard reports name it, and
-under the kill switch there is no trace to read it from (D-260).
+The frame ordinal is the run's frame index, which the loop has already
+advanced to this frame, rather than read off the trace: the records are keyed
+by it and the discard reports name it, and under the kill switch there is no
+trace to read it from (D-260, D-317).
 """
 function _replay_drain!(sim::Simulation, roster::Vector{RosterEntry}, feed::ReplayFeed)
     plane = sim.plane
-    frame = sim.run.frame + 1
+    frame = sim.run.frame
     for entry in roster
         handle = _handle(entry)
         _discard_staged!(handle.writer, handle.diag_cell, frame)
@@ -2163,6 +2182,7 @@ function _replay_drain!(sim::Simulation, roster::Vector{RosterEntry}, feed::Repl
     _discard_staged!(plane.harness, plane.harness_diag, frame)
     _fold!(plane.harness_account, plane.harness_diag)
     _fold!(sim.plane.loop_account, sim.plane.loop_diag)
+    _fold!(sim.plane.loop_account, sim.model.frame_diag)   # the frame's own cell (§11.8, D-317)
     i, record_count = feed.next, length(feed.records)
     # keyed exactly: the records are stably sorted by `(frame, writer)`, the entry
     # pass has validated every ordinal into the recording's frames, `replay!` has

@@ -50,8 +50,9 @@ author's — only they know their parser — and any *other* exception
 propagates to the wrapper as the `DeviceCrash` it is. The rest are the
 framework's: the three staging kinds (§11.4 — the write-surface and entry
 violations, every check at staging), the two budget degradations (§10.4,
-§10.6, on the loop's own cell), the pacer's forgiveness (§10.7, on the loop's
-own cell too), and the device crash (§12.4, from the
+§10.6, on the model's frame cell, which the loop's account folds, D-317), the
+pacer's forgiveness (§10.7, on the loop's own cell), and the device crash
+(§12.4, from the
 wrapper on the device's task, or from the calling task at the init bracket).
 """
 struct MalformedDatum <: Diagnostic
@@ -318,6 +319,8 @@ const EMPTY_DIAG = DiagBatch(DiagValue[], KindCounts())
 The diagnostic cell (§11.8): one per writer — each rostered device's, the
 harness writer's, the loop's own — single-writer, the same ownership
 argument as the staging cells: no locking, no arbitration, no new primitive.
+A `Model` owns one more, its frame's, which the drain folds into the loop's
+account (D-317).
 The CAS mirrors `stage_batch!`'s: a failed replace means the loaded batch was
 intercepted by the drain, and the retry re-reads what is pending now — the
 intercepted entries are already taken, and the entry in hand merges against

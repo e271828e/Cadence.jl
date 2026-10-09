@@ -11,6 +11,17 @@ walked(body, variant = :boundary) =
 # The gated entries of a body's boundary variant.
 gated(body) = count(e isa Gated for c in body.boundary for e in c.entries)
 
+# A standalone model stepped `n` whole frames under no hooks, from the frame
+# top its clock sits on (D-317).
+function frames!(model, n)
+    clock = model.exec.clock
+    k₀ = round(Int, (clock.t - clock.t₀) / model.deployment.h)
+    for i in 1:n
+        frame!(model, k₀ + i)
+    end
+    nothing
+end
+
 # A model of one component under a wrapper assembly — kept where a fixture wants
 # a named face; a bare leaf builds too (D-208).
 single(c) = Group((; c = c))

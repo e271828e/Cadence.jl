@@ -480,6 +480,16 @@ function failures_runtime()
         @test err.t == 0.05 && err.boundary == 0
         @test lifecycle(sim) === :errored
 
+        # A bare model's frame hosts the same catch: stepped under no hooks, it
+        # throws the same carrier and marks itself inconsistent (D-317).
+        dual_model = Model(fed(Tripwire(0.05), "arm"), D8; h = 1//10)
+        init!(dual_model, fragment(u = (in = true,)))
+        err = failure(() -> frames!(dual_model, 5))
+        @test err isa StepError{Tripped}
+        @test err.cursor == CursorFrame("c", :x_deriv, :integrate, 2)
+        @test err.t == 0.05 && err.boundary == 0 && err.host === :loop
+        @test dual_model.status === :inconsistent
+
         # The sweep's own species too: `isfinite` is defined on a `Dual`, the value
         # rides as the `Dual` it is, and the payload times are seconds either way.
         diverging_sim = Simulation(diverging(), D8; h = 1//10)

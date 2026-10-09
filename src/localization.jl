@@ -9,39 +9,55 @@
 # Frame ≠ boundary (§10.4): the frame `[tₙ, tₙ₊₁]` is the unit of scheduling —
 # tick eligibility keys to it, and `t*` is never a tick — while a boundary is a
 # published consistency point. Every `t*` produced here is a boundary that is
-# not a frame top, and its publication carries the run's pacer record as the
-# frame top's does (§10.7).
+# not a frame top, and it goes to `settled!` as the frame top's does (D-317).
 
 """Frame top `k`, computed from the index and `t₀` — never accumulated (§10.4).
 The origin and the stride are both `Float64`, so the top is one too, and the
 clock write below converts it into the deployment's scalar (D-260)."""
-_grid_time(sim::Simulation, k::Int) = sim.model.exec.clock.t₀ + k * sim.model.deployment.h
+_grid_time(model::Model, k::Int) = model.exec.clock.t₀ + k * model.deployment.h
 
 """
-    frame!(sim, k, ignore_mask, roster, pacer)
+    frame!(model, k, hooks = NoHooks()) → Bool
 
-Advance through the frame `[tₖ₋₁, tₖ]`, leaving the clock at the indexed frame
-top with the state and table at their arrival values — the frame-top boundary
-itself is the caller's, exactly as before. A model with no localized events
-(every non-nominal activation included, its events having compiled out) takes
-the bare step: no arrival machinery, no extra sweep, today's exact path.
-The one exception is a §13.5 stop observed at a `t*` publication: the frame's
-remainder was abandoned, so the clock stays at `t*` — where the stores are —
-and the frame top is never stamped. Returns the holding request's `Requester`
-then, `nothing` otherwise (D-261). `ignore_mask` is the advance's stop policy
-compiled against the requester roster, one `Bool` per requester, carried here
-for exactly that sampling read (D-260, D-261, D-316).
-`roster` is the run's copy and `pacer` the run's pacer, `nothing` under
-`step!`, both carried to the `t*` publication for its status (§10.7, §11.3,
-D-269).
+Advance through the frame `[tₖ₋₁, tₖ]` and settle its frame-top boundary
+(§10.4, D-317). The cursor's `:drain` phase is written first, then
+`frame_top!(hooks)` runs before the model touches any state, then the frame
+integrates. A model with no localized events (every non-nominal activation
+included, its events having compiled out) takes the bare step: no arrival
+machinery, no extra sweep. The clock is stamped at the indexed frame top, the
+boundary there runs, a base tick at `k % N_base == 0` and the off-tick
+sequence otherwise, and `settled!(hooks)` follows it, as it follows every `t*`
+boundary. Returns whether `settled!` asked to abandon the frame. A `true` at a
+`t*` boundary leaves the frame's remainder unrun, the clock at `t*` where the
+stores are, and the frame top never stamped (§13.5, D-261).
+
+The whole frame is the one `try` of §13.4: a throw writes the status
+`:inconsistent` and arrives as the `StepError` the one constructor builds, its
+pointer the frame-entry boundary `k - 1` and its host `:loop`. An
+`InterruptException` is never wrapped and writes no status (D-268).
 """
-function frame!(sim::Simulation{T}, k::Int, ignore_mask::Vector{Bool},
-                roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer}) where {T}
-    t_to = _grid_time(sim, k)
-    hit = sim.model.exec.has_localized ? _localized_frame!(sim, t_to, ignore_mask, roster, pacer) :
-                                   (integrate!(sim, T(sim.model.deployment.h)); nothing)
-    hit === nothing && (sim.model.exec.clock.t = t_to)
-    hit
+function frame!(model::Model{T}, k::Int, hooks::FrameHooks = NoHooks()) where {T}
+    try
+        cursor = model.exec.cursor
+        cursor.comp = 0; cursor.fn = :none   # no stale frame for a top-side throw (§13.4)
+        _phase!(cursor, :drain)
+        frame_top!(hooks)
+        t_to = _grid_time(model, k)
+        if model.exec.has_localized
+            _localized_frame!(model, t_to, hooks) && return true
+        else
+            integrate!(model, T(model.deployment.h))
+        end
+        model.exec.clock.t = t_to
+        N_base = model.deployment.N_base
+        k % N_base == 0 ? boundary!(model, k ÷ N_base) : offtick_boundary!(model)
+        settled!(hooks)
+    catch err
+        err isa InterruptException && rethrow()
+        failure = _wrap_step(model, k - 1, :loop, err)
+        @atomic :release model.status = :inconsistent
+        rethrow(failure)                # the model's backtrace kept
+    end
 end
 
 # The localization loop (§10.4). Each turn integrates one segment — the whole
@@ -50,26 +66,26 @@ end
 # localizations, one per `t*` boundary produced: per segment, root-finding runs
 # are already structurally bounded (at most one per declared event), while the
 # segment count is the quantity chattering inflates without bound. Returns
-# `nothing` at the frame top and the holding requester at a `t*` stop (D-261).
-function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
-                           roster::Vector{RosterEntry},
-                           pacer::Union{Nothing,Pacer}) where {T}
-    events, cursor = sim.model.exec.events, sim.model.exec.cursor
+# `false` at the frame top and `true` where `settled!` abandoned the frame at a
+# `t*` boundary (D-261, D-317).
+function _localized_frame!(model::Model, t_to, hooks::FrameHooks)
+    exec = model.exec
+    events, cursor = exec.events, exec.cursor
     n_events = length(events.prior)
-    (x₀, _) = startpoint(sim.model.exec.stepper)         # the seam's retained pair (§10.2):
+    (x₀, _) = startpoint(exec.stepper)         # the seam's retained pair (§10.2):
     localizations = 0                                 # x₀ = x(t_seg) after each integrate!
     fill!(events.loc_warned, false)
     while true
-        t_seg = sim.model.exec.clock.t
+        t_seg = exec.clock.t
         h′ = t_to - t_seg
-        integrate!(sim, h′)
+        integrate!(model, h′)
 
         # The arrival sweep at the segment's end — interior, on the raw
         # unprojected state, before any discrete cell refreshes (§10.4): the
         # sweep that closes the integration step is what raises the trigger.
         _phase!(cursor, :arrival)
-        sim.model.exec.bodies.sweep_1(); sim.model.exec.bodies.sweep_2()
-        _guards!(events, sim.model.exec.store, sim.model.exec.xbuf)
+        exec.bodies.sweep_1(); exec.bodies.sweep_2()
+        _guards!(events, exec.store, exec.xbuf)
         copyto!(events.σ1, events.σ)
 
         # The trigger (§10.4): localized policy, prior not-holding at the last
@@ -80,26 +96,26 @@ function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
                                   events.σ1[i] ≥ 0
             any_triggered |= events.triggered[i]
         end
-        any_triggered || return nothing
+        any_triggered || return false
 
         # Budget exhaustion degrades; it does not throw (§10.4): the remainder
         # step has already completed, and this crossing fires in the coming
         # boundary's ordinary iteration — boundary granularity for this frame.
-        if localizations ≥ sim.model.deployment.localization_budget
+        if localizations ≥ model.deployment.localization_budget
             for i in 1:n_events
                 (events.triggered[i] && !events.loc_warned[i]) || continue
                 events.loc_warned[i] = true   # at most one report per event per frame
                 (path, name) = events.names[i]
-                # the loop's own cell (§11.8): folded at the next frame top
-                report_cell!(sim.plane.loop_diag,
+                # the frame's own cell (§11.8, D-317): folded at the next frame top
+                report_cell!(model.frame_diag,
                              ChatteringBudget(path, name, _seconds(t_to),
-                                              sim.model.deployment.localization_budget,
+                                              model.deployment.localization_budget,
                                               localizations))
             end
-            return nothing
+            return false
         end
 
-        copyto!(sim.model.exec.xnext, sim.model.exec.xbuf)   # retain xₙ₊₁ before the trials clobber it
+        copyto!(exec.xnext, exec.xbuf)   # retain xₙ₊₁ before the trials clobber it
 
         # The θ = 0 validation (§10.4): x(t_seg) back into the buffer, one
         # interior sweep, no interpolant — x̂(0) = xₙ identically. σ₀ is the left
@@ -107,11 +123,11 @@ function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
         # the frame-top drain flipped the guard (`u` is the only thing that can
         # differ from the prior's evaluation context), so no in-frame crossing
         # exists — not localizing is the action, and it consumes no budget.
-        copyto!(sim.model.exec.xbuf, x₀)
-        sim.model.exec.clock.t = t_seg
+        copyto!(exec.xbuf, x₀)
+        exec.clock.t = t_seg
         _phase!(cursor, :validation)
-        sim.model.exec.bodies.sweep_1(); sim.model.exec.bodies.sweep_2()
-        _guards!(events, sim.model.exec.store, sim.model.exec.xbuf)
+        exec.bodies.sweep_1(); exec.bodies.sweep_2()
+        _guards!(events, exec.store, exec.xbuf)
         copyto!(events.σ0, events.σ)
         remaining = false
         for i in 1:n_events
@@ -120,17 +136,17 @@ function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
         end
         if !remaining
             # epoch-caused only: fall through to the frame top
-            copyto!(sim.model.exec.xbuf, sim.model.exec.xnext)
-            return nothing
+            copyto!(exec.xbuf, exec.xnext)
+            return false
         end
 
         # ẋₙ₊₁, paid only past a validated trigger (§10.4): one sweep and the
         # RHS block at the arrival state completes the interpolant's data.
-        copyto!(sim.model.exec.xbuf, sim.model.exec.xnext)
-        sim.model.exec.clock.t = t_seg + h′
+        copyto!(exec.xbuf, exec.xnext)
+        exec.clock.t = t_seg + h′
         _phase!(cursor, :arrival)        # never a stage: `evaluate!` counts within the phase
-        evaluate!(sim)
-        copyto!(sim.model.exec.ẋnext, sim.model.exec.ẋbuf)
+        evaluate!(model)
+        copyto!(exec.ẋnext, exec.ẋbuf)
 
         # Root-find each validated event; the boundary fires at the earliest t*
         # (§10.4). Ties need no decision — every standing edge at θ★ fires in
@@ -139,14 +155,14 @@ function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
         θ★ = 1.0
         for i in 1:n_events
             events.triggered[i] || continue
-            θ★ = min(θ★, _crossing(sim, i, events.σ0[i], events.σ1[i], t_seg, h′))
+            θ★ = min(θ★, _crossing(model, i, events.σ0[i], events.σ1[i], t_seg, h′))
         end
         if θ★ ≥ 1.0
             # Degenerate: the crossing is the frame top itself (§10.4). The
             # localization is discarded and the event fires inside the frame
             # top's ordinary iteration — one boundary, no zero-length remainder.
-            copyto!(sim.model.exec.xbuf, sim.model.exec.xnext)
-            return nothing
+            copyto!(exec.xbuf, exec.xnext)
+            return false
         end
 
         # The t* boundary (§10.4): interpolated state in, then the §10.6
@@ -154,22 +170,18 @@ function _localized_frame!(sim::Simulation{T}, t_to, ignore_mask::Vector{Bool},
         # construction, so this is exactly the off-tick boundary: projection
         # (authority rests here, not with the raw trials), the full event
         # phase iterated to quiescence under a fresh firing budget, priors
-        # updated from the settled samples — and the settled boundary publishes
-        # before integration resumes (§11.2): every boundary is a published
-        # consistency point. The interpolant is invalidated by falling out of
-        # scope — the handlers made it a lie for t > t*.
-        dense!(sim.model.exec.stepper, sim.model.exec.xbuf, sim.model.exec.xnext, sim.model.exec.ẋnext, θ★, h′)
-        sim.model.exec.clock.t = t_seg + θ★ * h′
-        offtick_boundary!(sim)
-        publish!(sim, roster, pacer)
+        # updated from the settled samples — and the settled boundary goes to
+        # `settled!` before integration resumes (§11.2): every boundary is a
+        # published consistency point. The interpolant is invalidated by falling
+        # out of scope — the handlers made it a lie for t > t*.
+        dense!(exec.stepper, exec.xbuf, exec.xnext, exec.ẋnext, θ★, h′)
+        exec.clock.t = t_seg + θ★ * h′
+        offtick_boundary!(model)
 
-        # Every publication is a stop-request sampling point (§13.5): an
-        # honoured request holding in the t* snapshot makes it the final one —
-        # the frame's remainder is abandoned, and the hit reaches the loop as the
-        # return value (D-261). The ignore mask is the advance's argument,
-        # carried down from `_advance!` through `frame!` (D-260).
-        requester = _stop_hit(sim, ignore_mask)
-        requester === nothing || return requester
+        # Every settled boundary may end the frame (§13.5): a `true` makes this
+        # boundary the frame's last, its remainder abandoned, and reaches the
+        # loop as `frame!`'s return (D-261, D-317).
+        settled!(hooks) && return true
         localizations += 1
     end
 end
@@ -180,11 +192,12 @@ mid-step clock, run the interior sweep, evaluate the guards. Discrete cells
 ZOH-hold through it — the interior sweep has no discrete entries — and the
 state is raw: projection's reach is the boundary, not the trial.
 """
-function _trial!(sim::Simulation, θ::Float64, t_seg, h′)
-    dense!(sim.model.exec.stepper, sim.model.exec.xbuf, sim.model.exec.xnext, sim.model.exec.ẋnext, θ, h′)
-    sim.model.exec.clock.t = t_seg + θ * h′
-    sim.model.exec.bodies.sweep_1(); sim.model.exec.bodies.sweep_2()
-    _guards!(sim.model.exec.events, sim.model.exec.store, sim.model.exec.xbuf)
+function _trial!(model::Model, θ::Float64, t_seg, h′)
+    exec = model.exec
+    dense!(exec.stepper, exec.xbuf, exec.xnext, exec.ẋnext, θ, h′)
+    exec.clock.t = t_seg + θ * h′
+    exec.bodies.sweep_1(); exec.bodies.sweep_2()
+    _guards!(exec.events, exec.store, exec.xbuf)
     nothing
 end
 
@@ -200,13 +213,13 @@ point is strictly later than the segment start and the guard observably holds
 there. A return of exactly 1.0 is the degenerate crossing-at-the-frame-top,
 discarded by the caller.
 """
-function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_seg, h′)
-    events = sim.model.exec.events
+function _crossing(model::Model, i::Int, σ₀::Float64, σ₁::Float64, t_seg, h′)
+    events = model.exec.events
     # The stop is a width in time, `localization_tol · h` (§10.4, D-133). In θ
     # over a remainder segment shorter than the frame it widens by h/h′; past
     # 1 the segment is already within tolerance, no trial runs, and the
     # crossing folds into the segment's end.
-    tol = sim.model.deployment.localization_tol * sim.model.deployment.h / _seconds(h′)
+    tol = model.deployment.localization_tol * model.deployment.h / _seconds(h′)
     lo, hi = 0.0, 1.0
     σlo, σhi = σ₀, σ₁
     # ITP constants over the unit bracket: κ₁ = 0.2, κ₂ = 2, n₀ = 1; ε is the
@@ -227,8 +240,8 @@ function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_se
         # project into the minmax radius
         θ = abs(θ_trunc - θ_mid) ≤ radius ? θ_trunc : θ_mid - direction * radius
         (lo < θ < hi) || (θ = θ_mid)
-        _phase!(sim.model.exec.cursor, :trial, j + 1)   # the trial ordinal, from 1 (§13.4)
-        _trial!(sim, θ, t_seg, h′)
+        _phase!(model.exec.cursor, :trial, j + 1)   # the trial ordinal, from 1 (§13.4)
+        _trial!(model, θ, t_seg, h′)
         σθ = events.σ[i]
         σθ ≥ 0 ? (hi = θ; σhi = σθ) : (lo = θ; σlo = σθ)
         j += 1
