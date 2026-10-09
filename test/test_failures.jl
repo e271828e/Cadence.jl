@@ -76,6 +76,12 @@ end
 diverging() = Group((div = Diverger(), con = Consumer());
                     local_wires = ("div/q" => "con/in",), input_wires = ("in" => "div/arm",))
 
+# A frame's hooks whose top throws, before the model touches any state: the
+# cursor must name the drain, never the last frame's dispatch (§13.4, D-317).
+struct ThrowingTop <: FrameHooks end
+frame_top!(::ThrowingTop) = error("the top hook failed")
+settled!(::ThrowingTop) = false
+
 # --- §9.5's always-on check at the write (D-235) --------------------------------
 # Every fixture below conforms on the branch the probe sees at `t = 0` and
 # diverges on the one a later frame takes — the case the probe cannot reach and
@@ -171,6 +177,17 @@ function failures_runtime()
         @test cursor.phase === :ticks                    # the sequence's last block, empty here
         @test cursor.fn === :y_direct              # the last dispatch the sweep walked
         @test cursor.comp == index_of(sim.model.deployment.build.structure, "plant")
+    end
+
+    @testset "a throw in the frame's top hook names the drain, not a stale frame (§13.4, D-317)" begin
+        model = Model(diverging(); h = 1//10)
+        init!(model, fragment(u = (in = false,)))
+        frames!(model, 3)                               # the cursor holds frame 3's last dispatch
+        err = failure(() -> frame!(model, 4, ThrowingTop()))
+        @test err isa StepError{ErrorException}
+        @test err.cursor == CursorFrame(nothing, :none, :drain, 0)
+        @test err.boundary == 3 && err.host === :loop
+        @test model.status === :inconsistent
     end
 
     @testset "a throw mid-integration names the component, `x_deriv` and the stage (§13.4)" begin
@@ -517,6 +534,14 @@ function failures_runtime()
         @test err.cursor.index == 0                     # the sweep is no stage, so no ordinal
         @test !(err.cause isa DomainError) && d.path != "con"
         @test lifecycle(sim) === :errored
+
+        # A `Float32` clock carries rounding past the grid time it was written
+        # at, and the payload's pointer still reads the frame entry.
+        float32_model = Model(diverging(), Float32; h = 1//10)
+        init!(float32_model, fragment(u = (in = true,)))
+        err = failure(() -> frames!(float32_model, 1))
+        @test err isa StepError{NonfiniteState}
+        @test err.cause.boundary == err.boundary == 0
     end
 
     @testset "the sweep covers a localized frame's remainder segment (§13.4, D-157)" begin

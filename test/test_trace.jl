@@ -1437,9 +1437,12 @@ function trace_checkpoints()
         init!(dual); frames!(dual, 5)
         dual_cp = _take_checkpoint(dual, 5, 5)
         @test isempty(dual_cp.layout.events) && isempty(dual_cp.prior)
+        # The restore is a model door: a twin never initialized leaves it
+        # consistent.
         twin = Model(single(GuardedRamp{(:low, :high)}()), D8; h = 1//10)
-        init!(twin)
-        _restore_state!(twin.exec, dual_cp)
+        @test twin.status === :built
+        _restore_state!(twin, dual_cp)
+        @test twin.status === :consistent
         @test state(twin, "c") == state(dual, "c")
     end
 

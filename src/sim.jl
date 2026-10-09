@@ -151,8 +151,9 @@ chunk_size)`, and `Model(root; kw…)` calls `build` first.
   cached layouts rather than writing through this one.
 - `status`: `:built` until boundary zero completes, `:consistent` once it has
   completed or a checkpoint has been restored, and `:inconsistent` after a
-  throw inside a sequence. Only the model's own doors and catch sites write it, and
-  `lifecycle(sim)` reads it (§12.6, D-317).
+  throw inside a frame. A throw inside boundary zero writes `:built`. Only the
+  model's own doors and catch sites write it, and `lifecycle(sim)` reads it
+  (§12.6, D-317).
 - `frame_diag`: the frame's own diagnostic cell, where the chattering and
   firing-budget reports go. A simulation's drain folds it into the loop's
   account beside the loop's own cell (§11.8, D-317).
@@ -713,9 +714,10 @@ end
         leaf = x_leaf_names[flat_index - first(xblocks[owner]) + 1],
         value = exec.xbuf[flat_index],
         t = _seconds(exec.clock.t),
-        # the frame-entry index, off the grid the clock sits on: the counters
-        # are the run's, which the model never sees (D-317)
-        boundary = _frames_to(_seconds(exec.clock.t), exec.clock.t₀, model.deployment.h) - 1)))
+        # the frame-entry index, off the grid time the clock sits on: every
+        # `integrate!` inside `frame!` ends at one, so rounding is exact at any
+        # scalar. The counters are the run's, which the model never sees (D-317)
+        boundary = round(Int, (_seconds(exec.clock.t) - exec.clock.t₀) / model.deployment.h) - 1)))
 end
 
 # What every door opens wholesale beside the state (§12.6): the §11.8 accounts
@@ -937,13 +939,12 @@ end
 function _enter_checkpoint!(sim::Simulation, cp::Checkpoint{Float64}, schemas, feed,
                             trace_switch::Bool, log_switch::Bool, log_every::Int,
                             log_max)
-    _restore_state!(sim.model.exec, cp)
+    _restore_state!(sim.model, cp)
     _reset_periphery!(sim)
     _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, cp.frame, cp.boundary,
                trace_switch, log_switch, log_every, log_max)
     sim.run.boundary -= 1
     publish!(sim, sim.plane.roster)
-    @atomic :release sim.model.status = :consistent
     nothing
 end
 

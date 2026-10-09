@@ -237,9 +237,10 @@ D-289, D-315, D-316.
   cursor and the periphery.
 - `_take_checkpoint`, the one read, on a model with the run's two counters
   passed in, behind `checkpoint(sim)` and the trace header `init!` takes
-  (D-317). `_restore_state!`, its inverse, behind `restore!`,
-  `replay!` and `linearize`'s default operating point. It is strict about
-  the scalar. `_restore_stores!` is the part of it that writes the `s` and
+  (D-317). `_restore_state!`, its inverse, on an executor behind
+  `linearize`'s default operating point, and on a model behind `restore!` and
+  `replay!`, where it is a model door and writes the status `:consistent`
+  (D-317). It is strict about the scalar. `_restore_stores!` is the part of it that writes the `s` and
   `m` stores, shared with `linearize`'s seeded half.
 - `_check_checkpoint!`, the fingerprint check `restore!` and replay's entry
   pass share, collecting `CheckpointMismatch`.

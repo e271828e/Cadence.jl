@@ -102,6 +102,15 @@ function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     nothing
 end
 
+# The same restore as a model door (D-317): the state it leaves is consistent,
+# and the model writes its own status. `Model` is defined in sim.jl, after this
+# file, so the argument is untyped, as `_take_checkpoint`'s is.
+function _restore_state!(model, cp::Checkpoint)
+    _restore_state!(model.exec, cp)
+    @atomic :release model.status = :consistent
+    nothing
+end
+
 # The `s` and `m` stores by value. A store's type is the same at every
 # activation (build.jl's `declarations`, `_mstores`), so `linearize`'s seeded
 # scratch takes this write as it is.

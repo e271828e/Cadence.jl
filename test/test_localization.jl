@@ -166,6 +166,23 @@ function test_localization()
             =# run!(sim; t_end = 0.1)
         @test modes(sim, "c").count == 9               # 8 at t*, 1 at the frame top
         @test state(sim, "c").q ≈ 0.049 atol = 1e-12   # the frame-top firing re-armed it
+
+        # Every frame chatters. A replay's drain folds the frame's own cell as
+        # the live drain does, so the replayed account carries the reports the
+        # original's did (§11.8, D-317).
+        relaxed = Simulation(single(Relaxer(1.0, 0.05, 0.001)); h = 1//10)
+        init!(relaxed)
+        step!(relaxed; frames = 3)
+        original_status = writer_status(latest(relaxed), "loop")
+        @test original_status.totals.chattering == 2   # frames 1 and 2, folded at the next tops
+        step!(relaxed; frames = 2)                     # the recording runs past the replay's end
+        replayed_sim = Simulation(single(Relaxer(1.0, 0.05, 0.001)); h = 1//10)
+        init!(replayed_sim)
+        @test_logs (:warn, r"ChatteringBudget from loop") #=
+            =# replay!(replayed_sim, trace(relaxed); t_end = 0.3)
+        @test mode(replayed_sim) === :replay           # every drain was the replay's
+        @test writer_status(latest(replayed_sim), "loop").totals.chattering ==
+              original_status.totals.chattering
     end
 
     @testset "the gate idiom localizes; a gate flip is an epoch edge (§10.4)" begin
@@ -300,6 +317,13 @@ function test_localization()
         @test model.exec.clock.t == t_star
         @test state(model, "src").q ≈ t_star atol = 1e-12
         @test modes(model, "s").count == 1
+
+        # A `true` at the frame top is `frame!`'s return too, in a frame with no t*.
+        model = Model(deployment)
+        init!(model)
+        hooks = RecordingHooks(model, 0, Float64[], true)
+        @test frame!(model, 1, hooks) === true
+        @test hooks.boundaries == [deployment.h]
 
         # A `D8` model steps its frame too, its events compiled out (§9.4).
         dual_model = Model(deployment, D8)
