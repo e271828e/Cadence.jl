@@ -216,12 +216,13 @@ the four stale spec sentences are increment 72's sites; E stands as built.
 
 ### Open points after the arc
 
-- **`checkpoint(model)` refuses every frame top past 0 on a `Float32`
-  model.** `_frame_slack` takes `eps` of the arguments promoted to
-  `Float64`, so a `Float32` clock's rounding exceeds the slack and
-  `_frames_to` lands one frame late. Predates the arc; reachable only on
-  a non-nominal model stepped by hand, whose `checkpoint` this increment
-  added. A loose fix: take the slack in the clock's own scalar.
+- **`checkpoint(model)` refused every frame top past 0 on a `Float32`
+  model**, since `_frame_slack` took its `eps` in `Float64`. Ruled
+  2026-10-10 (D-320, 4122311 and 08d5d02): the `Model` door admits only
+  `Float64` and a `ForwardDiff.Dual`, §9.5's embedding guarantee as a
+  list, and refuses any other scalar as `ArgumentInvalid` `:scalar`. The
+  `Float32` fixture in `test_failures.jl` retired with the mode; the slack
+  needs no fix. Gate 6074 of 6074.
 - `replay!(…; restore = true)` enters the trace header through
   `_enter_checkpoint!`, not a `restore!` door, so it makes no grid check;
   the ruling covers `restore!` only, and a recorded header is on the grid.
