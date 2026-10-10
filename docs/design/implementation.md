@@ -482,10 +482,12 @@ D-203, D-233, D-244, D-256, D-261, D-268, D-270, D-315, D-317.
 - `CheckpointMismatch`'s `:scalar` arm naming a `Model`,
   `ServiceLifecycle`'s model arm, the refusal off `:consistent`, and
   `ArgumentInvalid`'s `:non_nominal` raised on a `Model` (D-319).
+- `ArgumentInvalid`'s `:scalar` on `Model`, the materialization's refusal of
+  its scalar (§9.2, D-320).
 
 Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §13.5, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
-D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316, D-318, D-319.
+D-261, D-262, D-263, D-272, D-274, D-276, D-277, D-316, D-318, D-319, D-320.
 
 ### `src/executor.jl`
 
@@ -610,6 +612,8 @@ soon as nothing in it names a `Simulation` in a signature, and below
   `Model(deployment, T)` and `Model(::Build)` and `Model(::AbstractComponent)`
   over it (§9.2, §11.8, §12.6, D-254, D-317). `Simulation(model)` sets the
   claim flag once and nothing clears it (D-318).
+- The materialization's scalar refusal, `ArgumentInvalid` `:scalar` on any
+  `T` but `Float64` and a `ForwardDiff.Dual` (§9.5, D-320).
 - The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, and the
   no-op `NoHooks` (§11.2, §13.5, D-317).
 - The claim's gate `_claimed_gate`, which refuses a claimed model's direct
@@ -647,8 +651,9 @@ soon as nothing in it names a `Simulation` in a signature, and below
   beside it `_check_grid!`, the grid check the three restore doors share,
   collecting `CheckpointMidFrame` into the same list.
 
-Spec: §9.2, §10.2, §10.6, §11.2, §11.8, §12.6, §13.2, §13.4, §13.5, §14.5,
-D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317, D-318, D-319.
+Spec: §9.2, §9.5, §10.2, §10.6, §11.2, §11.8, §12.6, §13.2, §13.4, §13.5, §14.5,
+D-059, D-157, D-221, D-223, D-248, D-250, D-254, D-274, D-317, D-318, D-319,
+D-320.
 
 ### `src/readers.jl`
 

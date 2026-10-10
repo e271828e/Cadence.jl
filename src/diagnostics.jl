@@ -1946,7 +1946,7 @@ message(d::ConditionShapeDrift) =
 
 "§10.5, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Simulation|:init!|:restore!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding
+    call::Symbol                             # :Model|:Simulation|:init!|:restore!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -2037,6 +2037,11 @@ function message(d::ArgumentInvalid)
         return "`$(d.call)` was called on a model that belongs to a simulation, and its " *
                "doors are the simulation's — call $door on the simulation (§9.2, D-318)"
     end
+    d.call === :Model && d.reason === :scalar &&
+        return "`Model` at scalar `$(d.value)` — a model admits `Float64`, the nominal " *
+               "scalar, or a `ForwardDiff.Dual`, into which `Float64` embeds exactly; any " *
+               "other scalar would round every pinned value at the wire it crosses " *
+               "(§9.2, §9.5, D-320)"
     # The materialization's `join_timeout` (D-256) and the doors' four recording
     # keywords (D-261): each carries the constraint text and section its
     # `DeploymentInvalid` row carried before the keywords moved off the

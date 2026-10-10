@@ -602,6 +602,7 @@ function diagnostics_kind_set()
             ArgumentInvalid(call = :frame!, reason = :claimed, argument = :model),
             ArgumentInvalid(call = :apply!, reason = :claimed, argument = :model),
             ArgumentInvalid(call = :restore!, reason = :claimed, argument = :model),
+            ArgumentInvalid(call = :Model, reason = :scalar, argument = :T, value = Float32),
             ArgumentInvalid(call = :init!, reason = :range, argument = :trace, value = 1),
             ArgumentInvalid(call = :init!, reason = :range, argument = :log, value = 1),
             ArgumentInvalid(call = :init!, reason = :range, argument = :log_every, value = 0),
@@ -1042,6 +1043,10 @@ function diagnostics_kind_set()
                                            value = nothing))
         @test startswith(rendered, "`restore` must be true or false")
         @test occursin("got nothing", rendered)
+        # A refused scalar is named, then the two the door admits.
+        rendered = message(ArgumentInvalid(call = :Model, reason = :scalar, argument = :T,
+                                           value = Float32))
+        @test startswith(rendered, "`Model` at scalar `Float32` — a model admits `Float64`")
         # A `t*` stop's refusal names the clock, the top it fell short of, the
         # frame, and the three ways to stop at a top.
         rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4))

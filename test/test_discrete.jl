@@ -327,6 +327,13 @@ function discrete_deployment()
         @test sim.model isa Model{Float64}
         @test_throws MethodError Simulation(Model(deployment, D8))
         @test_throws MethodError Simulation(deployment, Float32)
+        # A `Model` admits only `Float64` and a `Dual`, into which `Float64`
+        # embeds exactly, and refuses any other scalar at the door (D-320).
+        for T in (Float32, Int)
+            d = carried(@test_throws DiagnosticError{ArgumentInvalid} Model(deployment, T))
+            @test d.call === :Model && d.reason === :scalar && d.argument === :T &&
+                  d.value === T
+        end
 
         # `warnings(sim)` is the concatenation of its artifacts' lists (D-250);
         # neither has a producer here.

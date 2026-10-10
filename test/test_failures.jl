@@ -541,14 +541,6 @@ function failures_runtime()
         @test err.cursor.index == 0                     # the sweep is no stage, so no ordinal
         @test !(err.cause isa DomainError) && d.path != "con"
         @test lifecycle(sim) === :errored
-
-        # A `Float32` clock carries rounding past the grid time it was written
-        # at, and the payload's pointer still reads the frame entry.
-        float32_model = Model(diverging(), Float32; h = 1//10)
-        init!(float32_model, fragment(u = (in = true,)))
-        err = failure(() -> frames!(float32_model, 1))
-        @test err isa StepError{NonfiniteState}
-        @test err.cause.boundary == err.boundary == 0
     end
 
     @testset "the sweep covers a localized frame's remainder segment (§13.4, D-157)" begin

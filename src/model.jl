@@ -20,7 +20,10 @@ records nothing; a `Simulation` does that around a `Model{Float64}`.
 
 Deploying and materializing are two steps (D-254). The `Deployment` is
 scalar-free and one backs many models; this call fixes the scalar, allocating
-the buffers. The scalar picks the activation the entries compile over, through
+the buffers. It admits `Float64` and a `ForwardDiff.Dual`, into which a
+`Float64` embeds exactly, and refuses any other `T` as `ArgumentInvalid`
+`:scalar` before it reads an activation (§9.2, §9.5, D-320). The scalar picks
+the activation the entries compile over, through
 `activation(deployment.build, T)`, which serves the nominal `Float64` entry the
 build inserted and derives and caches any other (§9.4). `chunk_size` is the
 unroll width `compile` takes. The two other forms are *defined as* the
@@ -56,6 +59,8 @@ mutable struct Model{T,E}
 end
 
 function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size::Int = 16) where {T}
+    T === Float64 || T <: ForwardDiff.Dual || throw(DiagnosticError(
+        ArgumentInvalid(call = :Model, reason = :scalar, argument = :T, value = T)))
     act = activation(deployment.build, T)
     exec = compile(deployment.build, act, deployment.schedule; chunk_size,
                    algorithm = deployment.algorithm)
