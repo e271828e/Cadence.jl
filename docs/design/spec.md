@@ -4068,8 +4068,10 @@ the grid parameters. It binds the grid parameters, the algorithm and the three
 event parameters, runs harmonic-grid validation, and builds the `Schedule`. The
 `Deployment` it returns holds the build, the grid parameters, the algorithm,
 the three event parameters, the `Schedule`, the grid diagnostics below and its
-own `warnings`. `Model` materializes it at a scalar type `T`, and
-`Simulation` runs a `Model{Float64}`. Two
+own `warnings`. `Model` materializes it at a scalar type `T` that is
+`Float64` or a `ForwardDiff.Dual`, and `Simulation` runs a `Model{Float64}`.
+**`Model` refuses any other scalar** as `ArgumentInvalid`, before it derives
+the activation at `T` ([§9.5][s9-5], [D-320][d-320]). Two
 `Deployment`s compare as values, which is what replay's header check reads
 ([§12.7][s12-7]).
 
@@ -4650,7 +4652,9 @@ lossy `Dual → Float64` cast. So a `Float64` observed at a walking leaf means n
 `Dual` entered its computation. Its true derivative along every seeded
 direction is zero, which is precisely what the embedded constant says. This
 scopes the blanket convert-on-write rejection to the nominal check
-([D-053][d-053]).
+([D-053][d-053]). The scalars a `Model` admits, `Float64` and a
+`ForwardDiff.Dual`, are this guarantee as a list, since a `Float64` embeds
+into each exactly ([§9.2][s9-2], [D-320][d-320]).
 
 #### Deliberate stripping
 
@@ -12579,8 +12583,10 @@ activation):
   `step!`, `replay!`, `pace!`, `margin!`, `trim!`, `linearize`, `TableBinding`,
   a period constructor), the argument, the value in hand, the violated
   constraint. `trim!` and `linearize` on a `Model` at another scalar raise it
-  with reason `:non_nominal` ([D-319][d-319]). The twin of `DeploymentInvalid` for
-  arguments that are not deployment parameters.
+  with reason `:non_nominal` ([D-319][d-319]). `Model` at a scalar other than
+  `Float64` or a `ForwardDiff.Dual` raises it with reason `:scalar` ([D-320][d-320]).
+  The twin of `DeploymentInvalid` for arguments that are not deployment
+  parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
   offending argument's type, the selector kinds in hand. Or an empty prefix
   handed to `at` on a read set ([§14.9][s14-9]). The read side's twin of
@@ -14021,6 +14027,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-317]: decisions.md#d-317--split-the-model-from-the-simulation-and-run-only-the-nominal-one
 [d-318]: decisions.md#d-318--a-simulation-claims-its-model
 [d-319]: decisions.md#d-319--split-the-checkpoint-into-the-models-state-and-the-runs-cursor-and-put-the-services-on-the-model
+[d-320]: decisions.md#d-320--admit-only-a-scalar-into-which-float64-embeds-exactly-at-the-model-door
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
