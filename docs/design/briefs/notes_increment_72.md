@@ -165,8 +165,9 @@ battery at 61c0f2b. No code changed after f185ba9, whose gate was the last.
 
 Seven commits on 7caec22: 65262d8 (the brief and these notes), 72c6214,
 82c7ace, 4ae873b (notes), f185ba9, 61c0f2b and this notes commit, which
-also adds the roadmap's landing paragraph. The user diff-verifies the arc,
-rules on the open points, and pushes.
+also adds the roadmap's landing paragraph. After the user ruled on the
+open points, 5e7299e, 945abeb and the notes commit that records them landed
+on D-320's c46fda3. The user diff-verifies the arc and pushes.
 
 ## Open points for the user, from the brief
 
@@ -183,3 +184,29 @@ rules on the open points, and pushes.
   compiled at a scalar": an activation is the `Build`'s. Headings are out
   of scope.
 - The `Float32` frame-slack point of `notes_increment_71.md` is untouched.
+
+## The user's rulings on the open points (2026-10-10)
+
+The user accepted every recommendation.
+
+- **`chunk_size` is checked in code, and Appendix C stands.** The gap was a
+  silent fault, not only a spec gap. A probe compiled a two-loop fixture at
+  `chunk_size = -1` and got a walk with no chunks, since `1:-1:n` is empty.
+  Zero threw Julia's own `ArgumentError`. `Model` now refuses anything but an
+  integer ≥ 1 as `ArgumentInvalid` `:range`, collected as Appendix C says the
+  constructors' keywords are. The scalar refusal is still thrown alone, since
+  `T` is positional and Appendix C collects keywords. `Model` and the
+  `Simulation` sugar dropped the `::Int` annotation, so a value of the wrong
+  type reaches the check, as `join_timeout`'s string case does. Landed in
+  945abeb, gate 6085 of 6085 on Julia 1.13.1.
+- **Three wording fixes and the §7.1 re-wrap landed in 5e7299e.** §8.6 says
+  "the assembly or the root". The case study says the FlightCore `Model`'s
+  jobs split between the build and Redstone's `Model`. The walkthrough's
+  heading reads "Activations: the build typed at a scalar".
+- **Three sites are kept.** §13's "parameterized model types" follows a
+  sentence that names FlightCore. `sample_time_proposal.md` is a historical
+  proposal. §9.7 keeps "from calling `build`", where the report's harness
+  starts its clock.
+- **Two points closed elsewhere.** D-320 (4122311, 08d5d02) closed the
+  `Float32` frame-slack point. Review ruling 6 superseded the brief's §9.7
+  entry above.
