@@ -26,9 +26,10 @@ the buffers. It admits `Float64` and a `ForwardDiff.Dual`, into which a
 the activation the entries compile over, through
 `activation(deployment.build, T)`, which serves the nominal `Float64` entry the
 build inserted and derives and caches any other (§9.4). `chunk_size` is the
-unroll width `compile` takes. The two other forms are *defined as* the
-compositions: `Model(build; kw…)` is `Model(Deployment(build; grid kw…), T;
-chunk_size)`, and `Model(root; kw…)` calls `build` first.
+unroll width `compile` takes, an integer ≥ 1, refused otherwise as
+`ArgumentInvalid` `:range` (Appendix C). The two other forms are
+*defined as* the compositions: `Model(build; kw…)` is `Model(Deployment(build;
+grid kw…), T; chunk_size)`, and `Model(root; kw…)` calls `build` first.
 
 - `deployment`: what the grid parameters fixed (§9.1, D-254), and through it
   the build, the schema authority a condition resolves against (§14.3). Held
@@ -58,11 +59,18 @@ mutable struct Model{T,E}
     const frame_diag::DiagCell
 end
 
-function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size::Int = 16) where {T}
+function Model(deployment::Deployment, ::Type{T} = Float64; chunk_size = 16) where {T}
     T === Float64 || T <: ForwardDiff.Dual || throw(DiagnosticError(
         ArgumentInvalid(call = :Model, reason = :scalar, argument = :T, value = T)))
+    # The call's keyword is not a deployment parameter, so it is an
+    # `ArgumentInvalid`, collected as the call's one throw (Appendix C, D-256).
+    diags = Diagnostic[]
+    chunk_size isa Integer && chunk_size ≥ 1 ||
+        push!(diags, ArgumentInvalid(call = :Model, reason = :range,
+                                     argument = :chunk_size, value = chunk_size))
+    isempty(diags) || throw(DiagnosticError(diags))
     act = activation(deployment.build, T)
-    exec = compile(deployment.build, act, deployment.schedule; chunk_size,
+    exec = compile(deployment.build, act, deployment.schedule; chunk_size = Int(chunk_size),
                    algorithm = deployment.algorithm)
     Model{T,typeof(exec)}(deployment, exec, :built, false, DiagCell(EMPTY_DIAG))
 end

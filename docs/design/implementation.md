@@ -613,7 +613,9 @@ soon as nothing in it names a `Simulation` in a signature, and below
   over it (§9.2, §11.8, §12.6, D-254, D-317). `Simulation(model)` sets the
   claim flag once and nothing clears it (D-318).
 - The materialization's scalar refusal, `ArgumentInvalid` `:scalar` on any
-  `T` but `Float64` and a `ForwardDiff.Dual` (§9.5, D-320).
+  `T` but `Float64` and a `ForwardDiff.Dual`, thrown alone (§9.5, D-320). Its
+  keyword refusal, `ArgumentInvalid` `:range` on a `chunk_size` that is not an
+  integer ≥ 1, is collected (Appendix C).
 - The frame's hooks `FrameHooks`, with `frame_top!` and `settled!`, and the
   no-op `NoHooks` (§11.2, §13.5, D-317).
 - The claim's gate `_claimed_gate`, which refuses a claimed model's direct

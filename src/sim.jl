@@ -220,7 +220,7 @@ end
 # The three sugar forms, each *defined as* the composition through a `Float64`
 # model (§9.2, D-254, D-317): every existing call site deploys and materializes
 # in one call, and nothing in the artifact is lost by composing.
-Simulation(deployment::Deployment; join_timeout = 5.0, chunk_size::Int = 16) =
+Simulation(deployment::Deployment; join_timeout = 5.0, chunk_size = 16) =
     Simulation(Model(deployment; chunk_size); join_timeout)
 Simulation(build::Build; h = nothing, N_base = nothing,
            Δt_base = nothing, algorithm = RK4, firing_budget = 4,

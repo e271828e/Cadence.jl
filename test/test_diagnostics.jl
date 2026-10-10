@@ -603,6 +603,7 @@ function diagnostics_kind_set()
             ArgumentInvalid(call = :apply!, reason = :claimed, argument = :model),
             ArgumentInvalid(call = :restore!, reason = :claimed, argument = :model),
             ArgumentInvalid(call = :Model, reason = :scalar, argument = :T, value = Float32),
+            ArgumentInvalid(call = :Model, reason = :range, argument = :chunk_size, value = 0),
             ArgumentInvalid(call = :init!, reason = :range, argument = :trace, value = 1),
             ArgumentInvalid(call = :init!, reason = :range, argument = :log, value = 1),
             ArgumentInvalid(call = :init!, reason = :range, argument = :log_every, value = 0),
@@ -1047,6 +1048,10 @@ function diagnostics_kind_set()
         rendered = message(ArgumentInvalid(call = :Model, reason = :scalar, argument = :T,
                                            value = Float32))
         @test startswith(rendered, "`Model` at scalar `Float32` — a model admits `Float64`")
+        rendered = message(ArgumentInvalid(call = :Model, reason = :range, argument = :chunk_size,
+                                           value = -1))
+        @test startswith(rendered, "`chunk_size` must be an integer ≥ 1")
+        @test occursin("got -1", rendered)
         # A `t*` stop's refusal names the clock, the top it fell short of, the
         # frame, and the three ways to stop at a top.
         rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4))

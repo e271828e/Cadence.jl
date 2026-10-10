@@ -334,6 +334,18 @@ function discrete_deployment()
             @test d.call === :Model && d.reason === :scalar && d.argument === :T &&
                   d.value === T
         end
+        # Its keyword `chunk_size` is an integer ≥ 1, refused otherwise and
+        # collected (Appendix C). A negative width would leave the executor's
+        # walk with no chunks, since `1:-1:n` is empty.
+        for bad in (0, -1, 2.5, "16")
+            err = failure(() -> Model(deployment; chunk_size = bad))
+            d = only(diagnostics(err))
+            @test err isa DiagnosticError && d isa ArgumentInvalid && d.call === :Model &&
+                  d.reason === :range && d.argument === :chunk_size && d.value === bad
+        end
+        @test only(diagnostics(failure(() -> Simulation(deployment; chunk_size = 0)))).argument ===
+              :chunk_size
+        @test Model(deployment; chunk_size = 1).exec.chunk_size === 1
 
         # `warnings(sim)` is the concatenation of its artifacts' lists (D-250);
         # neither has a producer here.

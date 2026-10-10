@@ -2049,6 +2049,10 @@ function message(d::ArgumentInvalid)
     d.argument === :join_timeout &&
         return "`join_timeout` must be a positive real — the shutdown tail's join cap in " *
                "seconds of wall clock, got $(repr(d.value)) (§12.4)"
+    # The `Model`'s own keyword (Appendix C).
+    d.argument === :chunk_size &&
+        return "`chunk_size` must be an integer ≥ 1 — the executor's unroll width, which " *
+               "never moves the trajectory — got $(repr(d.value)) (§9.7)"
     d.argument === :trace &&
         return "`trace` must be true or false — §11.5's trace kill switch, got $(repr(d.value))"
     d.argument === :log &&
