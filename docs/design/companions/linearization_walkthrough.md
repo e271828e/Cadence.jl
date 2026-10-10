@@ -227,7 +227,7 @@ The framework was designed so that a model evaluates at any scalar type, and
 `Dual` is the scalar type this whole section cares about. Four pieces of
 existing machinery do the work.
 
-### 4.1 Activations: the model compiled at a scalar
+### 4.1 Activations: the build typed at a scalar
 
 An *activation* ([§9.4][s9-4]) is the build's typed products at one concrete scalar
 type `T`: every declaration retyped with `Float64` replaced by `T`, the probe

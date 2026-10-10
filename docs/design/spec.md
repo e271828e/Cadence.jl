@@ -1598,10 +1598,10 @@ the condition apply converts authored values through ordinary `convert` methods
 
 With the leaf vocabulary closed, the shape of `Ẋ` takes one line to state. `Ẋ`
 has exactly `X`'s shape at the [activation](#g-activation) scalar (the scalar `T` at which the
-build types the tree). A scalar leaf's derivative is a `T`, and an
-`SArray` leaf's is the same `SArray` at `T`. This is what the closed vocabulary
-buys. An invariant-carrying leaf like a unit quaternion has a derivative off its
-own type, and `Ẋ` would need a separate derivation. Here the attitude leaf is an
+build types the tree). A scalar leaf's derivative is a `T`, and an `SArray`
+leaf's is the same `SArray` at `T`. This is what the closed vocabulary buys.
+An invariant-carrying leaf like a unit quaternion has a derivative off its own
+type, and `Ẋ` would need a separate derivation. Here the attitude leaf is an
 `SVector{4,T}`, and so is its rate. The conformance predicate is structural.
 *Each field of `x_deriv`'s return scatters into its field's block at `T`* ([§9.5][s9-5]
 states the check). That makes derivative completeness a property of the layout
@@ -3111,7 +3111,7 @@ faces), and face uniqueness at the root. It then spells out a worked assembly,
 the strapdown IMU, and its leaves. It closes with the boundary-sampling
 contract.
 
-**Paths are slash-separated strings**, relative to the assembly or model root they
+**Paths are slash-separated strings**, relative to the assembly or the root they
 are read from, with no leading slash ([D-040][d-040]). There is one canonical form.
 Declarations, error messages, [device](#g-device)/[trace](#g-trace) addressing ([§11.3][s11-3]) and the HDF5 log
 tree share it verbatim. A device is any attached participant outside the loop,
